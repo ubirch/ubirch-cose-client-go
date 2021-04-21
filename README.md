@@ -1,6 +1,6 @@
 # UBIRCH COSE client (go)
 
-### COSE Service
+### Interface Description
 
 *see specification: [CBOR Object Signing and Encryption (COSE)](https://tools.ietf.org/html/rfc8152)*
 
@@ -25,17 +25,17 @@ used.
 {"Content-Type": "text/plain", "Content-Transfer-Encoding": "hex"}
 ```
 
-#### COSE Response
+### Response
 
 The service returns a ECDSA P-256 signed `COSE_Sign1` object.
 
 ```fundamental
-    COSE_Sign1 = [
-        protected : serialized_map,  # serialized CBOR encoded protected header map (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
-        unprotected : header_map,    # CBOR encoded unprotected header map \xA1\x04\x50\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E => {4: b'\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E'} => {"kid": <UUID>}
-        payload : bstr,              # original data or SHA256 hash (depending on request content)
-        signature : bstr             # ECDSA P-256 signature of the SHA256 hash of the CBOR encoded COSE_Sign1 signature structure
-    ]
+COSE_Sign1 = [
+    protected : serialized_map,  # serialized CBOR encoded protected header map (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
+    unprotected : header_map,    # CBOR encoded unprotected header map \xA1\x04\x50\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E => {4: b'\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E'} => {"kid": <UUID>}
+    payload : bstr,              # original data or SHA256 hash (depending on request content)
+    signature : bstr             # ECDSA P-256 signature of the SHA256 hash of the CBOR encoded COSE_Sign1 signature structure
+]
 ```
 
 The returned `COSE_Sign1` object contains the request data (original data or SHA256 hash) as payload and the
@@ -51,7 +51,7 @@ following [header parameters](https://tools.ietf.org/html/rfc8152#section-3):
 If only a hash (and not the original data) is sent to the COSE service, the original data must be inserted into the
 payload field of the returned `COSE_Sign1` object afterwards, in order to get a valid (verifiable) COSE object.
 
-#### How to create valid COSE objects without sending original data to the service
+### How to create valid COSE objects without sending original data to the service
 
 Here are the steps to create a valid `COSE_Sign1` object with the appropriate hash, which needs to be sent to the COSE
 service.
@@ -62,12 +62,12 @@ done internally by the service.*
 1. Create a [Sig_structure](https://tools.ietf.org/html/rfc8152#section-4.4) with the following fields.
 
     ```fundamental
-        Sig_structure = [
-            context : "Signature1",           # text string identifying the context of the signature
-            body_protected : serialized_map,  # the serialized CBOR encoded protected header map of the `COSE_Sign1` object (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
-            external_aad : bstr,              # empty (b'') or protected application attributes
-            payload : bstr                    # serialized CBOR encoded original data (b'<payload>')
-        ]
+    Sig_structure = [
+        context : "Signature1",           # text string identifying the context of the signature
+        body_protected : serialized_map,  # the serialized CBOR encoded protected header map of the `COSE_Sign1` object (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
+        external_aad : bstr,              # empty (b'') or protected application attributes
+        payload : bstr                    # serialized CBOR encoded original data (b'<payload>')
+    ]
     ```
 
     - context: `"Signature1"`           (identifier for `COSE_Sign1`)
@@ -86,12 +86,12 @@ done internally by the service.*
 5. CBOR-decode response into `COSE_Sign1` structure with the following fields.
 
     ```fundamental
-        COSE_Sign1 = [
-            protected : bstr,
-            unprotected : map,
-            payload : bstr,
-            signature : bstr
-        ]
+    COSE_Sign1 = [
+        protected : bstr,
+        unprotected : map,
+        payload : bstr,
+        signature : bstr
+    ]
     ```
 
 6. Insert original data into the `payload` field of the array.
@@ -111,34 +111,34 @@ COSE_Sign1->payload = b'payload bytes'
 
 When running the client locally, the default base address is:
 
-```fundamental
-http://localhost:8081
-```
+`http://localhost:8081`
 
-(or `https://localhost:8081`, if TLS is enabled)
+or, if TLS is enabled:
+
+`https://localhost:8081`
 
 > See [how to set a different TCP address/port for the client](#set-tcp-address).
 
-#### Example:
-
-Here is an example of a request to the client using `CURL`.
+### CURL Request Examples:
 
 - original data (JSON):
   ```console
-  curl localhost:8081/<UUID>/cbor \
-    -H "X-Auth-Token: <AUTH_TOKEN>" \
+  curl localhost:8081/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/cbor \
+    -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
     -H "Content-Type: application/json" \
-    -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}' \
-    -i
+    -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+    -i \
+    -o -
   ```
 
 - direct data hash injection:
   ```console
-  curl localhost:8081/<UUID>/cbor/hash \
-    -H "X-Auth-Token: <AUTH_TOKEN>" \
+  curl localhost:8081/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/cbor/hash \
+    -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
     -H "Content-Type: text/plain" \
-    -d "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=" \
-    -i
+    -d "VCxVx/SrzNLpKFarKDUO1HJh6vwxq8uD1/w/8Qm7hQs=" \
+    -i \
+    -o -
   ```
 
 ## Configuration
