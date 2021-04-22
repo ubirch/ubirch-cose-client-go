@@ -48,9 +48,9 @@ const (
 type Sha256Sum [HashLen]byte
 
 type HTTPRequest struct {
-	ID   uuid.UUID
-	Auth string
-	Hash Sha256Sum
+	ID      uuid.UUID
+	Auth    string
+	Hash    Sha256Sum
 	Payload []byte
 }
 
@@ -62,7 +62,7 @@ type HTTPResponse struct {
 
 type COSEService struct {
 	*CoseSigner
-	AuthTokens map[string]string
+	AuthTokens map[uuid.UUID]string
 }
 
 var _ Service = (*COSEService)(nil)
@@ -179,9 +179,9 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 
 // checkAuth checks the auth token from the request header and returns it if valid
 // Returns error if UUID is unknown or auth token is invalid
-func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) (string, error) {
+func checkAuth(r *http.Request, id uuid.UUID, authTokens map[uuid.UUID]string) (string, error) {
 	// check if UUID is known
-	idAuthToken, exists := authTokens[id.String()]
+	idAuthToken, exists := authTokens[id]
 	if !exists || idAuthToken == "" {
 		return "", fmt.Errorf("unknown UUID")
 	}

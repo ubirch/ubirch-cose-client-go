@@ -16,9 +16,7 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"github.com/google/uuid"
 	"os"
 	"os/signal"
 	"syscall"
@@ -115,24 +113,4 @@ func main() {
 	}
 
 	log.Info("shut down")
-}
-
-
-func injectKeys(c ubirch.Crypto, keys map[string]string) error {
-	for name, key := range keys {
-		uid, err := uuid.Parse(name)
-		if err != nil {
-			return fmt.Errorf("unable to parse key name %s from key map to UUID: %v", name, err)
-		}
-		keyBytes, err := base64.StdEncoding.DecodeString(key)
-		if err != nil {
-			return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
-		}
-		err = c.SetKey(uid, keyBytes)
-		if err != nil {
-			return fmt.Errorf("unable to inject key to keystore: %v", err)
-		}
-	}
-
-	return nil
 }
