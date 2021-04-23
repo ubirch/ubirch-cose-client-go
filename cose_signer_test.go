@@ -17,8 +17,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"testing"
@@ -39,7 +37,7 @@ func TestCoseSign(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	payloadCBOR, err := getCBORFromJSON(coseSigner, []byte(payloadJSON))
+	payloadCBOR, err := coseSigner.GetCBORFromJSON([]byte(payloadJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,15 +71,4 @@ func setupCrypto(t *testing.T) *ubirch.ECDSACryptoContext {
 	t.Logf("public key: %x", pubKey)
 
 	return cryptoCtx
-}
-
-func getCBORFromJSON(encoder *CoseSigner, jsonData []byte) ([]byte, error) {
-	var reqDump interface{}
-
-	err := json.Unmarshal(jsonData, &reqDump)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse JSON request body: %v", err)
-	}
-
-	return encoder.encMode.Marshal(reqDump)
 }

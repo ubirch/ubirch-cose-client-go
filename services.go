@@ -18,7 +18,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -113,7 +112,7 @@ func (service *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, 
 func (service *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
 	switch ContentType(header) {
 	case JSONType:
-		data, err = service.getCBORFromJSON(data)
+		data, err = service.GetCBORFromJSON(data)
 		if err != nil {
 			return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
 		}
@@ -133,17 +132,6 @@ func (service *COSEService) getPayloadAndHashFromDataRequest(header http.Header,
 		return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
 			"expected (\"%s\" | \"%s\")", CBORType, JSONType)
 	}
-}
-
-func (service *COSEService) getCBORFromJSON(data []byte) ([]byte, error) {
-	var reqDump interface{}
-
-	err := json.Unmarshal(data, &reqDump)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse JSON request body: %v", err)
-	}
-
-	return service.encMode.Marshal(reqDump)
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output

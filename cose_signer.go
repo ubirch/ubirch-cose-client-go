@@ -16,6 +16,8 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
@@ -230,4 +232,15 @@ func (c *CoseSigner) GetSigStructBytes(payload []byte) ([]byte, error) {
 
 	// encode with "Canonical CBOR" rules -> https://tools.ietf.org/html/rfc7049#section-3.9
 	return c.encMode.Marshal(sigStruct)
+}
+
+func (c *CoseSigner) GetCBORFromJSON(data []byte) ([]byte, error) {
+	var reqDump interface{}
+
+	err := json.Unmarshal(data, &reqDump)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse JSON request body: %v", err)
+	}
+
+	return c.encMode.Marshal(reqDump)
 }
