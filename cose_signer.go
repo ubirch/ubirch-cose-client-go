@@ -235,7 +235,7 @@ func (c *CoseSigner) GetSigStructBytes(payload []byte) ([]byte, error) {
 }
 
 func (c *CoseSigner) GetCBORFromJSON(data []byte) ([]byte, error) {
-	var reqDump interface{}
+	var reqDump map[string]string
 
 	err := json.Unmarshal(data, &reqDump)
 	if err != nil {
