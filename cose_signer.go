@@ -189,7 +189,7 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte, payload []byte) 
 																							payload is unknown
 	*/
 	pub, _ := c.cryptoCtx.GetPublicKey(id)
-	log.Debugf("pub: %x", pub)
+	log.Debugf("%s: public key: %x", id, pub)
 
 	// create ES256 signature
 	signatureBytes, err := c.cryptoCtx.SignHash(id, hash[:])

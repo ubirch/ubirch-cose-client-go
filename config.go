@@ -21,12 +21,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
+	secretLength = 16
+	tokenLength  = 32
+
 	defaultTCPAddr = ":8081"
 
 	defaultTLSCertFile = "cert.pem"
@@ -34,17 +39,17 @@ const (
 )
 
 type Config struct {
-	SecretBase64  string            `json:"secret"`        // secret used to encrypt the key store (mandatory)
-	Keys          map[string]string `json:"keys"`          // maps UUIDs to signing keys (mandatory)
-	Tokens        map[string]string `json:"tokens"`        // maps UUIDs to auth tokens (mandatory)
-	TCP_addr      string            `json:"TCP_addr"`      // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
-	TLS           bool              `json:"TLS"`           // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile  string            `json:"TLSCertFile"`   // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile   string            `json:"TLSKeyFile"`    // filename of TLS key file name, defaults to "key.pem"
-	Debug         bool              `json:"debug"`         // enable extended debug output, defaults to 'false'
-	LogTextFormat bool              `json:"logTextFormat"` // log in text format for better human readability, default format is JSON
-	secretBytes   []byte            // the decoded key store secret (set automatically)
-	configDir     string            // directory where config and protocol ctx are stored (set automatically)
+	SecretBase64  string               `json:"secret"`        // secret used to encrypt the key store (mandatory)
+	Keys          map[uuid.UUID]string `json:"keys"`          // maps UUIDs to signing keys (mandatory)
+	Tokens        map[uuid.UUID]string `json:"tokens"`        // maps UUIDs to auth tokens (mandatory)
+	TCP_addr      string               `json:"TCP_addr"`      // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
+	TLS           bool                 `json:"TLS"`           // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile  string               `json:"TLSCertFile"`   // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile   string               `json:"TLSKeyFile"`    // filename of TLS key file name, defaults to "key.pem"
+	Debug         bool                 `json:"debug"`         // enable extended debug output, defaults to 'false'
+	LogTextFormat bool                 `json:"logTextFormat"` // log in text format for better human readability, default format is JSON
+	secretBytes   []byte               // the decoded key store secret (set automatically)
+	configDir     string               // directory where config and protocol ctx are stored (set automatically)
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -106,14 +111,29 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
+	if len(c.secretBytes) != secretLength {
+		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
+	}
+
 	if len(c.Keys) == 0 {
 		return fmt.Errorf("no signing keys")
 	}
 
-	// todo make sure there is a token for each key and check len(token)
+	// make sure there is an auth token for each key and check length
+	for uid := range c.Keys {
+		token, found := c.Tokens[uid]
+		if !found {
+			return fmt.Errorf("no auth token for %s", uid)
+		}
 
-	if len(c.secretBytes) != 16 {
-		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.secretBytes))
+		tokenBytes, err := base64.StdEncoding.DecodeString(token)
+		if err != nil {
+			return fmt.Errorf("unable to decode base64 encoded token for %s: %s: %v", uid, token, err)
+		}
+
+		if len(tokenBytes) != tokenLength {
+			return fmt.Errorf("%s: token length must be %d bytes (is %d)", uid, tokenLength, len(tokenBytes))
+		}
 	}
 
 	return nil
@@ -140,4 +160,19 @@ func (c *Config) setDefaultTLS() {
 		c.TLS_KeyFile = filepath.Join(c.configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
 	}
+}
+
+func injectKeys(c ubirch.Crypto, keys map[uuid.UUID]string) error {
+	for uid, key := range keys {
+		keyBytes, err := base64.StdEncoding.DecodeString(key)
+		if err != nil {
+			return fmt.Errorf("unable to decode private key for %s: %s: %v", uid, key, err)
+		}
+		err = c.SetKey(uid, keyBytes)
+		if err != nil {
+			return fmt.Errorf("unable to inject key to keystore: %v", err)
+		}
+	}
+
+	return nil
 }
