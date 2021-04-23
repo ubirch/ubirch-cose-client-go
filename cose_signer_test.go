@@ -26,7 +26,7 @@ var (
 	uid    = uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
 	key, _ = base64.StdEncoding.DecodeString("YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM=")
 
-	payloadJSON = "{\"test\": 123}"
+	payloadJSON = "{\"test\": \"hello\"}"
 )
 
 func TestCoseSign(t *testing.T) {
@@ -37,24 +37,32 @@ func TestCoseSign(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	t.Logf("payload [JSON]: %s", payloadJSON)
+
 	payloadCBOR, err := coseSigner.GetCBORFromJSON([]byte(payloadJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	t.Logf("payload [CBOR]: %x", payloadCBOR)
 
 	toBeSigned, err := coseSigner.GetSigStructBytes(payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	t.Logf("Sig_structure [CBOR]: %x", toBeSigned)
+
 	hash := sha256.Sum256(toBeSigned)
+
+	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
 	coseBytes, err := coseSigner.getSignedCOSE(uid, hash, payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Logf("signed COSE: %x", coseBytes)
+	t.Logf("signed COSE [CBOR]: %x", coseBytes)
 }
 
 func setupCrypto(t *testing.T) *ubirch.ECDSACryptoContext {
