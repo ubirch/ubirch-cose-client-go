@@ -48,7 +48,6 @@ type Sha256Sum [HashLen]byte
 
 type HTTPRequest struct {
 	ID      uuid.UUID
-	Auth    string
 	Hash    Sha256Sum
 	Payload []byte
 }
@@ -76,19 +75,17 @@ func (service *COSEService) handleRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, service.AuthTokens)
+	err = checkAuth(r, msg.ID, service.AuthTokens)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
 
-	payload, hash, err := service.getPayloadAndHash(r)
+	msg.Payload, msg.Hash, err = service.getPayloadAndHash(r)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
-	msg.Payload = payload
-	msg.Hash = hash
 
 	resp := service.Sign(msg)
 
@@ -167,20 +164,20 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 
 // checkAuth checks the auth token from the request header and returns it if valid
 // Returns error if UUID is unknown or auth token is invalid
-func checkAuth(r *http.Request, id uuid.UUID, authTokens map[uuid.UUID]string) (string, error) {
+func checkAuth(r *http.Request, id uuid.UUID, authTokens map[uuid.UUID]string) error {
 	// check if UUID is known
 	idAuthToken, exists := authTokens[id]
-	if !exists || idAuthToken == "" {
-		return "", fmt.Errorf("unknown UUID")
+	if !exists {
+		return fmt.Errorf("unknown UUID")
 	}
 
 	// check auth token from request header
 	headerAuthToken := AuthToken(r.Header)
 	if idAuthToken != headerAuthToken {
-		return "", fmt.Errorf("invalid auth token")
+		return fmt.Errorf("invalid auth token")
 	}
 
-	return headerAuthToken, nil
+	return nil
 }
 
 func readBody(r *http.Request) ([]byte, error) {

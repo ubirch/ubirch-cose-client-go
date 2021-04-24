@@ -62,12 +62,15 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(conf.secretBytes),
+	ctxManager, err := NewFileManager(conf.configDir, conf.secretBytes)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	err = injectKeys(cryptoCtx, conf.Keys)
+	// initialize ubirch protocol
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
+
+	protocol, err := NewExtendedProtocol(cryptoCtx, ctxManager)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -75,6 +78,19 @@ func main() {
 	coseSigner, err := NewCoseSigner(cryptoCtx)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	client := &Client{
+		signingServiceURL:  conf.SigningService,
+		keyServiceURL:      conf.KeyService,
+		identityServiceURL: conf.IdentityService,
+	}
+
+	idHandler := &IdentityHandler{
+		protocol:            protocol,
+		client:              client,
+		subjectCountry:      conf.CSR_Country,
+		subjectOrganization: conf.CSR_Organization,
 	}
 
 	httpServer := HTTPServer{
@@ -98,9 +114,15 @@ func main() {
 		Path: fmt.Sprintf("/{%s}/%s", UUIDKey, COSEPath),
 		Service: &COSEService{
 			CoseSigner: coseSigner,
-			AuthTokens: conf.Tokens,
+			AuthTokens: conf.tokens,
 		},
 	})
+
+	// generate and register keys for known devices
+	err = idHandler.initIdentities(conf.uids)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// start HTTP server
 	g.Go(func() error {

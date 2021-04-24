@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -32,6 +32,14 @@ const (
 	secretLength = 16
 	tokenLength  = 32
 
+	PROD_STAGE = "prod"
+
+	defaultSigningServiceURL = "http://localhost:8080"
+	defaultKeyURL            = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	defaultIdentityURL       = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+
+	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
+
 	defaultTCPAddr = ":8081"
 
 	defaultTLSCertFile = "cert.pem"
@@ -39,17 +47,23 @@ const (
 )
 
 type Config struct {
-	SecretBase64  string               `json:"secret"`        // secret used to encrypt the key store (mandatory)
-	Keys          map[uuid.UUID]string `json:"keys"`          // maps UUIDs to signing keys (mandatory)
-	Tokens        map[uuid.UUID]string `json:"tokens"`        // maps UUIDs to auth tokens (mandatory)
-	TCP_addr      string               `json:"TCP_addr"`      // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
-	TLS           bool                 `json:"TLS"`           // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile  string               `json:"TLSCertFile"`   // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile   string               `json:"TLSKeyFile"`    // filename of TLS key file name, defaults to "key.pem"
-	Debug         bool                 `json:"debug"`         // enable extended debug output, defaults to 'false'
-	LogTextFormat bool                 `json:"logTextFormat"` // log in text format for better human readability, default format is JSON
-	secretBytes   []byte               // the decoded key store secret (set automatically)
-	configDir     string               // directory where config and protocol ctx are stored (set automatically)
+	SecretBase64     string               `json:"secret"`           // secret used to encrypt the key store (mandatory)
+	CSR_Country      string               `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
+	CSR_Organization string               `json:"CSR_organization"` // subject organization for public key Certificate Signing Requests
+	TCP_addr         string               `json:"TCP_addr"`         // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
+	TLS              bool                 `json:"TLS"`              // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile     string               `json:"TLSCertFile"`      // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile      string               `json:"TLSKeyFile"`       // filename of TLS key file name, defaults to "key.pem"
+	Debug            bool                 `json:"debug"`            // enable extended debug output, defaults to 'false'
+	LogTextFormat    bool                 `json:"logTextFormat"`    // log in text format for better human readability, default format is JSON
+	Env              string               `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	SigningService   string               // signing service URL
+	KeyService       string               // key service URL
+	IdentityService  string               // identity service URL
+	configDir        string               // directory where config and protocol ctx are stored
+	secretBytes      []byte               // the decoded key store secret
+	uids             map[string]uuid.UUID // maps roles to UUIDs
+	tokens           map[uuid.UUID]string // maps UUIDs to auth tokens
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -72,6 +86,11 @@ func (c *Config) Load(configDir string, filename string) error {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
 	}
 
+	err = c.loadIdentitiesFile()
+	if err != nil {
+		return err
+	}
+
 	err = c.checkMandatory()
 	if err != nil {
 		return err
@@ -85,9 +104,10 @@ func (c *Config) Load(configDir string, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
+	// set defaults
+	c.setDefaultCSR()
 	c.setDefaultTLS()
-
-	return nil
+	return c.setDefaultURLs()
 }
 
 // loadEnv reads the configuration from environment variables
@@ -115,28 +135,19 @@ func (c *Config) checkMandatory() error {
 		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
 	}
 
-	if len(c.Keys) == 0 {
-		return fmt.Errorf("no signing keys")
-	}
-
-	// make sure there is an auth token for each key and check length
-	for uid := range c.Keys {
-		token, found := c.Tokens[uid]
-		if !found {
-			return fmt.Errorf("no auth token for %s", uid)
-		}
-
-		tokenBytes, err := base64.StdEncoding.DecodeString(token)
-		if err != nil {
-			return fmt.Errorf("unable to decode base64 encoded token for %s: %s: %v", uid, token, err)
-		}
-
-		if len(tokenBytes) != tokenLength {
-			return fmt.Errorf("%s: token length must be %d bytes (is %d)", uid, tokenLength, len(tokenBytes))
-		}
-	}
-
 	return nil
+}
+
+func (c *Config) setDefaultCSR() {
+	if c.CSR_Country == "" {
+		c.CSR_Country = "DE"
+	}
+	log.Debugf("CSR Subject Country: %s", c.CSR_Country)
+
+	if c.CSR_Organization == "" {
+		c.CSR_Organization = "ubirch GmbH"
+	}
+	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
 
 func (c *Config) setDefaultTLS() {
@@ -162,16 +173,72 @@ func (c *Config) setDefaultTLS() {
 	}
 }
 
-func injectKeys(c ubirch.Crypto, keys map[uuid.UUID]string) error {
-	for uid, key := range keys {
-		keyBytes, err := base64.StdEncoding.DecodeString(key)
-		if err != nil {
-			return fmt.Errorf("unable to decode private key for %s: %s: %v", uid, key, err)
+func (c *Config) setDefaultURLs() error {
+	if c.Env == "" {
+		c.Env = PROD_STAGE
+	}
+
+	if c.SigningService == "" {
+		c.SigningService = defaultSigningServiceURL
+	}
+
+	if c.KeyService == "" {
+		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
+	} else {
+		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
+	}
+
+	if c.IdentityService == "" {
+		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
+	}
+
+	log.Infof("UBIRCH backend environment: %s", c.Env)
+	log.Debugf(" - Key Service:      %s", c.KeyService)
+	log.Debugf(" - Identity Service: %s", c.IdentityService)
+	log.Debugf(" - Signing Service:  %s", c.SigningService)
+
+	return nil
+}
+
+type Identity struct {
+	Role  string    `json:"role"`
+	Uid   uuid.UUID `json:"uuid"`
+	Token []byte    `json:"token"`
+}
+
+// loadIdentitiesFile loads identities from the identities JSON file.
+func (c *Config) loadIdentitiesFile() error {
+	fileHandle, err := os.Open(filepath.Join(c.configDir, identitiesFile))
+	if err != nil {
+		return err
+	}
+	defer fileHandle.Close()
+
+	var identities []Identity
+	err = json.NewDecoder(fileHandle).Decode(&identities)
+	if err != nil {
+		return err
+	}
+
+	numberOfIdentities := len(identities)
+	log.Infof("loaded %d identities", numberOfIdentities)
+
+	c.uids = make(map[string]uuid.UUID, numberOfIdentities)
+	c.tokens = make(map[uuid.UUID]string, numberOfIdentities)
+
+	for _, identity := range identities {
+		if len(identity.Role) == 0 {
+			return fmt.Errorf("%s: empty role", identity.Uid)
 		}
-		err = c.SetKey(uid, keyBytes)
-		if err != nil {
-			return fmt.Errorf("unable to inject key to keystore: %v", err)
+		if identity.Uid == uuid.Nil {
+			return fmt.Errorf("%s: invalid UUID", identity.Uid)
 		}
+		if len(identity.Token) != tokenLength {
+			return fmt.Errorf("%s: token length must be %d bytes (is %d)", identity.Uid, tokenLength, len(identity.Token))
+		}
+
+		c.uids[identity.Role] = identity.Uid
+		c.tokens[identity.Uid] = base64.StdEncoding.EncodeToString(identity.Token)
 	}
 
 	return nil
