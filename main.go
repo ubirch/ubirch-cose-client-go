@@ -21,7 +21,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -67,30 +66,23 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{}
-
-	protocol, err := NewExtendedProtocol(cryptoCtx, ctxManager)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	coseSigner, err := NewCoseSigner(cryptoCtx)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	client := &Client{
 		signingServiceURL:  conf.SigningService,
 		keyServiceURL:      conf.KeyService,
 		identityServiceURL: conf.IdentityService,
 	}
 
+	protocol := NewProtocol(ctxManager, client)
+
 	idHandler := &IdentityHandler{
 		protocol:            protocol,
-		client:              client,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
+	}
+
+	coseSigner, err := NewCoseSigner(protocol)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	httpServer := HTTPServer{

@@ -22,7 +22,6 @@ import (
 
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -65,12 +64,12 @@ type Sig_structure struct {
 }
 
 type CoseSigner struct {
-	cryptoCtx       *ubirch.ECDSACryptoContext
+	protocol        *Protocol
 	encMode         cbor.EncMode
 	protectedHeader []byte
 }
 
-func NewCoseSigner(cryptoCtx *ubirch.ECDSACryptoContext) (*CoseSigner, error) {
+func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 	encMode, err := initCBOREncMode()
 	if err != nil {
 		return nil, err
@@ -83,7 +82,7 @@ func NewCoseSigner(cryptoCtx *ubirch.ECDSACryptoContext) (*CoseSigner, error) {
 	}
 
 	return &CoseSigner{
-		cryptoCtx:       cryptoCtx,
+		protocol:        p,
 		encMode:         encMode,
 		protectedHeader: protectedHeaderAlgES256CBOR,
 	}, nil
@@ -107,7 +106,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 }
 
 // getSignedCOSE creates a COSE Single Signer Data Object (COSE_Sign1) with ECDSA P-256 signature
-func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte, payload []byte) ([]byte, error) {
+func (c *CoseSigner) getSignedCOSE(uid uuid.UUID, hash [32]byte, payload []byte) ([]byte, error) {
 	/*
 		* https://cose-wg.github.io/cose-spec/#rfc.section.4.2
 			[COSE Single Signer Data Object]
@@ -190,11 +189,13 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte, payload []byte) 
 			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
 																							payload is unknown
 	*/
-	pub, _ := c.cryptoCtx.GetPublicKey(id)
-	log.Debugf("%s: public key: %x", id, pub)
+	privKeyPEM, err := c.protocol.GetPrivateKey(uid)
+	if err != nil {
+		return nil, err
+	}
 
 	// create ES256 signature
-	signatureBytes, err := c.cryptoCtx.SignHash(id, hash[:])
+	signatureBytes, err := c.protocol.SignHash(privKeyPEM, hash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +203,7 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte, payload []byte) 
 	// create COSE_Sign1 object
 	coseSign1 := &COSE_Sign1{
 		Protected:   c.protectedHeader,
-		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: id[:]},
+		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: uid[:]},
 		Payload:     payload,
 		Signature:   signatureBytes,
 	}

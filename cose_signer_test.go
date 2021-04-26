@@ -30,9 +30,9 @@ var (
 )
 
 func TestCoseSign(t *testing.T) {
-	cryptoCtx := setupCrypto(t)
+	p := setupProtocol(t)
 
-	coseSigner, err := NewCoseSigner(cryptoCtx)
+	coseSigner, err := NewCoseSigner(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,18 +65,53 @@ func TestCoseSign(t *testing.T) {
 	t.Logf("signed COSE [CBOR]: %x", coseBytes)
 }
 
-func setupCrypto(t *testing.T) *ubirch.ECDSACryptoContext {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore([]byte("1234567890123456")),
-	}
+func setupProtocol(t *testing.T) *Protocol {
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
 
-	err := cryptoCtx.SetKey(uid, key)
+	privKeyPEM, err := cryptoCtx.PrivateKeyBytesToPEM(key)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKey, _ := cryptoCtx.GetPublicKey(uid)
-	t.Logf("public key: %x", pubKey)
+	pubKeyPEM, _ := cryptoCtx.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyBytes, _ := cryptoCtx.PublicKeyPEMToBytes(pubKeyPEM)
+	t.Logf("public key [base64]: %s", base64.StdEncoding.EncodeToString(pubKeyBytes))
 
-	return cryptoCtx
+	ctxManager := &testContextManager{
+		privateKey: privKeyPEM,
+		publicKey:  pubKeyPEM,
+	}
+
+	return &Protocol{
+		Crypto:         cryptoCtx,
+		ContextManager: ctxManager,
+		Client:         &Client{},
+	}
 }
+
+type testContextManager struct {
+	privateKey []byte
+	publicKey  []byte
+}
+
+func (t testContextManager) GetPrivateKey(uid uuid.UUID) (privKey []byte, err error) {
+	return t.privateKey, nil
+}
+
+func (t testContextManager) GetPublicKey(uid uuid.UUID) (pubKey []byte, err error) {
+	return t.publicKey, nil
+}
+
+func (t testContextManager) Exists(uid uuid.UUID) bool {
+	panic("not implemented")
+}
+
+func (t testContextManager) SetPrivateKey(uid uuid.UUID, privKey []byte) error {
+	panic("not implemented")
+}
+
+func (t testContextManager) SetPublicKey(uid uuid.UUID, pubKey []byte) error {
+	panic("not implemented")
+}
+
+var _ ContextManager = (*testContextManager)(nil)

@@ -15,41 +15,19 @@
 package main
 
 import (
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-type ExtendedProtocol struct {
-	ubirch.Protocol
+type Protocol struct {
+	ubirch.Crypto
 	ContextManager
+	*Client
 }
 
-func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*ExtendedProtocol, error) {
-	p := &ExtendedProtocol{
-		Protocol: ubirch.Protocol{
-			Crypto: cryptoCtx,
-		},
+func NewProtocol(ctxManager ContextManager, client *Client) *Protocol {
+	return &Protocol{
+		Crypto:         &ubirch.ECDSACryptoContext{},
 		ContextManager: ctxManager,
+		Client:         client,
 	}
-
-	return p, nil
-}
-
-func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
-	// todo sanity checks
-	return p.ContextManager.GetPrivateKey(uid)
-}
-func (p *ExtendedProtocol) SetPrivateKey(uid uuid.UUID, privKeyPEM []byte) error {
-	// todo sanity checks
-	return p.ContextManager.SetPrivateKey(uid, privKeyPEM)
-}
-
-func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
-	// todo sanity checks
-	return p.ContextManager.GetPublicKey(uid)
-
-}
-func (p *ExtendedProtocol) SetPublicKey(uid uuid.UUID, pubKeyPEM []byte) error {
-	// todo sanity checks
-	return p.ContextManager.SetPublicKey(uid, pubKeyPEM)
 }

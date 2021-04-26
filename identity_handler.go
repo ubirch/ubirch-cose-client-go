@@ -23,8 +23,7 @@ import (
 )
 
 type IdentityHandler struct {
-	protocol            *ExtendedProtocol
-	client              *Client
+	protocol            *Protocol
 	subjectCountry      string
 	subjectOrganization string
 }
@@ -33,7 +32,7 @@ func (i *IdentityHandler) initIdentities(identities map[string]uuid.UUID) error 
 	// create and register keys for identities
 	log.Infof("initializing %d identities...", len(identities))
 	for _, uid := range identities {
-		err := i.initIdentity(uid)
+		err := i.initIdentityKeys(uid)
 		if err != nil {
 			return err
 		}
@@ -42,31 +41,7 @@ func (i *IdentityHandler) initIdentities(identities map[string]uuid.UUID) error 
 	return nil
 }
 
-func (i *IdentityHandler) initIdentity(uid uuid.UUID) error {
-	err := i.protocol.StartTransaction(uid)
-	if err != nil {
-		return err
-	}
-
-	err = i.initKeys(uid)
-	if err != nil {
-		ctxErr := i.protocol.EndTransaction(uid, false)
-		if ctxErr != nil {
-			log.Error(err)
-			return ctxErr
-		}
-		return err
-	}
-
-	ctxErr := i.protocol.EndTransaction(uid, true)
-	if ctxErr != nil {
-		return fmt.Errorf("can not end transaction: %v", ctxErr)
-	}
-
-	return nil
-}
-
-func (i *IdentityHandler) initKeys(uid uuid.UUID) error {
+func (i *IdentityHandler) initIdentityKeys(uid uuid.UUID) error {
 	// check if identity is already initialized
 	exists := i.protocol.Exists(uid)
 	if exists {
@@ -110,7 +85,7 @@ func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) er
 	}
 	log.Debugf("%s: key certificate: %s", uid, cert)
 
-	err = i.client.submitKeyRegistration(uid, cert)
+	err = i.protocol.submitKeyRegistration(uid, cert)
 	if err != nil {
 		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
@@ -119,6 +94,7 @@ func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) er
 
 	return nil
 }
+
 func (i *IdentityHandler) sendCSROrLogError(privKeyPEM []byte, uid uuid.UUID) {
 	err := i.sendCSR(privKeyPEM, uid)
 	if err != nil {
@@ -134,7 +110,7 @@ func (i *IdentityHandler) sendCSR(privKeyPEM []byte, uid uuid.UUID) error {
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.client.submitCSR(uid, csr)
+	err = i.protocol.submitCSR(uid, csr)
 	if err != nil {
 		return fmt.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
 	}

@@ -43,25 +43,13 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 		return nil, err
 	}
 
-	return f, nil
-}
-
-func (f *FileManager) StartTransaction(uid uuid.UUID) error {
-	f.keystoreMutex.Lock()
-	defer f.keystoreMutex.Unlock()
-
-	return f.loadKeys()
-}
-
-func (f *FileManager) EndTransaction(uid uuid.UUID, success bool) error {
-	f.keystoreMutex.Lock()
-	defer f.keystoreMutex.Unlock()
-
-	if success {
-		return f.persistKeys()
-	} else {
-		return f.loadKeys()
+	ids, err := f.EncryptedKeystore.GetIDs()
+	if err != nil {
+		return nil, err
 	}
+	log.Infof("loaded %d keys", len(ids))
+
+	return f, nil
 }
 
 func (f *FileManager) Exists(uid uuid.UUID) bool {
@@ -86,7 +74,11 @@ func (f *FileManager) SetPrivateKey(uid uuid.UUID, key []byte) error {
 	f.keystoreMutex.Lock()
 	defer f.keystoreMutex.Unlock()
 
-	return f.EncryptedKeystore.SetPrivateKey(uid, key)
+	err := f.EncryptedKeystore.SetPrivateKey(uid, key)
+	if err != nil {
+		return err
+	}
+	return f.persistKeys()
 }
 
 func (f *FileManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
@@ -100,7 +92,11 @@ func (f *FileManager) SetPublicKey(uid uuid.UUID, key []byte) error {
 	f.keystoreMutex.Lock()
 	defer f.keystoreMutex.Unlock()
 
-	return f.EncryptedKeystore.SetPublicKey(uid, key)
+	err := f.EncryptedKeystore.SetPublicKey(uid, key)
+	if err != nil {
+		return err
+	}
+	return f.persistKeys()
 }
 
 func (f *FileManager) loadKeys() error {

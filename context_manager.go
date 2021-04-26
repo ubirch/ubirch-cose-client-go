@@ -7,9 +7,6 @@ import (
 type ContextManager interface {
 	Exists(uid uuid.UUID) bool
 
-	StartTransaction(uid uuid.UUID) error
-	EndTransaction(uid uuid.UUID, success bool) error
-
 	GetPrivateKey(uid uuid.UUID) (privKey []byte, err error)
 	SetPrivateKey(uid uuid.UUID, privKey []byte) error
 
