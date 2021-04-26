@@ -38,7 +38,7 @@ const (
 	defaultKeyURL            = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
 	defaultIdentityURL       = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
 
-	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
+	identitiesFileName = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
 	defaultTCPAddr = ":8081"
 
@@ -208,7 +208,9 @@ type Identity struct {
 
 // loadIdentitiesFile loads identities from the identities JSON file.
 func (c *Config) loadIdentitiesFile() error {
-	fileHandle, err := os.Open(filepath.Join(c.configDir, identitiesFile))
+	identitiesFile := filepath.Join(c.configDir, identitiesFileName)
+
+	fileHandle, err := os.Open(identitiesFile)
 	if err != nil {
 		return err
 	}
