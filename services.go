@@ -23,13 +23,17 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
+	AuthHeader     = "X-Auth-Token"
+	TenantHeader   = "X-Tenant"
+	CategoryHeader = "X-Category"
+	PocHeader      = "X-PoC"
+
 	UUIDKey      = "uuid"
 	COSEPath     = "cbor"
 	HashEndpoint = "hash"
@@ -60,7 +64,7 @@ type HTTPResponse struct {
 
 type COSEService struct {
 	*CoseSigner
-	AuthTokens map[uuid.UUID]string
+	identities []Identity
 }
 
 var _ Service = (*COSEService)(nil)
@@ -69,13 +73,13 @@ func (service *COSEService) handleRequest(w http.ResponseWriter, r *http.Request
 	var msg HTTPRequest
 	var err error
 
-	msg.ID, err = getUUID(r)
+	id, err := getIdentity(r, service.identities)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusNotFound)
 		return
 	}
 
-	err = checkAuth(r, msg.ID, service.AuthTokens)
+	err = checkAuth(r, id.Token)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
@@ -147,36 +151,32 @@ func ContentEncoding(header http.Header) string {
 	return strings.ToLower(header.Get("Content-Transfer-Encoding"))
 }
 
-// helper function to get "X-Auth-Token" from request header
-func AuthToken(header http.Header) string {
-	return header.Get("X-Auth-Token")
+// getIdentity matches attributes from the request header with a known identity and returns it
+func getIdentity(r *http.Request, identities []Identity) (*Identity, error) {
+	t := r.Header.Get(TenantHeader)
+	if len(t) == 0 {
+		return nil, fmt.Errorf("missing header: %s", TenantHeader)
+	}
+	cat := r.Header.Get(CategoryHeader)
+	if len(cat) == 0 {
+		return nil, fmt.Errorf("missing header: %s", CategoryHeader)
+	}
+	poc := r.Header.Get(PocHeader) // can be empty
+
+	for _, i := range identities {
+		if t == i.Tenant && cat == i.Category && poc == i.Poc {
+			return &i, nil
+		}
+	}
+	return nil, fmt.Errorf(http.StatusText(http.StatusNotFound))
 }
 
-// getUUID returns the UUID parameter from the request URL
-func getUUID(r *http.Request) (uuid.UUID, error) {
-	uuidParam := chi.URLParam(r, UUIDKey)
-	id, err := uuid.Parse(uuidParam)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
+// checkAuth checks the auth token from the request header
+// Returns error if auth token is not correct
+func checkAuth(r *http.Request, correctAuthToken []byte) error {
+	if r.Header.Get(AuthHeader) != base64.StdEncoding.EncodeToString(correctAuthToken) {
+		return fmt.Errorf(http.StatusText(http.StatusUnauthorized))
 	}
-	return id, nil
-}
-
-// checkAuth checks the auth token from the request header and returns it if valid
-// Returns error if UUID is unknown or auth token is invalid
-func checkAuth(r *http.Request, id uuid.UUID, authTokens map[uuid.UUID]string) error {
-	// check if UUID is known
-	idAuthToken, exists := authTokens[id]
-	if !exists {
-		return fmt.Errorf("unknown UUID")
-	}
-
-	// check auth token from request header
-	headerAuthToken := AuthToken(r.Header)
-	if idAuthToken != headerAuthToken {
-		return fmt.Errorf("invalid auth token")
-	}
-
 	return nil
 }
 
