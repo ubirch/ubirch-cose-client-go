@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,19 +20,19 @@ const (
 )
 
 type FileManager struct {
-	keyFile           string
-	EncryptedKeystore *ubirch.EncryptedKeystore
-	keystoreMutex     *sync.RWMutex
+	keyFile       string
+	keystore      map[string][]byte
+	keystoreMutex *sync.RWMutex
 }
 
 // Ensure FileManager implements the ContextManager interface
 var _ ContextManager = (*FileManager)(nil)
 
-func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
+func NewFileManager(configDir string) (*FileManager, error) {
 	f := &FileManager{
-		keyFile:           filepath.Join(configDir, keyFileName),
-		EncryptedKeystore: ubirch.NewEncryptedKeystore(secret),
-		keystoreMutex:     &sync.RWMutex{},
+		keyFile:       filepath.Join(configDir, keyFileName),
+		keystore:      map[string][]byte{},
+		keystoreMutex: &sync.RWMutex{},
 	}
 
 	log.Info("keys are stored in local file system")
@@ -43,12 +43,6 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 		return nil, err
 	}
 
-	ids, err := f.EncryptedKeystore.GetIDs()
-	if err != nil {
-		return nil, err
-	}
-	log.Infof("loaded %d keys", len(ids))
-
 	return f, nil
 }
 
@@ -56,55 +50,61 @@ func (f *FileManager) Exists(uid uuid.UUID) bool {
 	f.keystoreMutex.RLock()
 	defer f.keystoreMutex.RUnlock()
 
-	_, err := f.EncryptedKeystore.GetPrivateKey(uid)
-	if err != nil {
-		return false
-	}
-	return true
+	_, exists := f.keystore[uid.String()]
+	return exists
 }
 
 func (f *FileManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	f.keystoreMutex.RLock()
-	defer f.keystoreMutex.RUnlock()
-
-	return f.EncryptedKeystore.GetPrivateKey(uid)
+	return f.getKey(privateKeyEntryID(uid))
 }
 
 func (f *FileManager) SetPrivateKey(uid uuid.UUID, key []byte) error {
-	f.keystoreMutex.Lock()
-	defer f.keystoreMutex.Unlock()
-
-	err := f.EncryptedKeystore.SetPrivateKey(uid, key)
-	if err != nil {
-		return err
-	}
-	return f.persistKeys()
+	return f.setKey(privateKeyEntryID(uid), key)
 }
 
 func (f *FileManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
-	f.keystoreMutex.RLock()
-	defer f.keystoreMutex.RUnlock()
-
-	return f.EncryptedKeystore.GetPublicKey(uid)
+	return f.getKey(publicKeyEntryID(uid))
 }
 
 func (f *FileManager) SetPublicKey(uid uuid.UUID, key []byte) error {
+	return f.setKey(publicKeyEntryID(uid), key)
+}
+
+func (f *FileManager) getKey(entryID string) ([]byte, error) {
+	f.keystoreMutex.RLock()
+	defer f.keystoreMutex.RUnlock()
+
+	key, found := f.keystore[entryID]
+	if !found {
+		return nil, fmt.Errorf("key not found")
+	}
+
+	return key, nil
+}
+
+func (f *FileManager) setKey(entryID string, key []byte) error {
 	f.keystoreMutex.Lock()
 	defer f.keystoreMutex.Unlock()
 
-	err := f.EncryptedKeystore.SetPublicKey(uid, key)
-	if err != nil {
-		return err
-	}
+	f.keystore[entryID] = key
+
 	return f.persistKeys()
 }
 
 func (f *FileManager) loadKeys() error {
-	return loadFile(f.keyFile, f.EncryptedKeystore.Keystore)
+	return loadFile(f.keyFile, f.keystore)
 }
 
 func (f *FileManager) persistKeys() error {
-	return persistFile(f.keyFile, f.EncryptedKeystore.Keystore)
+	return persistFile(f.keyFile, f.keystore)
+}
+
+func privateKeyEntryID(id uuid.UUID) string {
+	return "_" + id.String()
+}
+
+func publicKeyEntryID(id uuid.UUID) string {
+	return id.String()
 }
 
 func loadFile(file string, dest interface{}) error {
