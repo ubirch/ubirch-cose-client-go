@@ -28,11 +28,11 @@ type IdentityHandler struct {
 	subjectOrganization string
 }
 
-func (i *IdentityHandler) initIdentities(identities map[string]uuid.UUID) error {
+func (i *IdentityHandler) initIdentities(identities []Identity) error {
 	// create and register keys for identities
 	log.Infof("initializing %d identities...", len(identities))
-	for _, uid := range identities {
-		err := i.initIdentityKeys(uid)
+	for _, id := range identities {
+		err := i.initIdentityKeys(id.Uid)
 		if err != nil {
 			return err
 		}
