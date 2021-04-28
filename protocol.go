@@ -15,19 +15,45 @@
 package main
 
 import (
+	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type Protocol struct {
 	ubirch.Crypto
 	ContextManager
-	*Client
+	Client       *Client
+	keyEncrypter *KeyEncrypter
 }
 
-func NewProtocol(ctxManager ContextManager, client *Client) *Protocol {
+func NewProtocol(ctxManager ContextManager, secret []byte, client *Client) (*Protocol, error) {
+	enc, err := NewKeyEncrypter(secret)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Protocol{
 		Crypto:         &ubirch.ECDSACryptoContext{},
 		ContextManager: ctxManager,
 		Client:         client,
+		keyEncrypter:   enc,
+	}, nil
+}
+
+func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
+	encryptedPrivateKey, err := p.keyEncrypter.Encrypt(privateKeyPem)
+	if err != nil {
+		return err
 	}
+
+	return p.ContextManager.SetPrivateKey(uid, encryptedPrivateKey)
+}
+
+func (p *Protocol) GetPrivateKey(uid uuid.UUID) (privateKeyPem []byte, err error) {
+	encryptedPrivateKey, err := p.ContextManager.GetPrivateKey(uid)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
 }
