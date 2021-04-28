@@ -22,7 +22,7 @@ import (
 type Protocol struct {
 	ubirch.Crypto
 	ContextManager
-	Client       *Client
+	*Client
 	keyEncrypter *KeyEncrypter
 }
 
