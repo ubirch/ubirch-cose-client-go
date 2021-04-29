@@ -27,13 +27,15 @@ type Protocol struct {
 }
 
 func NewProtocol(ctxManager ContextManager, secret []byte, client *Client) (*Protocol, error) {
-	enc, err := NewKeyEncrypter(secret)
+	crypto := &ubirch.ECDSACryptoContext{}
+
+	enc, err := NewKeyEncrypter(secret, crypto)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Protocol{
-		Crypto:         &ubirch.ECDSACryptoContext{},
+		Crypto:         crypto,
 		ContextManager: ctxManager,
 		Client:         client,
 		keyEncrypter:   enc,
