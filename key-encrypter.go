@@ -20,8 +20,8 @@ func NewKeyEncrypter(secret []byte) (*KeyEncrypter, error) {
 	}, nil
 }
 
-// Encrypt takes a PEM-encoded private key, AES256-encrypts it using the provided secret and
-// returns the DER-encoded PKCS#8 private key
+// Encrypt takes a PEM-encoded private key, AES256-encrypts it using a 32 byte secret
+// and returns the encrypted DER-encoded PKCS#8 private key
 func (enc *KeyEncrypter) Encrypt(privateKeyPem []byte) ([]byte, error) {
 	privateKey, err := enc.Crypto.DecodePrivateKey(privateKeyPem)
 	if err != nil {
@@ -30,6 +30,8 @@ func (enc *KeyEncrypter) Encrypt(privateKeyPem []byte) ([]byte, error) {
 	return pkcs8.ConvertPrivateKeyToPKCS8(privateKey, enc.Secret)
 }
 
+// Decrypt takes a AES256-encrypted DER-encoded PKCS#8 private key,  decrypts it
+// using a 32 byte secret and returns the decrypted PEM-encoded private key
 func (enc *KeyEncrypter) Decrypt(encryptedPrivateKey []byte) (privateKeyPem []byte, err error) {
 	privateKey, err := pkcs8.ParsePKCS8PrivateKey(encryptedPrivateKey, enc.Secret)
 	if err != nil {
