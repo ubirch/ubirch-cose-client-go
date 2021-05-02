@@ -133,7 +133,7 @@ func (c *Config) loadFile(filename string) error {
 
 func (c *Config) checkMandatory() error {
 	if len(c.secretBytes) != secretLength {
-		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
+		return fmt.Errorf("secret for aes-256 key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
 	}
 
 	return nil
