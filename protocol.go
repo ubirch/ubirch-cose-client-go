@@ -21,10 +21,13 @@ import (
 
 type Protocol struct {
 	ubirch.Crypto
-	ContextManager
 	*Client
+	ctxManager   ContextManager
 	keyEncrypter *KeyEncrypter
 }
+
+// Ensure Protocol implements the ContextManager interface
+var _ ContextManager = (*Protocol)(nil)
 
 func NewProtocol(ctxManager ContextManager, secret []byte, client *Client) (*Protocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
@@ -35,11 +38,15 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *Client) (*Pro
 	}
 
 	return &Protocol{
-		Crypto:         crypto,
-		ContextManager: ctxManager,
-		Client:         client,
-		keyEncrypter:   enc,
+		Crypto:       crypto,
+		ctxManager:   ctxManager,
+		Client:       client,
+		keyEncrypter: enc,
 	}, nil
+}
+
+func (p *Protocol) Exists(uid uuid.UUID) bool {
+	return p.ctxManager.Exists(uid)
 }
 
 func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
@@ -48,14 +55,32 @@ func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
 		return err
 	}
 
-	return p.ContextManager.SetPrivateKey(uid, encryptedPrivateKey)
+	return p.ctxManager.SetPrivateKey(uid, encryptedPrivateKey)
 }
 
 func (p *Protocol) GetPrivateKey(uid uuid.UUID) (privateKeyPem []byte, err error) {
-	encryptedPrivateKey, err := p.ContextManager.GetPrivateKey(uid)
+	encryptedPrivateKey, err := p.ctxManager.GetPrivateKey(uid)
 	if err != nil {
 		return nil, err
 	}
 
 	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
+}
+
+func (p *Protocol) SetPublicKey(uid uuid.UUID, publicKeyPEM []byte) error {
+	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
+	if err != nil {
+		return err
+	}
+
+	return p.ctxManager.SetPublicKey(uid, publicKeyBytes)
+}
+
+func (p *Protocol) GetPublicKey(uid uuid.UUID) (publicKeyPEM []byte, err error) {
+	publicKeyBytes, err := p.ctxManager.GetPublicKey(uid)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.PublicKeyBytesToPEM(publicKeyBytes)
 }
