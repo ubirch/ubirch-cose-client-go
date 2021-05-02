@@ -179,7 +179,7 @@ func getIdentity(r *http.Request, identities []Identity) (*Identity, error) {
 // Returns error if auth token is not correct
 func checkAuth(r *http.Request, correctAuthToken []byte) error {
 	if r.Header.Get(AuthHeader) != base64.StdEncoding.EncodeToString(correctAuthToken) {
-		return fmt.Errorf(http.StatusText(http.StatusUnauthorized))
+		return fmt.Errorf("invalid auth token")
 	}
 	return nil
 }
