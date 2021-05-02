@@ -92,11 +92,11 @@ func (f *FileManager) setKey(entryID string, key []byte) error {
 }
 
 func (f *FileManager) loadKeys() error {
-	return loadFile(f.keyFile, f.keystore)
+	return loadFile(f.keyFile, &f.keystore)
 }
 
 func (f *FileManager) persistKeys() error {
-	return persistFile(f.keyFile, f.keystore)
+	return persistFile(f.keyFile, &f.keystore)
 }
 
 func privateKeyEntryID(id uuid.UUID) string {
