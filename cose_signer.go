@@ -89,7 +89,7 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 }
 
 func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
-	log.Infof("%s: sign hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	log.Infof("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	coseBytes, err := c.getSignedCOSE(msg.ID, msg.Hash, msg.Payload)
 	if err != nil {
