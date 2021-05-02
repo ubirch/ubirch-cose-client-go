@@ -70,20 +70,20 @@ type COSEService struct {
 var _ Service = (*COSEService)(nil)
 
 func (service *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg HTTPRequest
-	var err error
-
 	id, err := getIdentity(r, service.identities)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
+		log.Warn(err)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 
 	err = checkAuth(r, id.Token)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusUnauthorized)
+		Error(id.Uid, w, err, http.StatusUnauthorized)
 		return
 	}
+
+	msg := HTTPRequest{ID: id.Uid}
 
 	msg.Payload, msg.Hash, err = service.getPayloadAndHash(r)
 	if err != nil {
@@ -165,10 +165,14 @@ func getIdentity(r *http.Request, identities []Identity) (*Identity, error) {
 
 	for _, i := range identities {
 		if t == i.Tenant && cat == i.Category && poc == i.Poc {
+			log.Debugf("%s: matched identity: tenant \"%s\", category \"%s\", poc \"%s\"",
+				i.Uid, i.Tenant, i.Category, i.Poc)
 			return &i, nil
 		}
 	}
-	return nil, fmt.Errorf(http.StatusText(http.StatusNotFound))
+
+	return nil, fmt.Errorf("could not match request headers with any known identity: tenant \"%s\", category \"%s\", poc \"%s\"",
+		t, cat, poc)
 }
 
 // checkAuth checks the auth token from the request header

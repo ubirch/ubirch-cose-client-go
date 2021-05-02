@@ -89,14 +89,14 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 }
 
 func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
-	log.Infof("%s: sign CBOR hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	log.Infof("%s: sign hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	coseBytes, err := c.getSignedCOSE(msg.ID, msg.Hash, msg.Payload)
 	if err != nil {
-		log.Errorf("%s: could not create signed COSE: %v", msg.ID, err)
+		log.Errorf("%s: could not create signed COSE object: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: signed COSE: %x", msg.ID, coseBytes)
+	log.Debugf("%s: COSE: %x", msg.ID, coseBytes)
 
 	return HTTPResponse{
 		StatusCode: http.StatusOK,
