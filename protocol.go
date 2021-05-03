@@ -39,8 +39,8 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *Client) (*Pro
 
 	return &Protocol{
 		Crypto:       crypto,
-		ctxManager:   ctxManager,
 		Client:       client,
+		ctxManager:   ctxManager,
 		keyEncrypter: enc,
 	}, nil
 }
