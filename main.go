@@ -21,7 +21,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -62,17 +61,35 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(conf.secretBytes),
-	}
-
-	err = injectKeys(cryptoCtx, conf.Keys)
+	ctxManager, err := NewFileManager(conf.configDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	coseSigner, err := NewCoseSigner(cryptoCtx)
+	client := &Client{
+		signingServiceURL:  conf.SigningService,
+		keyServiceURL:      conf.KeyService,
+		identityServiceURL: conf.IdentityService,
+	}
+
+	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	idHandler := &IdentityHandler{
+		protocol:            protocol,
+		subjectCountry:      conf.CSR_Country,
+		subjectOrganization: conf.CSR_Organization,
+	}
+
+	// generate and register keys for known identities
+	err = idHandler.initIdentities(conf.identities)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	coseSigner, err := NewCoseSigner(protocol)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -98,7 +115,7 @@ func main() {
 		Path: fmt.Sprintf("/{%s}/%s", UUIDKey, COSEPath),
 		Service: &COSEService{
 			CoseSigner: coseSigner,
-			AuthTokens: conf.Tokens,
+			identities: conf.identities,
 		},
 	})
 
