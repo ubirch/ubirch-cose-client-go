@@ -149,7 +149,7 @@ todo
 
 ### Set TCP address
 
-You can specify the TCP address for the server to listen on, in the form `host:port`. If empty, port 8080 is used.
+You can specify the TCP address for the server to listen on, in the form `host:port`. If empty, port 8081 is used.
 
 - add the following key-value pair to your `config.json`:
     ```json
