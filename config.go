@@ -50,16 +50,16 @@ const (
 )
 
 type Config struct {
-	SecretBase64     string `json:"secret32"`         // secret used to encrypt the key store (mandatory)
-	CSR_Country      string `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
-	CSR_Organization string `json:"CSR_organization"` // subject organization for public key Certificate Signing Requests
-	TCP_addr         string `json:"TCP_addr"`         // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
-	TLS              bool   `json:"TLS"`              // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile     string `json:"TLSCertFile"`      // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile      string `json:"TLSKeyFile"`       // filename of TLS key file name, defaults to "key.pem"
-	Debug            bool   `json:"debug"`            // enable extended debug output, defaults to 'false'
-	LogTextFormat    bool   `json:"logTextFormat"`    // log in text format for better human readability, default format is JSON
-	Env              string `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	SecretBase64     string `json:"secret32" ,envconfig:"secret32"` // secret used to encrypt the key store (mandatory)
+	CSR_Country      string `json:"CSR_country"`                    // subject country for public key Certificate Signing Requests
+	CSR_Organization string `json:"CSR_organization"`               // subject organization for public key Certificate Signing Requests
+	TCP_addr         string `json:"TCP_addr"`                       // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
+	TLS              bool   `json:"TLS"`                            // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile     string `json:"TLSCertFile"`                    // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile      string `json:"TLSKeyFile"`                     // filename of TLS key file name, defaults to "key.pem"
+	Debug            bool   `json:"debug"`                          // enable extended debug output, defaults to 'false'
+	LogTextFormat    bool   `json:"logTextFormat"`                  // log in text format for better human readability, default format is JSON
+	Env              string `json:"env"`                            // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	SigningService   string // signing service URL
 	KeyService       string // key service URL
 	IdentityService  string // identity service URL
