@@ -124,7 +124,7 @@ or, if TLS is enabled:
 - original data (JSON):
   ```console
   curl localhost:8081/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/cbor \
-    -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+    -H "X-Auth-Token: IM+NW4iz3YtTBZyHnW+RtnArBXEK7eKy0do+g4tOgnc=" \
     -H "Content-Type: application/json" \
     -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
     -i \
@@ -134,7 +134,7 @@ or, if TLS is enabled:
 - direct data hash injection:
   ```console
   curl localhost:8081/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/cbor/hash \
-    -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+    -H "X-Auth-Token: IM+NW4iz3YtTBZyHnW+RtnArBXEK7eKy0do+g4tOgnc=" \
     -H "Content-Type: text/plain" \
     -d "VCxVx/SrzNLpKFarKDUO1HJh6vwxq8uD1/w/8Qm7hQs=" \
     -i \
@@ -143,9 +143,64 @@ or, if TLS is enabled:
 
 ## Configuration
 
-todo
+The identity attributes are set through a file "`identities.json`".
+
+```json
+[
+  {
+    "tenant": "<tenant-name>",
+    "category": "<category-name>",
+    "poc": "<PoC-name>",
+    "uuid": "<uuid>",
+    "token": "<auth token>"
+  },
+  ...
+]
+```
+
+See example: [example_identities.json](main/example_identities.json)
+
+It is mandatory to set a 32 byte secret for aes256 encryption of private keys (pkcs#8)
+either in a file `config.json` or as an environment variable.
+
+- File-based Configuration
+
+  `config.json`:
+
+    ```json
+    {
+      "secret32": "<base64 encoded 32 byte secret>"
+    }
+    ```
+
+- Environment-based Configuration
+
+    ```shell
+    UBIRCH_SECRET32=<base64 encoded 32 byte secret>
+    ```
 
 ## Optional Configurations
+
+### Set the UBIRCH backend environment
+
+The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the production
+environment. For development, the environment may be set to `demo`, which is a test system that works like the
+production environment, but stores data only in a blockchain test net. __However, we suggest using `prod` in general as
+`demo` may not always be available__.
+
+> Note that the UUIDs must be registered at the according UBIRCH backend environment,
+> i.e. https://console.demo.ubirch.com/.
+
+To switch to the `demo` backend environment
+
+- add the following key-value pair to your `config.json`:
+    ```json
+      "env": "demo"
+    ```
+- or set the following environment variable:
+    ```shell
+    UBIRCH_ENV=demo
+    ```
 
 ### Set TCP address
 
@@ -206,6 +261,23 @@ You can specify the TCP address for the server to listen on, in the form `host:p
         UBIRCH_TLS_CERTFILE=certs/cert.pem
         UBIRCH_TLS_KEYFILE=certs/key.pem
         ```
+
+### Customize X.509 Certificate Signing Requests
+
+The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
+Common Name* of the CSR subject is the UUID associated with the public key. The values for the *Organization* and *
+Country* of the CSR subject can be set through the configuration.
+
+- add the following key-value pairs to your `config.json`:
+    ```json
+      "CSR_country": "<CSR Subject Country Name (2 letter code)>",
+      "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
+    ```
+- or set the following environment variables:
+    ```shell
+    UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
+    UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
+    ```
 
 ### Extended Debug Output
 

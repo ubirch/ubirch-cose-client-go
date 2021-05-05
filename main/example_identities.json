@@ -1,0 +1,21 @@
+[
+  {
+    "tenant": "T_thetenant",
+    "category": "CAT_thecategory1",
+    "uuid": "11111111-1111-1111-1111-111111111111",
+    "token": "ZScmmOiJmv0F9+WBOi+WLS5dFkTuxYCshERyWFafSr0="
+  },
+  {
+    "tenant": "T_thetenant",
+    "category": "CAT_thecategory2",
+    "uuid": "22222222-2222-2222-2222-222222222222",
+    "token": "3ezC4n0sy5b6iSP+M4ouql2DBmWP0ECvGcGiHoFAwZw="
+  },
+  {
+    "tenant": "T_thetenant",
+    "category": "CAT_thecategory3",
+    "poc": "P_thePoC",
+    "uuid": "33333333-3333-3333-3333-333333333333",
+    "token": "IM+NW4iz3YtTBZyHnW+RtnArBXEK7eKy0do+g4tOgnc="
+  }
+]
