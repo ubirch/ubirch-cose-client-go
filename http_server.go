@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"path"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -35,15 +34,6 @@ const (
 	IdleTimeout           = 60 * time.Second // time to wait for the next request when keep-alives are enabled
 )
 
-type ServerEndpoint struct {
-	Path string
-	Service
-}
-
-type Service interface {
-	handleRequest(w http.ResponseWriter, r *http.Request)
-}
-
 type HTTPServer struct {
 	router   *chi.Mux
 	addr     string
@@ -56,13 +46,6 @@ func NewRouter() *chi.Mux {
 	router := chi.NewMux()
 	router.Use(middleware.Timeout(GatewayTimeout))
 	return router
-}
-
-func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
-
-	srv.router.Post(endpoint.Path, endpoint.handleRequest)
-	srv.router.Post(hashEndpointPath, endpoint.handleRequest)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context) error {

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 
 	"golang.org/x/sync/errgroup"
@@ -102,6 +103,11 @@ func main() {
 		keyFile:  conf.TLS_KeyFile,
 	}
 
+	service := &COSEService{
+		CoseSigner: coseSigner,
+		identities: conf.identities,
+	}
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	ctx, cancel := context.WithCancel(context.Background())
@@ -110,14 +116,19 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
-	// set up endpoint for COSE signing
-	httpServer.AddServiceEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/%s", UUIDKey, COSEPath),
-		Service: &COSEService{
-			CoseSigner: coseSigner,
-			identities: conf.identities,
-		},
-	})
+	// set up endpoints for COSE signing (UUID as URL parameter)
+	directUuidEndpoint := fmt.Sprintf("/{%s}/cbor", UUIDKey) // /<uuid>/cbor
+	httpServer.router.Post(directUuidEndpoint, service.directUUID())
+
+	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
+	httpServer.router.Post(directUuidHashEndpoint, service.directUUID())
+
+	// set up endpoints for COSE signing (UUID via pattern matching)
+	matchUuidEndpoint := "/cbor" // /cbor
+	httpServer.router.Post(matchUuidEndpoint, service.matchUUID())
+
+	matchUuidHashEndpoint := path.Join(matchUuidEndpoint, HashEndpoint) // /cbor/hash
+	httpServer.router.Post(matchUuidHashEndpoint, service.matchUUID())
 
 	// start HTTP server
 	g.Go(func() error {

@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"github.com/go-chi/chi"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -35,7 +36,6 @@ const (
 	PocHeader      = "X-PoC"
 
 	UUIDKey      = "uuid"
-	COSEPath     = "cbor"
 	HashEndpoint = "hash"
 
 	BinType  = "application/octet-stream"
@@ -67,17 +67,34 @@ type COSEService struct {
 	identities []Identity
 }
 
-var _ Service = (*COSEService)(nil)
+func (service *COSEService) directUUID() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := getIdentityUUID(r, service.identities)
+		if err != nil {
+			log.Warn(err)
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
 
-func (service *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	id, err := getIdentity(r, service.identities)
-	if err != nil {
-		log.Warn(err)
-		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-		return
+		service.handleRequest(w, r, id)
 	}
+}
 
-	err = checkAuth(r, id.Token)
+func (service *COSEService) matchUUID() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := getIdentityMatch(r, service.identities)
+		if err != nil {
+			log.Warn(err)
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		service.handleRequest(w, r, id)
+	}
+}
+
+func (service *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, id *Identity) {
+	err := checkAuth(r, id.Token)
 	if err != nil {
 		Error(id.Uid, w, err, http.StatusUnauthorized)
 		return
@@ -151,8 +168,25 @@ func ContentEncoding(header http.Header) string {
 	return strings.ToLower(header.Get("Content-Transfer-Encoding"))
 }
 
+// getIdentityUUID returns the identity which matches the UUID parameter from the request URL
+func getIdentityUUID(r *http.Request, identities []Identity) (*Identity, error) {
+	uuidParam := chi.URLParam(r, UUIDKey)
+	uid, err := uuid.Parse(uuidParam)
+	if err != nil {
+		return nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
+	}
+
+	for _, i := range identities {
+		if uid == i.Uid {
+			return &i, nil
+		}
+	}
+
+	return nil, fmt.Errorf("unknown UUID: \"%s\"", uuidParam)
+}
+
 // getIdentity matches attributes from the request header with a known identity and returns it
-func getIdentity(r *http.Request, identities []Identity) (*Identity, error) {
+func getIdentityMatch(r *http.Request, identities []Identity) (*Identity, error) {
 	t := r.Header.Get(TenantHeader)
 	if len(t) == 0 {
 		return nil, fmt.Errorf("missing header: %s", TenantHeader)
