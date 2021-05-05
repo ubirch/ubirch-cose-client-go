@@ -215,15 +215,6 @@ You can specify the TCP address for the server to listen on, in the form `host:p
     UBIRCH_TCP_ADDR=:8080
     ```
 
-> This describes how to configure the TCP port *the client* exposes,
-> **not the docker container**. If you are running the client in a docker container,
-> you can configure the exposed TCP port (`<host_port>`) with the according
-> argument when starting the client with `docker run`:
->
-> `docker run -p <host_port>:8080 ubirch/ubirch-client:vx.x.x`
->
-> See [Run Client in Docker container](#run-client-in-docker-container)
-
 ### Enable TLS (serve HTTPS)
 
 1. Create a self-signed TLS certificate
