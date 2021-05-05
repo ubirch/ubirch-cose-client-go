@@ -1,4 +1,4 @@
-module github.com/ubirch/ubirch-cose-client-go
+module github.com/ubirch/ubirch-cose-client-go/main
 
 go 1.16
 
