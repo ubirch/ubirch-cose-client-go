@@ -137,6 +137,9 @@ func persistFile(file string, source interface{}) error {
 			log.Warnf("unable to create backup file for %s: %v", file, err)
 		}
 	}
-	contextBytes, _ := json.MarshalIndent(source, "", "  ")
+	contextBytes, err := json.MarshalIndent(source, "", "  ")
+	if err != nil {
+		return err
+	}
 	return ioutil.WriteFile(file, contextBytes, filePerm)
 }
