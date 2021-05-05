@@ -30,7 +30,6 @@ import (
 
 const (
 	secretLength = 32
-	tokenLength  = 32
 
 	PROD_STAGE = "prod"
 
@@ -51,15 +50,15 @@ const (
 
 type Config struct {
 	SecretBase64     string `json:"secret32" envconfig:"secret32"` // 32 byte secret used to encrypt the key store (mandatory)
-	CSR_Country      string `json:"CSR_country"`                   // subject country for public key Certificate Signing Requests
-	CSR_Organization string `json:"CSR_organization"`              // subject organization for public key Certificate Signing Requests
+	Env              string `json:"env"`                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	TCP_addr         string `json:"TCP_addr"`                      // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
 	TLS              bool   `json:"TLS"`                           // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile     string `json:"TLSCertFile"`                   // filename of TLS certificate file name, defaults to "cert.pem"
 	TLS_KeyFile      string `json:"TLSKeyFile"`                    // filename of TLS key file name, defaults to "key.pem"
+	CSR_Country      string `json:"CSR_country"`                   // subject country for public key Certificate Signing Requests
+	CSR_Organization string `json:"CSR_organization"`              // subject organization for public key Certificate Signing Requests
 	Debug            bool   `json:"debug"`                         // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool   `json:"logTextFormat"`                 // log in text format for better human readability, default format is JSON
-	Env              string `json:"env"`                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	SigningService   string // signing service URL
 	KeyService       string // key service URL
 	IdentityService  string // identity service URL
@@ -206,7 +205,7 @@ type Identity struct {
 	Category string    `json:"category"`
 	Poc      string    `json:"poc"` // can be empty
 	Uid      uuid.UUID `json:"uuid"`
-	Token    []byte    `json:"token"`
+	Token    string    `json:"token"`
 }
 
 // loadIdentitiesFile loads identities from the identities JSON file.
@@ -238,13 +237,13 @@ func (c *Config) loadIdentitiesFile() error {
 		if i.Uid == uuid.Nil {
 			return fmt.Errorf("%s: invalid UUID", i.Uid)
 		}
-		if len(i.Token) != tokenLength {
-			return fmt.Errorf("%s: token length must be %d bytes (is %d)", i.Uid, tokenLength, len(i.Token))
+		if len(i.Token) == 0 {
+			return fmt.Errorf("%s: empty auth token field", i.Uid)
 		}
-		if tokenAlreadyExists[string(i.Token)] {
+		if tokenAlreadyExists[i.Token] {
 			return fmt.Errorf("%s: can not use same token for multiple identities", i.Uid)
 		} else {
-			tokenAlreadyExists[string(i.Token)] = true
+			tokenAlreadyExists[i.Token] = true
 		}
 	}
 	return nil

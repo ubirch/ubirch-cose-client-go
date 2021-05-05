@@ -211,8 +211,8 @@ func getIdentityMatch(r *http.Request, identities []Identity) (*Identity, error)
 
 // checkAuth checks the auth token from the request header
 // Returns error if auth token is not correct
-func checkAuth(r *http.Request, correctAuthToken []byte) error {
-	if r.Header.Get(AuthHeader) != base64.StdEncoding.EncodeToString(correctAuthToken) {
+func checkAuth(r *http.Request, correctAuthToken string) error {
+	if r.Header.Get(AuthHeader) != correctAuthToken {
 		return fmt.Errorf("invalid auth token")
 	}
 	return nil
