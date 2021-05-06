@@ -49,21 +49,22 @@ const (
 )
 
 type Config struct {
-	SecretBase64     string `json:"secret32" envconfig:"secret32"` // 32 byte secret used to encrypt the key store (mandatory)
-	Env              string `json:"env"`                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	TCP_addr         string `json:"TCP_addr"`                      // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
-	TLS              bool   `json:"TLS"`                           // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile     string `json:"TLSCertFile"`                   // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile      string `json:"TLSKeyFile"`                    // filename of TLS key file name, defaults to "key.pem"
-	CSR_Country      string `json:"CSR_country"`                   // subject country for public key Certificate Signing Requests
-	CSR_Organization string `json:"CSR_organization"`              // subject organization for public key Certificate Signing Requests
-	Debug            bool   `json:"debug"`                         // enable extended debug output, defaults to 'false'
-	LogTextFormat    bool   `json:"logTextFormat"`                 // log in text format for better human readability, default format is JSON
-	SigningService   string // signing service URL
-	KeyService       string // key service URL
-	IdentityService  string // identity service URL
-	configDir        string // directory where config and protocol ctx are stored
-	secretBytes      []byte // the decoded key store secret
+	Tokens           map[uuid.UUID]string `json:"tokens"`
+	SecretBase64     string               `json:"secret32" envconfig:"secret32"` // 32 byte secret used to encrypt the key store (mandatory)
+	Env              string               `json:"env"`                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	TCP_addr         string               `json:"TCP_addr"`                      // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
+	TLS              bool                 `json:"TLS"`                           // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile     string               `json:"TLSCertFile"`                   // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile      string               `json:"TLSKeyFile"`                    // filename of TLS key file name, defaults to "key.pem"
+	CSR_Country      string               `json:"CSR_country"`                   // subject country for public key Certificate Signing Requests
+	CSR_Organization string               `json:"CSR_organization"`              // subject organization for public key Certificate Signing Requests
+	Debug            bool                 `json:"debug"`                         // enable extended debug output, defaults to 'false'
+	LogTextFormat    bool                 `json:"logTextFormat"`                 // log in text format for better human readability, default format is JSON
+	SigningService   string               // signing service URL
+	KeyService       string               // key service URL
+	IdentityService  string               // identity service URL
+	configDir        string               // directory where config and protocol ctx are stored
+	secretBytes      []byte               // the decoded key store secret
 	identities       []Identity
 }
 
@@ -73,7 +74,7 @@ func (c *Config) Load(configDir string, filename string) error {
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
-	if os.Getenv("UBIRCH_SECRET") != "" {
+	if os.Getenv("UBIRCH_SECRET32") != "" {
 		err = c.loadEnv()
 	} else {
 		err = c.loadFile(filename)
@@ -132,7 +133,7 @@ func (c *Config) loadFile(filename string) error {
 
 func (c *Config) checkMandatory() error {
 	if len(c.secretBytes) != secretLength {
-		return fmt.Errorf("secret for aes-256 key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
+		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
 	}
 
 	return nil
@@ -223,7 +224,7 @@ func (c *Config) loadIdentitiesFile() error {
 		return err
 	}
 
-	log.Infof("loaded %d identities", len(c.identities))
+	log.Debugf("found %d identities with roles for pattern matching", len(c.identities))
 
 	tokenAlreadyExists := make(map[string]bool, len(c.identities))
 
@@ -246,5 +247,20 @@ func (c *Config) loadIdentitiesFile() error {
 			tokenAlreadyExists[i.Token] = true
 		}
 	}
+
+	log.Debugf("found %d UUIDs with tokens for direct key selection", len(c.Tokens))
+	for uid, token := range c.Tokens {
+		if len(token) == 0 {
+			return fmt.Errorf("%s: empty auth token", uid)
+		}
+
+		i := Identity{
+			Uid:   uid,
+			Token: token,
+		}
+
+		c.identities = append(c.identities, i)
+	}
+
 	return nil
 }
