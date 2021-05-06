@@ -68,9 +68,9 @@ func main() {
 	}
 
 	client := &Client{
-		signingServiceURL:  conf.SigningService,
 		keyServiceURL:      conf.KeyService,
 		identityServiceURL: conf.IdentityService,
+		//signingServiceURL:  conf.SigningService,
 	}
 
 	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client)

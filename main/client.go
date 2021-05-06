@@ -30,9 +30,9 @@ import (
 )
 
 type Client struct {
-	signingServiceURL  string
 	keyServiceURL      string
 	identityServiceURL string
+	//signingServiceURL  string
 }
 
 // requestPublicKeys requests a devices public keys at the identity service
@@ -127,10 +127,10 @@ func (c *Client) submitCSR(uid uuid.UUID, csr []byte) error {
 	return nil
 }
 
-func (c *Client) sendToUbirchCloudClient(uid uuid.UUID, auth string, upp []byte) (HTTPResponse, error) {
-	endpoint := path.Join(c.signingServiceURL, uid.String(), "hash")
-	return post(endpoint, upp, UCCHeader(auth))
-}
+//func (c *Client) sendToUbirchCloudClient(uid uuid.UUID, auth string, upp []byte) (HTTPResponse, error) {
+//	endpoint := path.Join(c.signingServiceURL, uid.String(), "hash")
+//	return post(endpoint, upp, UCCHeader(auth))
+//}
 
 // post submits a message to a backend service
 // returns the response or encountered errors

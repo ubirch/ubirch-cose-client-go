@@ -33,9 +33,9 @@ const (
 
 	PROD_STAGE = "prod"
 
-	defaultSigningServiceURL = "http://localhost:8080"
-	defaultKeyURL            = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
-	defaultIdentityURL       = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	defaultKeyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	//defaultSigningServiceURL = "http://localhost:8080"
 
 	identitiesFileName = "identities.json"
 
@@ -60,12 +60,12 @@ type Config struct {
 	CSR_Organization string               `json:"CSR_organization"`              // subject organization for public key Certificate Signing Requests
 	Debug            bool                 `json:"debug"`                         // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool                 `json:"logTextFormat"`                 // log in text format for better human readability, default format is JSON
-	SigningService   string               // signing service URL
 	KeyService       string               // key service URL
 	IdentityService  string               // identity service URL
-	configDir        string               // directory where config and protocol ctx are stored
-	secretBytes      []byte               // the decoded key store secret
-	identities       []Identity
+	//SigningService   string               // signing service URL
+	configDir   string // directory where config and protocol ctx are stored
+	secretBytes []byte // the decoded key store secret
+	identities  []Identity
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -184,10 +184,6 @@ func (c *Config) setDefaultURLs() error {
 		c.Env = PROD_STAGE
 	}
 
-	if c.SigningService == "" {
-		c.SigningService = defaultSigningServiceURL
-	}
-
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
 	} else {
@@ -198,10 +194,14 @@ func (c *Config) setDefaultURLs() error {
 		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
 	}
 
+	//if c.SigningService == "" {
+	//	c.SigningService = defaultSigningServiceURL
+	//}
+
 	log.Infof("UBIRCH backend environment: %s", c.Env)
 	log.Debugf(" - Key Service:      %s", c.KeyService)
 	log.Debugf(" - Identity Service: %s", c.IdentityService)
-	log.Debugf(" - Signing Service:  %s", c.SigningService)
+	//log.Debugf(" - Signing Service:  %s", c.SigningService)
 
 	return nil
 }
