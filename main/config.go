@@ -101,6 +101,11 @@ func (c *Config) Load(configDir string, filename string) error {
 		return err
 	}
 
+	err = c.loadTokens()
+	if err != nil {
+		return err
+	}
+
 	err = c.checkMandatory()
 	if err != nil {
 		return err
@@ -213,6 +218,11 @@ type Identity struct {
 func (c *Config) loadIdentitiesFile() error {
 	identitiesFile := filepath.Join(c.configDir, identitiesFileName)
 
+	// if file does not exist, return right away
+	if _, err := os.Stat(identitiesFile); os.IsNotExist(err) {
+		return nil
+	}
+
 	fileHandle, err := os.Open(identitiesFile)
 	if err != nil {
 		return err
@@ -248,7 +258,12 @@ func (c *Config) loadIdentitiesFile() error {
 		}
 	}
 
+	return nil
+}
+
+func (c *Config) loadTokens() error {
 	log.Debugf("found %d UUIDs with tokens for direct key selection", len(c.Tokens))
+
 	for uid, token := range c.Tokens {
 		if len(token) == 0 {
 			return fmt.Errorf("%s: empty auth token", uid)
