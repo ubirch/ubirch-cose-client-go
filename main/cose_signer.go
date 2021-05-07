@@ -71,6 +71,11 @@ type CoseSigner struct {
 	protectedHeader []byte
 }
 
+func initCBOREncMode() (cbor.EncMode, error) {
+	encOpt := cbor.CanonicalEncOptions() //https://cose-wg.github.io/cose-spec/#rfc.section.14
+	return encOpt.EncMode()
+}
+
 func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 	encMode, err := initCBOREncMode()
 	if err != nil {
@@ -93,34 +98,63 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 	log.Infof("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	privKeyPEM, err := c.GetPrivateKey(msg.ID)
+	cose, err := c.createSignedCOSE(msg.ID, msg.Hash, msg.Payload)
 	if err != nil {
-		log.Errorf("%s: could not get private key: %v", msg.ID, err)
+		log.Errorf("%s: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-
-	skid, err := c.getSKID(msg.ID)
-	if err != nil {
-		log.Errorf("%s: could not get SKID: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
-	}
-
-	coseBytes, err := c.getSignedCOSE(privKeyPEM, msg.Hash, skid[:], msg.Payload)
-	if err != nil {
-		log.Errorf("%s: could not create signed COSE object: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
-	}
-	log.Debugf("%s: COSE: %x", msg.ID, coseBytes)
+	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
 	return HTTPResponse{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
-		Content:    coseBytes,
+		Content:    cose,
 	}
 }
 
-// getSignedCOSE creates a COSE Single Signer Data Object (COSE_Sign1) with ECDSA P-256 signature
-func (c *CoseSigner) getSignedCOSE(privateKeyPEM []byte, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
+func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, payload []byte) ([]byte, error) {
+	skid, err := c.getSKID(uid)
+	if err != nil {
+		return nil, fmt.Errorf("could not get SKID: %v", err)
+	}
+
+	signature, err := c.getSignature(uid, hash)
+	if err != nil {
+		return nil, fmt.Errorf("could not create signature: %v", err)
+	}
+
+	coseBytes, err := c.getCOSE(skid[:], payload, signature)
+	if err != nil {
+		return nil, fmt.Errorf("could not create signed COSE object: %v", err)
+	}
+
+	return coseBytes, nil
+}
+
+func (c *CoseSigner) getSKID(uid uuid.UUID) (skid [SkidLen]byte, err error) {
+	cert, err := c.GetCertificate(uid)
+	if err != nil {
+		return [SkidLen]byte{}, err
+	}
+
+	hash := sha256.Sum256(cert)
+	copy(skid[:], hash[:SkidLen])
+
+	return skid, nil
+}
+
+// getSignature creates ECDSA P-256 signature and returns the bytes
+func (c *CoseSigner) getSignature(uid uuid.UUID, hash Sha256Sum) (signatureBytes []byte, err error) {
+	privateKeyPEM, err := c.GetPrivateKey(uid)
+	if err != nil {
+		return nil, err
+	}
+	return c.SignHash(privateKeyPEM, hash[:])
+}
+
+// getCOSE creates a COSE Single Signer Data Object (COSE_Sign1)
+// and returns the Canonical-CBOR-encoded object with tag 18
+func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error) {
 	/*
 		* https://cose-wg.github.io/cose-spec/#rfc.section.4.2
 			[COSE Single Signer Data Object]
@@ -204,12 +238,6 @@ func (c *CoseSigner) getSignedCOSE(privateKeyPEM []byte, hash Sha256Sum, kid, pa
 																							payload is unknown
 	*/
 
-	// create ES256 signature
-	signatureBytes, err := c.SignHash(privateKeyPEM, hash[:])
-	if err != nil {
-		return nil, err
-	}
-
 	// create COSE_Sign1 object
 	coseSign1 := &COSE_Sign1{
 		Protected:   c.protectedHeader,
@@ -220,11 +248,6 @@ func (c *CoseSigner) getSignedCOSE(privateKeyPEM []byte, hash Sha256Sum, kid, pa
 
 	// encode COSE_Sign1 object with tag
 	return c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
-}
-
-func initCBOREncMode() (cbor.EncMode, error) {
-	encOpt := cbor.CanonicalEncOptions() //https://cose-wg.github.io/cose-spec/#rfc.section.14
-	return encOpt.EncMode()
 }
 
 // GetSigStructBytes creates a "Canonical CBOR"-encoded](https://tools.ietf.org/html/rfc7049#section-3.9)
@@ -254,16 +277,4 @@ func (c *CoseSigner) GetCBORFromJSON(data []byte) ([]byte, error) {
 	}
 
 	return c.encMode.Marshal(reqDump)
-}
-
-func (c *CoseSigner) getSKID(uid uuid.UUID) (skid [SkidLen]byte, err error) {
-	cert, err := c.GetCertificate(uid)
-	if err != nil {
-		return [SkidLen]byte{}, err
-	}
-
-	hash := sha256.Sum256(cert)
-	copy(skid[:], hash[:SkidLen])
-
-	return skid, nil
 }
