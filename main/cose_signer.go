@@ -32,6 +32,7 @@ const (
 	COSE_Kid_Label     = 4            // key identifier label (Common COSE Headers Parameters: https://cose-wg.github.io/cose-spec/#rfc.section.3.1)
 	COSE_Sign1_Tag     = 18           // CBOR tag TBD7 identifies tagged COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.2)
 	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
+	SKIDlen            = 8
 )
 
 // 	COSE_Sign1 = [
@@ -91,7 +92,19 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 	log.Infof("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	coseBytes, err := c.getSignedCOSE(msg.ID, msg.Hash, msg.Payload)
+	privKeyPEM, err := c.protocol.GetPrivateKey(msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not get private key: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+
+	skid, err := c.GetSKID(msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not get SKID: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+
+	coseBytes, err := c.getSignedCOSE(privKeyPEM, msg.Hash, skid, msg.Payload)
 	if err != nil {
 		log.Errorf("%s: could not create signed COSE object: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -106,7 +119,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 }
 
 // getSignedCOSE creates a COSE Single Signer Data Object (COSE_Sign1) with ECDSA P-256 signature
-func (c *CoseSigner) getSignedCOSE(uid uuid.UUID, hash [32]byte, payload []byte) ([]byte, error) {
+func (c *CoseSigner) getSignedCOSE(privateKeyPEM []byte, hash [32]byte, kid, payload []byte) ([]byte, error) {
 	/*
 		* https://cose-wg.github.io/cose-spec/#rfc.section.4.2
 			[COSE Single Signer Data Object]
@@ -189,13 +202,9 @@ func (c *CoseSigner) getSignedCOSE(uid uuid.UUID, hash [32]byte, payload []byte)
 			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
 																							payload is unknown
 	*/
-	privKeyPEM, err := c.protocol.GetPrivateKey(uid)
-	if err != nil {
-		return nil, err
-	}
 
 	// create ES256 signature
-	signatureBytes, err := c.protocol.SignHash(privKeyPEM, hash[:])
+	signatureBytes, err := c.protocol.SignHash(privateKeyPEM, hash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +212,7 @@ func (c *CoseSigner) getSignedCOSE(uid uuid.UUID, hash [32]byte, payload []byte)
 	// create COSE_Sign1 object
 	coseSign1 := &COSE_Sign1{
 		Protected:   c.protectedHeader,
-		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: uid[:]},
+		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: kid},
 		Payload:     payload,
 		Signature:   signatureBytes,
 	}
@@ -244,4 +253,19 @@ func (c *CoseSigner) GetCBORFromJSON(data []byte) ([]byte, error) {
 	}
 
 	return c.encMode.Marshal(reqDump)
+}
+
+func (c *CoseSigner) GetSKID(uid uuid.UUID) ([]byte, error) {
+	// todo
+	//	cert, err := c.protocol.requestCertificate(uid)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//
+	//	// todo check validity? convert to DER?
+	//
+	//	return cert[:SKIDlen], nil
+
+	// fixme: for now simply return uuid bytes as before
+	return uid[:], nil
 }

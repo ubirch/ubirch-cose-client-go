@@ -35,6 +35,7 @@ const (
 
 	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
 	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	defaultCertificateURL = "https://TODO"
 	//defaultSigningServiceURL = "http://localhost:8080"
 
 	identitiesFileName = "identities.json"
@@ -68,10 +69,11 @@ type Config struct {
 	LogTextFormat    bool                 `json:"logTextFormat"`                         // log in text format for better human readability, default format is JSON
 	KeyService       string               // key service URL
 	IdentityService  string               // identity service URL
+	CertificateService string               // certificate service URL
 	//SigningService   string               // signing service URL
 	configDir   string // directory where config and protocol ctx are stored
 	secretBytes []byte // the decoded key store secret
-	identities  []*Identity
+	identities  []Identity
 }
 
 func (c *Config) Load(configDir string, filename string) error {
