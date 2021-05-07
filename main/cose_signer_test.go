@@ -30,7 +30,7 @@ var (
 )
 
 func TestCoseSign(t *testing.T) {
-	p := setupProtocol(t)
+	p, privateKeyPEM := setupProtocol(t)
 
 	coseSigner, err := NewCoseSigner(p)
 	if err != nil {
@@ -57,7 +57,12 @@ func TestCoseSign(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	coseBytes, err := coseSigner.getSignedCOSE(uid, hash, payloadCBOR)
+	signature, err := coseSigner.SignHash(privateKeyPEM, hash[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	coseBytes, err := coseSigner.getCOSE(uid[:], payloadCBOR, signature)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +70,7 @@ func TestCoseSign(t *testing.T) {
 	t.Logf("signed COSE [CBOR]: %x", coseBytes)
 }
 
-func setupProtocol(t *testing.T) *Protocol {
+func setupProtocol(t *testing.T) (protocol *Protocol, privKeyPEM []byte) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{}
 
 	privKeyPEM, err := cryptoCtx.PrivateKeyBytesToPEM(key)
@@ -73,45 +78,19 @@ func setupProtocol(t *testing.T) *Protocol {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, _ := cryptoCtx.GetPublicKeyFromPrivateKey(privKeyPEM)
-	pubKeyBytes, _ := cryptoCtx.PublicKeyPEMToBytes(pubKeyPEM)
-	t.Logf("public key [base64]: %s", base64.StdEncoding.EncodeToString(pubKeyBytes))
-
-	ctxManager := &testContextManager{
-		privateKey: privKeyPEM,
-		publicKey:  pubKeyPEM,
+	pubKeyPEM, err := cryptoCtx.GetPublicKeyFromPrivateKey(privKeyPEM)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	pubKeyBytes, err := cryptoCtx.PublicKeyPEMToBytes(pubKeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("public key: %x", pubKeyBytes)
 
 	return &Protocol{
-		Crypto:         cryptoCtx,
-		ContextManager: ctxManager,
-		Client:         &Client{},
-	}
+		Crypto: cryptoCtx,
+	}, privKeyPEM
 }
-
-type testContextManager struct {
-	privateKey []byte
-	publicKey  []byte
-}
-
-func (t testContextManager) GetPrivateKey(uid uuid.UUID) (privKey []byte, err error) {
-	return t.privateKey, nil
-}
-
-func (t testContextManager) GetPublicKey(uid uuid.UUID) (pubKey []byte, err error) {
-	return t.publicKey, nil
-}
-
-func (t testContextManager) Exists(uid uuid.UUID) bool {
-	panic("not implemented")
-}
-
-func (t testContextManager) SetPrivateKey(uid uuid.UUID, privKey []byte) error {
-	panic("not implemented")
-}
-
-func (t testContextManager) SetPublicKey(uid uuid.UUID, pubKey []byte) error {
-	panic("not implemented")
-}
-
-var _ ContextManager = (*testContextManager)(nil)
