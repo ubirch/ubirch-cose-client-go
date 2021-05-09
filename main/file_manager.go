@@ -109,29 +109,39 @@ func publicKeyEntryID(id uuid.UUID) string {
 
 func loadFile(file string, dest interface{}) error {
 	if _, err := os.Stat(file); os.IsNotExist(err) { // if file does not exist yet, return right away
+		log.Warnf("file \"%s\" not found", file)
 		return nil
 	}
 	contextBytes, err := ioutil.ReadFile(file)
 	if err != nil {
-		file = file + ".bck"
-		contextBytes, err = ioutil.ReadFile(file)
-		if err != nil {
+		log.Warnf("reading from file \"%s\" failed: %v", file, err)
+		if strings.HasSuffix(file, ".bck") {
 			return err
+		} else {
+			bckFile := file + ".bck"
+			log.Warnf("read from backup file \"%s\"", bckFile)
+			contextBytes, err = ioutil.ReadFile(bckFile)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	err = json.Unmarshal(contextBytes, dest)
 	if err != nil {
+		log.Warnf("loading file \"%s\" failed: %v", file, err)
 		if strings.HasSuffix(file, ".bck") {
 			return err
 		} else {
-			return loadFile(file+".bck", dest)
+			bckFile := file + ".bck"
+			log.Warnf("load backup file \"%s\"", bckFile)
+			return loadFile(bckFile, dest)
 		}
 	}
 	return nil
 }
 
 func persistFile(file string, source interface{}) error {
-	if _, err := os.Stat(file); !os.IsNotExist(err) { // if file already exists, create a backup
+	if _, err := os.Stat(file); err == nil { // if file already exists, create a backup
 		err = os.Rename(file, file+".bck")
 		if err != nil {
 			log.Warnf("unable to create backup file for %s: %v", file, err)
