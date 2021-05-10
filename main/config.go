@@ -239,12 +239,12 @@ func (c *Config) loadIdentitiesFile() error {
 	tokenAlreadyExists := make(map[string]bool, len(c.identities))
 
 	for _, i := range c.identities {
-		if len(i.Tenant) == 0 {
-			return fmt.Errorf("%s: empty tenant field", i.Uid)
-		}
-		if len(i.Category) == 0 {
-			return fmt.Errorf("%s: empty category field", i.Uid)
-		}
+		//if len(i.Tenant) == 0 {
+		//	return fmt.Errorf("%s: empty tenant field", i.Uid)
+		//}
+		//if len(i.Category) == 0 {
+		//	return fmt.Errorf("%s: empty category field", i.Uid)
+		//}
 		if i.Uid == uuid.Nil {
 			return fmt.Errorf("%s: invalid UUID", i.Uid)
 		}
