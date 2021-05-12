@@ -17,6 +17,8 @@ package main
 import (
 	"context"
 	"fmt"
+	p "github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
 	"os"
 	"os/signal"
 	"path"
@@ -115,6 +117,10 @@ func main() {
 
 	// set up graceful shutdown handling
 	go shutdown(cancel)
+
+	RegisterPromMetrics()
+	httpServer.router.Use(PromMiddleware)
+	httpServer.router.Method(http.MethodGet, "/metrics", p.Handler())
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := fmt.Sprintf("/{%s}/cbor", UUIDKey) // /<uuid>/cbor
