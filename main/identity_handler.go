@@ -85,7 +85,7 @@ func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) er
 	}
 	log.Debugf("%s: key certificate: %s", uid, cert)
 
-	err = i.protocol.submitKeyRegistration(uid, cert)
+	err = i.protocol.SubmitKeyRegistration(uid, cert, "")
 	if err != nil {
 		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
@@ -110,7 +110,7 @@ func (i *IdentityHandler) sendCSR(privKeyPEM []byte, uid uuid.UUID) error {
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.protocol.submitCSR(uid, csr)
+	err = i.protocol.SubmitCSR(uid, csr)
 	if err != nil {
 		return fmt.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
 	}

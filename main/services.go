@@ -38,7 +38,8 @@ const (
 	PocHeader      = "X-PoC"
 
 	UUIDKey      = "uuid"
-	HashEndpoint = "hash"
+	CBORPath     = "/cbor"
+	HashEndpoint = "/hash"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
@@ -49,6 +50,8 @@ const (
 
 	HashLen = 32
 )
+
+var UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)
 
 type Sha256Sum [HashLen]byte
 
