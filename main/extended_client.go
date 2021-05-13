@@ -15,20 +15,25 @@
 package main
 
 import (
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
+	"io/ioutil"
+	"net/http"
 	"path"
 
+	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 )
 
 type ExtendedClient struct {
 	clients.Client
-	signingServiceURL string
+	CertificateServiceURL string
+	SigningServiceURL     string
 }
 
-func (c *ExtendedClient) sendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	endpoint := path.Join(c.signingServiceURL, uid.String(), "hash")
+func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
+	endpoint := path.Join(c.SigningServiceURL, uid.String(), "hash")
 	return clients.Post(endpoint, upp, UCCHeader(auth))
 }
 
@@ -37,4 +42,29 @@ func UCCHeader(auth string) map[string]string {
 		"x-auth-token": auth,
 		"content-type": "application/octet-stream",
 	}
+}
+
+func (c *ExtendedClient) RequestCertificate(uid uuid.UUID) (cert []byte, err error) {
+	endpoint := path.Join(c.CertificateServiceURL, uid.String())
+
+	log.Debugf("%s: getting certificate from %s", uid, endpoint)
+
+	resp, err := http.Get(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %v", err)
+	}
+	//noinspection GoUnhandledErrorResult
+	defer resp.Body.Close()
+
+	if h.HttpFailed(resp.StatusCode) {
+		respContent, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("retrieving certificate from %s failed: (%s) %s", endpoint, resp.Status, string(respContent))
+	}
+
+	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read response body: %v", err)
+	}
+
+	return respBodyBytes, nil
 }

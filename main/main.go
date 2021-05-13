@@ -138,7 +138,8 @@ func main() {
 	client := &ExtendedClient{}
 	client.KeyServiceURL = conf.KeyService
 	client.IdentityServiceURL = conf.IdentityService
-	//todo client.signingServiceURL = conf.SigningService
+	client.CertificateServiceURL = conf.CertificateService
+	//todo client.SigningServiceURL = conf.SigningService
 
 	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client)
 	if err != nil {
