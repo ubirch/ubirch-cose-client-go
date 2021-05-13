@@ -25,6 +25,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
@@ -112,6 +113,9 @@ func main() {
 
 	// set up prometheus metrics
 	prom.InitPromMetrics(httpServer.Router)
+
+	httpServer.Router.Get("/healtz", h.Health(Version))
+	httpServer.Router.Get("/readiness", h.Health(Version))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
