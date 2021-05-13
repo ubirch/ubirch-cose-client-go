@@ -25,6 +25,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 // handle graceful shutdown
@@ -115,6 +116,9 @@ func main() {
 
 	// set up graceful shutdown handling
 	go shutdown(cancel)
+
+	// set up prometheus metrics
+	prom.InitPromMetrics(httpServer.router)
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := fmt.Sprintf("/{%s}/cbor", UUIDKey) // /<uuid>/cbor
