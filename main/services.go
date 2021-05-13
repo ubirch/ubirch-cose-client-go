@@ -19,14 +19,16 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"github.com/go-chi/chi"
 	"io/ioutil"
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/logger"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 )
 
 const (
@@ -67,33 +69,33 @@ type COSEService struct {
 	identities []Identity
 }
 
-func (service *COSEService) directUUID() http.HandlerFunc {
+func (s *COSEService) directUUID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := getIdentityUUID(r, service.identities)
+		id, err := getIdentityUUID(r, s.identities)
 		if err != nil {
 			log.Warn(err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
-		service.handleRequest(w, r, id)
+		s.handleRequest(w, r, id)
 	}
 }
 
-func (service *COSEService) matchUUID() http.HandlerFunc {
+func (s *COSEService) matchUUID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := getIdentityMatch(r, service.identities)
+		id, err := getIdentityMatch(r, s.identities)
 		if err != nil {
 			log.Warn(err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
-		service.handleRequest(w, r, id)
+		s.handleRequest(w, r, id)
 	}
 }
 
-func (service *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, id *Identity) {
+func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, id *Identity) {
 	err := checkAuth(r, id.Token)
 	if err != nil {
 		Error(id.Uid, w, err, http.StatusUnauthorized)
@@ -102,18 +104,21 @@ func (service *COSEService) handleRequest(w http.ResponseWriter, r *http.Request
 
 	msg := HTTPRequest{ID: id.Uid}
 
-	msg.Payload, msg.Hash, err = service.getPayloadAndHash(r)
+	msg.Payload, msg.Hash, err = s.getPayloadAndHash(r)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
 
-	resp := service.Sign(msg)
-
+	resp := s.Sign(msg)
 	sendResponse(w, resp)
+
+	if h.HttpSuccess(resp.StatusCode) {
+		logger.AuditLogf("uuid: %s, operation: COSE object creation, hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	}
 }
 
-func (service *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
+func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
 	rBody, err := readBody(r)
 	if err != nil {
 		return nil, Sha256Sum{}, err
@@ -123,14 +128,14 @@ func (service *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, 
 		hash, err = getHashFromHashRequest(r.Header, rBody)
 		return rBody, hash, err
 	} else { // request contains original data
-		return service.getPayloadAndHashFromDataRequest(r.Header, rBody)
+		return s.getPayloadAndHashFromDataRequest(r.Header, rBody)
 	}
 }
 
-func (service *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
+func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
 	switch ContentType(header) {
 	case JSONType:
-		data, err = service.GetCBORFromJSON(data)
+		data, err = s.GetCBORFromJSON(data)
 		if err != nil {
 			return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
 		}
@@ -138,7 +143,7 @@ func (service *COSEService) getPayloadAndHashFromDataRequest(header http.Header,
 
 		fallthrough
 	case CBORType:
-		toBeSigned, err := service.GetSigStructBytes(data)
+		toBeSigned, err := s.GetSigStructBytes(data)
 		if err != nil {
 			return nil, Sha256Sum{}, err
 		}
