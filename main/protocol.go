@@ -16,32 +16,33 @@ package main
 
 import (
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type Protocol struct {
 	ubirch.Crypto
-	*Client
+	*ExtendedClient
 	ctxManager   ContextManager
-	keyEncrypter *KeyEncrypter
+	keyEncrypter *encrypters.KeyEncrypter
 }
 
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(ctxManager ContextManager, secret []byte, client *Client) (*Protocol, error) {
+func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClient) (*Protocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
-	enc, err := NewKeyEncrypter(secret, crypto)
+	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Protocol{
-		Crypto:       crypto,
-		Client:       client,
-		ctxManager:   ctxManager,
-		keyEncrypter: enc,
+		Crypto:         crypto,
+		ExtendedClient: client,
+		ctxManager:     ctxManager,
+		keyEncrypter:   enc,
 	}, nil
 }
 

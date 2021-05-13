@@ -16,12 +16,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"path"
 	"syscall"
 
+	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -68,11 +68,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	client := &Client{
-		keyServiceURL:      conf.KeyService,
-		identityServiceURL: conf.IdentityService,
-		//signingServiceURL:  conf.SigningService,
-	}
+	client := &ExtendedClient{}
+	client.KeyServiceURL = conf.KeyService
+	client.IdentityServiceURL = conf.IdentityService
+	//todo client.signingServiceURL = conf.SigningService
 
 	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client)
 	if err != nil {
@@ -85,23 +84,17 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	// generate and register keys for known identities
-	err = idHandler.initIdentities(conf.identities)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	coseSigner, err := NewCoseSigner(protocol)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	httpServer := HTTPServer{
-		router:   NewRouter(),
-		addr:     conf.TCP_addr,
+	httpServer := handlers.HTTPServer{
+		Router:   handlers.NewRouter(),
+		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
-		certFile: conf.TLS_CertFile,
-		keyFile:  conf.TLS_KeyFile,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
 	}
 
 	service := &COSEService{
@@ -118,21 +111,27 @@ func main() {
 	go shutdown(cancel)
 
 	// set up prometheus metrics
-	prom.InitPromMetrics(httpServer.router)
+	prom.InitPromMetrics(httpServer.Router)
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := fmt.Sprintf("/{%s}/cbor", UUIDKey) // /<uuid>/cbor
-	httpServer.router.Post(directUuidEndpoint, service.directUUID())
+	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
+	httpServer.Router.Post(directUuidEndpoint, service.directUUID())
 
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.router.Post(directUuidHashEndpoint, service.directUUID())
+	httpServer.Router.Post(directUuidHashEndpoint, service.directUUID())
 
 	// set up endpoints for COSE signing (UUID via pattern matching)
-	matchUuidEndpoint := "/cbor" // /cbor
-	httpServer.router.Post(matchUuidEndpoint, service.matchUUID())
+	matchUuidEndpoint := CBORPath // /cbor
+	httpServer.Router.Post(matchUuidEndpoint, service.matchUUID())
 
 	matchUuidHashEndpoint := path.Join(matchUuidEndpoint, HashEndpoint) // /cbor/hash
-	httpServer.router.Post(matchUuidHashEndpoint, service.matchUUID())
+	httpServer.Router.Post(matchUuidHashEndpoint, service.matchUUID())
+
+	// generate and register keys for known identities
+	err = idHandler.initIdentities(conf.identities)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// start HTTP server
 	g.Go(func() error {
