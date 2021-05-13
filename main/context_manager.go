@@ -1,7 +1,13 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
+)
+
+var (
+	ErrExists = errors.New("entry already exists")
 )
 
 type ContextManager interface {
