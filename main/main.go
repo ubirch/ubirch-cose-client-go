@@ -45,7 +45,7 @@ func shutdown(cancel context.CancelFunc) {
 
 var (
 	// Version will be replaced with the tagged version during build time
-	Version = "v1.0"
+	Version = "local build"
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
 )

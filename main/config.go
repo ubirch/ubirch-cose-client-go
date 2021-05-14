@@ -234,7 +234,7 @@ func (c *Config) loadIdentitiesFile() error {
 		return err
 	}
 
-	log.Debugf("found %d identities with roles for pattern matching", len(c.identities))
+	log.Infof("found %d entries in file %s", len(c.identities), identitiesFile)
 
 	tokenAlreadyExists := make(map[string]bool, len(c.identities))
 
@@ -246,8 +246,10 @@ func (c *Config) loadIdentitiesFile() error {
 		//	return fmt.Errorf("%s: empty category field", i.Uid)
 		//}
 		if i.Uid == uuid.Nil {
-			return fmt.Errorf("%s: invalid UUID", i.Uid)
+			return fmt.Errorf("%s: empty UUID", i.Uid)
 		}
+		log.Debugf("  - %s", i.Uid)
+
 		if len(i.Token) == 0 {
 			return fmt.Errorf("%s: empty auth token field", i.Uid)
 		}
@@ -262,9 +264,11 @@ func (c *Config) loadIdentitiesFile() error {
 }
 
 func (c *Config) loadTokens() error {
-	log.Debugf("found %d UUIDs with tokens for direct key selection", len(c.Tokens))
+	log.Infof("found %d UUIDs in tokens map", len(c.Tokens))
 
 	for uid, token := range c.Tokens {
+		log.Debugf("  - %s", uid)
+
 		if len(token) == 0 {
 			return fmt.Errorf("%s: empty auth token", uid)
 		}
