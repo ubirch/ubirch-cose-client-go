@@ -51,6 +51,10 @@ func (p *Protocol) Exists(uid uuid.UUID) bool {
 }
 
 func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
+	if p.Exists(uid) {
+		return ErrExists
+	}
+
 	encryptedPrivateKey, err := p.keyEncrypter.Encrypt(privateKeyPem)
 	if err != nil {
 		return err

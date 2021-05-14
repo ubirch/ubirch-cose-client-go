@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.2.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/sirupsen/logrus v1.8.1
-	github.com/ubirch/ubirch-client-go/main v0.0.0-20210513155835-05c9cbbaf3f2
+	github.com/ubirch/ubirch-client-go/main v0.0.0-20210514142354-57f25652bc4a
 	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210428143952-0a0718362749
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
