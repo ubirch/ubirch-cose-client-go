@@ -42,7 +42,7 @@ const (
 	defaultCSRCountry      = "DE"
 	defaultCSROrganization = "ubirch GmbH"
 
-	defaultTCPAddr = ":8081"
+	defaultTCPAddr = ":8080"
 
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
@@ -52,7 +52,7 @@ type Config struct {
 	Tokens           map[uuid.UUID]string `json:"tokens"`
 	SecretBase64     string               `json:"secret32" envconfig:"secret32"` // 32 byte secret used to encrypt the key store (mandatory)
 	Env              string               `json:"env"`                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	TCP_addr         string               `json:"TCP_addr"`                      // the TCP address for the server to listen on, in the form "host:port", defaults to ":8081"
+	TCP_addr         string               `json:"TCP_addr"`                      // the TCP address for the server to listen on, in the form "host:port"
 	TLS              bool                 `json:"TLS"`                           // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile     string               `json:"TLSCertFile"`                   // filename of TLS certificate file name, defaults to "cert.pem"
 	TLS_KeyFile      string               `json:"TLSKeyFile"`                    // filename of TLS key file name, defaults to "key.pem"

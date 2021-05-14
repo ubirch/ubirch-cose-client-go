@@ -111,11 +111,11 @@ COSE_Sign1->payload = b'payload bytes'
 
 When running the client locally, the default base address is:
 
-`http://localhost:8081`
+`http://localhost:8080`
 
 or, if TLS is enabled:
 
-`https://localhost:8081`
+`https://localhost:8080`
 
 > See [how to set a different TCP address/port for the client](#set-tcp-address).
 
@@ -123,7 +123,7 @@ or, if TLS is enabled:
 
 - original data (JSON):
   ```console
-  curl localhost:8081/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/cbor \
+  curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/cbor \
     -H "X-Auth-Token: IM+NW4iz3YtTBZyHnW+RtnArBXEK7eKy0do+g4tOgnc=" \
     -H "Content-Type: application/json" \
     -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
@@ -133,7 +133,7 @@ or, if TLS is enabled:
 
 - direct data hash injection:
   ```console
-  curl localhost:8081/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/cbor/hash \
+  curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/cbor/hash \
     -H "X-Auth-Token: IM+NW4iz3YtTBZyHnW+RtnArBXEK7eKy0do+g4tOgnc=" \
     -H "Content-Type: text/plain" \
     -d "VCxVx/SrzNLpKFarKDUO1HJh6vwxq8uD1/w/8Qm7hQs=" \
@@ -204,7 +204,7 @@ To switch to the `demo` backend environment
 
 ### Set TCP address
 
-You can specify the TCP address for the server to listen on, in the form `host:port`. If empty, port 8081 is used.
+You can specify the TCP address for the server to listen on, in the form `host:port`. If empty, port 8080 is used.
 
 - add the following key-value pair to your `config.json`:
     ```json
