@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"path"
@@ -52,7 +53,10 @@ var (
 func main() {
 	const configFile = "config.json"
 
-	var configDir string
+	var (
+		configDir string
+		serverID  = fmt.Sprintf("ubirch-cose-client/%s", Version)
+	)
 
 	if len(os.Args) > 1 {
 		configDir = os.Args[1]
@@ -97,7 +101,7 @@ func main() {
 	prom.InitPromMetrics(httpServer.Router)
 
 	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(Version))
+	httpServer.Router.Get("/healtz", h.Health(serverID))
 
 	// initialize COSE service
 	ctxManager, err := NewFileManager(conf.configDir)
@@ -152,7 +156,7 @@ func main() {
 	httpServer.Router.Post(matchUuidHashEndpoint, service.matchUUID())
 
 	// set up endpoint for readiness checks
-	httpServer.Router.Get("/readiness", h.Health(Version))
+	httpServer.Router.Get("/readiness", h.Health(serverID))
 	log.Info("ready")
 
 	// wait for all go routines of the waitgroup to return
