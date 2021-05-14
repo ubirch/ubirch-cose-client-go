@@ -42,20 +42,24 @@ func shutdown(cancel context.CancelFunc) {
 	cancel()
 }
 
+var (
+	// Version will be replaced with the tagged version during build time
+	Version = "1.0"
+	// Revision will be replaced with the commit hash during build time
+	Revision = "unknown"
+)
+
 func main() {
-	const (
-		Version    = "v1.0.0"
-		Build      = "local"
-		configFile = "config.json"
-	)
+	const configFile = "config.json"
 
 	var configDir string
+
 	if len(os.Args) > 1 {
 		configDir = os.Args[1]
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
-	log.Printf("UBIRCH COSE client (%s, build=%s)", Version, Build)
+	log.Printf("UBIRCH COSE client (version=%s, revision=%s)", Version, Revision)
 
 	// read configuration
 	conf := Config{}
@@ -64,6 +68,38 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	// create a waitgroup that contains all asynchronous operations
+	// a cancellable context is used to stop the operations gracefully
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
+
+	// set up graceful shutdown handling
+	go shutdown(cancel)
+
+	// set up HTTP server
+	httpServer := handlers.HTTPServer{
+		Router:   handlers.NewRouter(),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
+
+	// start HTTP server
+	serverReadyCtx, serverReady := context.WithCancel(context.Background())
+	g.Go(func() error {
+		return httpServer.Serve(ctx, serverReady)
+	})
+	// wait for server to start
+	<-serverReadyCtx.Done()
+
+	// set up metrics
+	prom.InitPromMetrics(httpServer.Router)
+
+	// set up endpoint for liveliness checks
+	httpServer.Router.Get("/healtz", h.Health(Version))
+
+	// initialize COSE service
 	ctxManager, err := NewFileManager(conf.configDir)
 	if err != nil {
 		log.Fatal(err)
@@ -85,37 +121,21 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol)
+	// generate and register keys for known identities
+	err = idHandler.initIdentities(conf.identities)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	httpServer := handlers.HTTPServer{
-		Router:   handlers.NewRouter(),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
+	coseSigner, err := NewCoseSigner(protocol)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	service := &COSEService{
 		CoseSigner: coseSigner,
 		identities: conf.identities,
 	}
-
-	// create a waitgroup that contains all asynchronous operations
-	// a cancellable context is used to stop the operations gracefully
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
-
-	// set up graceful shutdown handling
-	go shutdown(cancel)
-
-	// set up prometheus metrics
-	prom.InitPromMetrics(httpServer.Router)
-
-	httpServer.Router.Get("/healtz", h.Health(Version))
-	httpServer.Router.Get("/readiness", h.Health(Version))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
@@ -131,21 +151,14 @@ func main() {
 	matchUuidHashEndpoint := path.Join(matchUuidEndpoint, HashEndpoint) // /cbor/hash
 	httpServer.Router.Post(matchUuidHashEndpoint, service.matchUUID())
 
-	// generate and register keys for known identities
-	err = idHandler.initIdentities(conf.identities)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// start HTTP server
-	g.Go(func() error {
-		return httpServer.Serve(ctx)
-	})
+	// set up endpoint for readiness checks
+	httpServer.Router.Get("/readiness", h.Health(Version))
+	log.Info("ready")
 
 	// wait for all go routines of the waitgroup to return
 	if err = g.Wait(); err != nil {
 		log.Error(err)
 	}
 
-	log.Info("shut down")
+	log.Debug("shut down")
 }
