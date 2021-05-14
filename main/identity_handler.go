@@ -30,7 +30,7 @@ type IdentityHandler struct {
 
 func (i *IdentityHandler) initIdentities(identities []Identity) error {
 	// create and register keys for identities
-	log.Infof("initializing %d identities...", len(identities))
+	log.Debugf("initializing %d identities...", len(identities))
 	for _, id := range identities {
 		// check if identity is already initialized
 		if i.protocol.Exists(id.Uid) {
@@ -46,10 +46,9 @@ func (i *IdentityHandler) initIdentities(identities []Identity) error {
 }
 
 func (i *IdentityHandler) initIdentity(uid uuid.UUID) (csr []byte, err error) {
-	log.Infof("%s: initializing new identity", uid)
+	log.Infof("initializing new identity %s", uid)
 
-	// generate a new private key
-	log.Debugf("%s: generating new key pair", uid)
+	// generate a new key pair
 	privKeyPEM, err := i.protocol.GenerateKey()
 	if err != nil {
 		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
@@ -60,13 +59,12 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID) (csr []byte, err error) {
 		return nil, err
 	}
 
-	// set private key
+	// store key pair
 	err = i.protocol.SetPrivateKey(uid, privKeyPEM)
 	if err != nil {
 		return nil, err
 	}
 
-	// set public key
 	err = i.protocol.SetPublicKey(uid, pubKeyPEM)
 	if err != nil {
 		return nil, err
