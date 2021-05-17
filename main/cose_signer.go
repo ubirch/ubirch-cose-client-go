@@ -15,7 +15,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -33,7 +32,6 @@ const (
 	COSE_Kid_Label     = 4            // key identifier label (Common COSE Headers Parameters: https://cose-wg.github.io/cose-spec/#rfc.section.3.1)
 	COSE_Sign1_Tag     = 18           // CBOR tag TBD7 identifies tagged COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.2)
 	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
-	SkidLen            = 8
 )
 
 // 	COSE_Sign1 = [
@@ -113,7 +111,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 }
 
 func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, payload []byte) ([]byte, error) {
-	skid, err := c.getSKID(uid)
+	skid, err := c.GetSKID(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not get SKID: %v", err)
 	}
@@ -123,24 +121,12 @@ func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, payload []b
 		return nil, fmt.Errorf("could not create signature: %v", err)
 	}
 
-	coseBytes, err := c.getCOSE(skid[:], payload, signature)
+	coseBytes, err := c.getCOSE(skid, payload, signature)
 	if err != nil {
 		return nil, fmt.Errorf("could not create signed COSE object: %v", err)
 	}
 
 	return coseBytes, nil
-}
-
-func (c *CoseSigner) getSKID(uid uuid.UUID) (skid [SkidLen]byte, err error) {
-	cert, err := c.GetCertificate(uid)
-	if err != nil {
-		return [SkidLen]byte{}, err
-	}
-
-	hash := sha256.Sum256(cert)
-	copy(skid[:], hash[:SkidLen])
-
-	return skid, nil
 }
 
 // getSignature creates ECDSA P-256 signature and returns the bytes

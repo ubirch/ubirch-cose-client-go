@@ -22,6 +22,8 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
+const SkidLen = 8
+
 type Protocol struct {
 	ubirch.Crypto
 	*ExtendedClient
@@ -161,4 +163,36 @@ func (p *Protocol) checkIdentityAttributes(i *Identity) error {
 	}
 
 	return nil
+}
+
+func (p *Protocol) ExistsSKID(uid uuid.UUID) bool {
+	return p.ctxManager.ExistsSKID(uid)
+}
+
+func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
+	if !p.ExistsSKID(uid) {
+		cert, err := p.RequestCertificate(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		// generate SKID from certificate => the first 8 bytes of the sha256 hash of the DER-encoded X.509 certificate
+		// todo convert to DER?
+		hash := sha256.Sum256(cert)
+		skid := hash[:SkidLen]
+
+		err = p.SetSKID(uid, skid)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return p.ctxManager.GetSKID(uid)
+}
+
+func (p *Protocol) SetSKID(uid uuid.UUID, skid []byte) error {
+	if len(skid) != SkidLen {
+		return fmt.Errorf("invalid SKID length: expected %d, got %d", SkidLen, len(skid))
+	}
+	return p.ctxManager.SetSKID(uid, skid)
 }
