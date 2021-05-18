@@ -276,8 +276,8 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/ubirch/go.crypto v0.1.2 h1:IYMOx19UgWt4+k7PydcOVtEWFiU10O8dHoof00j8IKw=
 github.com/ubirch/go.crypto v0.1.2/go.mod h1:aiZQ37CxSBS7cBLsFbTnDxGeg5RkH7Z5LKBYeNasIrw=
-github.com/ubirch/ubirch-client-go/main v0.0.0-20210514142354-57f25652bc4a h1:uimWSVyVkvEHIYqN2ne92sA2V4oliPVPecJJYSLqoRI=
-github.com/ubirch/ubirch-client-go/main v0.0.0-20210514142354-57f25652bc4a/go.mod h1:NjFQVtlL7wnieWmm0+aoGwTsnZgU6Dlw9AVdyjKHubA=
+github.com/ubirch/ubirch-client-go/main v0.0.0-20210518153447-cf48c673f956 h1:JWwDZtJz/81Nn7lpUJjFtGwhzm1cpLu2lLBCSBvrXIk=
+github.com/ubirch/ubirch-client-go/main v0.0.0-20210518153447-cf48c673f956/go.mod h1:NjFQVtlL7wnieWmm0+aoGwTsnZgU6Dlw9AVdyjKHubA=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210428143952-0a0718362749 h1:V4u81RuzAxvw7s5gx3A0JZdvz3uVrawhtfKrLeJm8IY=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210428143952-0a0718362749/go.mod h1:edMk+CtbW3ODrqcU0iYVBG8idrYWPrPCom+jXDhRDq0=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=

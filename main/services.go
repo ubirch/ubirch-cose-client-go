@@ -25,7 +25,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/logger"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -117,7 +117,8 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, id *
 	sendResponse(w, resp)
 
 	if h.HttpSuccess(resp.StatusCode) {
-		logger.AuditLogf("uuid: %s, operation: COSE object creation, hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+		infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+		auditlogger.AuditLog("create", "COSE", infos)
 	}
 }
 

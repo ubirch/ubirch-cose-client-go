@@ -23,6 +23,7 @@ import (
 	"syscall"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -51,11 +52,14 @@ var (
 )
 
 func main() {
-	const configFile = "config.json"
+	const (
+		serviceName = "cose-client"
+		configFile  = "config.json"
+	)
 
 	var (
 		configDir string
-		serverID  = fmt.Sprintf("ubirch-cose-client/%s", Version)
+		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {
@@ -64,6 +68,7 @@ func main() {
 
 	log.SetFormatter(&log.JSONFormatter{})
 	log.Printf("UBIRCH COSE client (version=%s, revision=%s)", Version, Revision)
+	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
 	conf := Config{}
