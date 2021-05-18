@@ -16,6 +16,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/pem"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
@@ -177,8 +179,14 @@ func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
 		}
 
 		// generate SKID from certificate => the first 8 bytes of the sha256 hash of the DER-encoded X.509 certificate
-		// todo convert to DER?
-		hash := sha256.Sum256(cert)
+		// todo ? convert to DER
+		block, _ := pem.Decode(cert)
+		if block == nil {
+			return nil, fmt.Errorf("unable to parse PEM block")
+		}
+		certDER := block.Bytes
+
+		hash := sha256.Sum256(certDER)
 		skid := hash[:SkidLen]
 
 		err = p.SetSKID(uid, skid)
