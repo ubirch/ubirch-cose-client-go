@@ -171,6 +171,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	protocol.loadSKIDs() // todo scheduler
+
 	coseSigner, err := NewCoseSigner(protocol)
 	if err != nil {
 		log.Fatal(err)

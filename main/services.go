@@ -82,7 +82,7 @@ func (s *COSEService) directUUID() http.HandlerFunc {
 }
 
 func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid uuid.UUID) {
-	exists, err := s.protocol.ExistsPrivateKey(uid)
+	exists, err := s.Protocol.ExistsPrivateKey(uid)
 	if err != nil {
 		log.Errorf("%s: %v", uid, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -92,7 +92,7 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 		h.Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
 		return
 	}
-	authToken, err := s.protocol.GetAuthToken(uid)
+	authToken, err := s.Protocol.GetAuthToken(uid)
 	if err != nil {
 		log.Errorf("%s: %v", uid, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

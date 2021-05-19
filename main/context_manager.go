@@ -35,9 +35,8 @@ type ContextManager interface {
 
 	GetAuthToken(uid uuid.UUID) (string, error)
 
-	//ExistsSKID(uid uuid.UUID) bool
-	//GetSKID(uid uuid.UUID) (skid []byte, err error)
-	//SetSKID(uid uuid.UUID, skid []byte) error
+	ExistsUuidForPublicKey(pubKey []byte) (bool, error)
+	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 }
 
 func GetCtxManager(c *Config) (ContextManager, error) {

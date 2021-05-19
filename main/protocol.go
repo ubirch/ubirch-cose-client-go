@@ -16,12 +16,14 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
+	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"sync"
 )
 
 const SkidLen = 8
@@ -31,6 +33,9 @@ type Protocol struct {
 	*ExtendedClient
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
+
+	skidStore      map[uuid.UUID][]byte
+	skidStoreMutex *sync.RWMutex
 }
 
 // Ensure Protocol implements the ContextManager interface
@@ -167,40 +172,98 @@ func (p *Protocol) checkIdentityAttributes(i *Identity) error {
 	return nil
 }
 
-func (p *Protocol) ExistsSKID(uid uuid.UUID) bool {
-	return p.ctxManager.ExistsSKID(uid)
+func (p *Protocol) ExistsUuidForPublicKey(publicKeyPEM []byte) (bool, error) {
+	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
+	if err != nil {
+		return false, err
+	}
+	return p.ctxManager.ExistsUuidForPublicKey(publicKeyBytes)
 }
 
-func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
-	if !p.ExistsSKID(uid) {
-		cert, err := p.RequestCertificate(uid)
-		if err != nil {
-			return nil, err
-		}
-
-		// generate SKID from certificate => the first 8 bytes of the sha256 hash of the DER-encoded X.509 certificate
-		// todo ? convert to DER
-		block, _ := pem.Decode(cert)
-		if block == nil {
-			return nil, fmt.Errorf("unable to parse PEM block")
-		}
-		certDER := block.Bytes
-
-		hash := sha256.Sum256(certDER)
-		skid := hash[:SkidLen]
-
-		err = p.SetSKID(uid, skid)
-		if err != nil {
-			return nil, err
-		}
+func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID, error) {
+	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
+	if err != nil {
+		return uuid.Nil, err
 	}
+	return p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
+}
 
-	return p.ctxManager.GetSKID(uid)
+func (p *Protocol) ExistsSKID(uid uuid.UUID) bool {
+	p.skidStoreMutex.RLock()
+	defer p.skidStoreMutex.RUnlock()
+
+	_, exists := p.skidStore[uid]
+	return exists
 }
 
 func (p *Protocol) SetSKID(uid uuid.UUID, skid []byte) error {
 	if len(skid) != SkidLen {
 		return fmt.Errorf("invalid SKID length: expected %d, got %d", SkidLen, len(skid))
 	}
-	return p.ctxManager.SetSKID(uid, skid)
+
+	p.skidStoreMutex.Lock()
+	p.skidStore[uid] = skid
+	p.skidStoreMutex.Unlock()
+
+	return nil
+}
+
+func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
+	p.skidStoreMutex.RLock()
+	skid, exists := p.skidStore[uid]
+	p.skidStoreMutex.RUnlock()
+
+	if !exists {
+		return nil, ErrNotExist
+	}
+
+	return skid, nil
+}
+
+/*
+type Certificate
+    func ParseCertificate(asn1Data []byte) (*Certificate, error)
+    func (c *Certificate) CheckSignature(algo SignatureAlgorithm, signed, signature []byte) error
+*/
+func (p *Protocol) loadSKIDs() {
+	certs, err := p.RequestCertificates()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, cert := range certs {
+		block, _ := pem.Decode(cert.RawData)
+		if block == nil {
+			log.Fatal(fmt.Errorf("unable to parse PEM block"))
+		}
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// get public key from certificate
+		pubKeyPEM, err := p.Crypto.EncodePublicKey(certificate.PublicKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// look up public key
+		exists, err := p.ExistsUuidForPublicKey(pubKeyPEM)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if !exists {
+			log.Warn("public key %s from trust list certificate not found", pubKeyPEM)
+		}
+		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// store KID
+		err = p.SetSKID(uid, cert.Kid)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 }
