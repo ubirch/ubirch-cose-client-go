@@ -28,15 +28,38 @@ type IdentityHandler struct {
 	subjectOrganization string
 }
 
+type Identity struct {
+	//Tenant     string    `json:"tenant"`
+	//Category   string    `json:"category"`
+	//Poc        string    `json:"poc"` // can be empty
+	Uid        uuid.UUID `json:"uuid"`
+	PrivateKey []byte    `json:"privKey"`
+	PublicKey  []byte    `json:"pubKey"`
+	AuthToken  string    `json:"token"`
+}
+
 func (i *IdentityHandler) initIdentities(identities []Identity) error {
 	// create and register keys for identities
 	log.Debugf("initializing %d identities...", len(identities))
 	for _, id := range identities {
 		// check if identity is already initialized
-		if i.protocol.ExistsPrivateKey(id.Uid) {
+		exists, err := i.protocol.ExistsPrivateKey(id.Uid)
+		if err != nil {
+			return fmt.Errorf("can not check existing context for %s: %s", id.Uid, err)
+		}
+
+		if exists {
+			// already initialized
+			log.Debugf("%s already initialized (skip)", id.Uid)
 			continue
 		}
-		_, err := i.initIdentity(id.Uid)
+
+		// make sure identity has an auth token
+		if len(id.AuthToken) == 0 {
+			return fmt.Errorf("missing auth token for identity %s", id.Uid)
+		}
+
+		_, err = i.initIdentity(id)
 		if err != nil {
 			return err
 		}
@@ -45,13 +68,13 @@ func (i *IdentityHandler) initIdentities(identities []Identity) error {
 	return nil
 }
 
-func (i *IdentityHandler) initIdentity(uid uuid.UUID) (csr []byte, err error) {
-	log.Infof("initializing new identity %s", uid)
+func (i *IdentityHandler) initIdentity(id Identity) (csr []byte, err error) {
+	log.Infof("initializing new identity %s", id.Uid)
 
 	// generate a new key pair
 	privKeyPEM, err := i.protocol.GenerateKey()
 	if err != nil {
-		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
+		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", id.Uid, err)
 	}
 
 	pubKeyPEM, err := i.protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
@@ -60,18 +83,18 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID) (csr []byte, err error) {
 	}
 
 	// store key pair
-	err = i.protocol.SetPrivateKey(uid, privKeyPEM)
+	err = i.protocol.SetPrivateKey(id.Uid, privKeyPEM)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.protocol.SetPublicKey(uid, pubKeyPEM)
+	err = i.protocol.SetPublicKey(id.Uid, pubKeyPEM)
 	if err != nil {
 		return nil, err
 	}
 
 	// register public key at the ubirch backend
-	return i.registerPublicKey(privKeyPEM, uid)
+	return i.registerPublicKey(privKeyPEM, id.Uid)
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {

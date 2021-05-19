@@ -15,6 +15,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -46,22 +48,60 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 	}, nil
 }
 
-func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) bool {
+func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+	return p.ctxManager.StartTransaction(ctx)
+}
+
+func (p *Protocol) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
+	return p.ctxManager.StartTransactionWithLock(ctx, uid)
+}
+
+func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
+	return p.ctxManager.CloseTransaction(tx, commit)
+}
+
+func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 	return p.ctxManager.ExistsPrivateKey(uid)
 }
 
-func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
-	if p.ExistsPrivateKey(uid) {
-		return ErrExists
-	}
-
-	encryptedPrivateKey, err := p.keyEncrypter.Encrypt(privateKeyPem)
+func (p *Protocol) StoreNewIdentity(tx interface{}, i *Identity) error {
+	// check validity of identity attributes
+	err := p.checkIdentityAttributes(i)
 	if err != nil {
 		return err
 	}
 
-	return p.ctxManager.SetPrivateKey(uid, encryptedPrivateKey)
+	// encrypt private key
+	i.PrivateKey, err = p.keyEncrypter.Encrypt(i.PrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// store public key raw bytes
+	i.PublicKey, err = p.PublicKeyPEMToBytes(i.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	return p.ctxManager.StoreNewIdentity(tx, i)
 }
+
+//func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
+//	exists, err := p.ExistsPrivateKey(uid)
+//	if err != nil {
+//		return err
+//	}
+//	if exists {
+//		return ErrExists
+//	}
+//
+//	encryptedPrivateKey, err := p.keyEncrypter.Encrypt(privateKeyPem)
+//	if err != nil {
+//		return err
+//	}
+//
+//	return p.ctxManager.SetPrivateKey(nil, uid, encryptedPrivateKey)
+//}
 
 func (p *Protocol) GetPrivateKey(uid uuid.UUID) (privateKeyPem []byte, err error) {
 	encryptedPrivateKey, err := p.ctxManager.GetPrivateKey(uid)
@@ -72,18 +112,18 @@ func (p *Protocol) GetPrivateKey(uid uuid.UUID) (privateKeyPem []byte, err error
 	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
 }
 
-func (p *Protocol) ExistsPublicKey(uid uuid.UUID) bool {
+func (p *Protocol) ExistsPublicKey(uid uuid.UUID) (bool, error) {
 	return p.ctxManager.ExistsPublicKey(uid)
 }
 
-func (p *Protocol) SetPublicKey(uid uuid.UUID, publicKeyPEM []byte) error {
-	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
-	if err != nil {
-		return err
-	}
-
-	return p.ctxManager.SetPublicKey(uid, publicKeyBytes)
-}
+//func (p *Protocol) SetPublicKey(uid uuid.UUID, publicKeyPEM []byte) error {
+//	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
+//	if err != nil {
+//		return err
+//	}
+//
+//	return p.ctxManager.SetPublicKey(nil, uid, publicKeyBytes)
+//}
 
 func (p *Protocol) GetPublicKey(uid uuid.UUID) (publicKeyPEM []byte, err error) {
 	publicKeyBytes, err := p.ctxManager.GetPublicKey(uid)
@@ -92,4 +132,33 @@ func (p *Protocol) GetPublicKey(uid uuid.UUID) (publicKeyPEM []byte, err error) 
 	}
 
 	return p.PublicKeyBytesToPEM(publicKeyBytes)
+}
+
+func (p *Protocol) GetAuthToken(uid uuid.UUID) (string, error) {
+	authToken, err := p.ctxManager.GetAuthToken(uid)
+	if err != nil {
+		return "", err
+	}
+
+	if len(authToken) == 0 {
+		return "", ErrNotExist
+	}
+
+	return authToken, nil
+}
+
+func (p *Protocol) checkIdentityAttributes(i *Identity) error {
+	if len(i.PrivateKey) == 0 {
+		return fmt.Errorf("empty private key")
+	}
+
+	if len(i.PublicKey) == 0 {
+		return fmt.Errorf("empty public key")
+	}
+
+	if len(i.AuthToken) == 0 {
+		return fmt.Errorf("empty auth token")
+	}
+
+	return nil
 }

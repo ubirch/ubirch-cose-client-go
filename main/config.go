@@ -216,14 +216,6 @@ func (c *Config) setDefaultURLs() error {
 	return nil
 }
 
-type Identity struct {
-	Tenant   string    `json:"tenant"`
-	Category string    `json:"category"`
-	Poc      string    `json:"poc"` // can be empty
-	Uid      uuid.UUID `json:"uuid"`
-	Token    string    `json:"token"`
-}
-
 // loadIdentitiesFile loads identities from the identities JSON file.
 func (c *Config) loadIdentitiesFile() error {
 	identitiesFile := filepath.Join(c.configDir, identitiesFileName)
@@ -260,13 +252,13 @@ func (c *Config) loadIdentitiesFile() error {
 		}
 		log.Debugf("  - %s", i.Uid)
 
-		if len(i.Token) == 0 {
+		if len(i.AuthToken) == 0 {
 			return fmt.Errorf("%s: empty auth token field", i.Uid)
 		}
-		if tokenAlreadyExists[i.Token] {
+		if tokenAlreadyExists[i.AuthToken] {
 			return fmt.Errorf("%s: can not use same token for multiple identities", i.Uid)
 		} else {
-			tokenAlreadyExists[i.Token] = true
+			tokenAlreadyExists[i.AuthToken] = true
 		}
 	}
 
@@ -284,8 +276,8 @@ func (c *Config) loadTokens() error {
 		}
 
 		i := Identity{
-			Uid:   uid,
-			Token: token,
+			Uid:       uid,
+			AuthToken: token,
 		}
 
 		c.identities = append(c.identities, i)
