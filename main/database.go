@@ -29,9 +29,22 @@ import (
 )
 
 const (
-	PostgreSql     string = "postgres"
-	PostgreSqlPort int    = 5432
+	PostgreSql                  string = "postgres"
+	PostgreSqlPort              int    = 5432
+	PostgreSqlIdentityTableName string = "cose_identity"
 )
+
+const (
+	PostgresIdentity = iota
+)
+
+var CREATE = map[int]string{
+	PostgresIdentity: "CREATE TABLE IF NOT EXISTS " + PostgreSqlIdentityTableName + "(" +
+		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
+		"private_key BYTEA NOT NULL, " +
+		"public_key BYTEA NOT NULL, " +
+		"auth_token VARCHAR(255) NOT NULL);",
+}
 
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
@@ -62,13 +75,19 @@ func NewSqlDatabaseInfo(conf *Config) (*DatabaseManager, error) {
 
 	log.Print("preparing postgres usage")
 
-	return &DatabaseManager{
+	dbManager := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
 		db: pg,
-	}, nil
+	}
+
+	if _, err = dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
+		return nil, err
+	}
+
+	return dbManager, nil
 }
 
 func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
