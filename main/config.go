@@ -102,16 +102,6 @@ func (c *Config) Load(configDir string, filename string) error {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
 	}
 
-	err = c.loadIdentitiesFile()
-	if err != nil {
-		return err
-	}
-
-	err = c.loadTokens()
-	if err != nil {
-		return err
-	}
-
 	err = c.checkMandatory()
 	if err != nil {
 		return err

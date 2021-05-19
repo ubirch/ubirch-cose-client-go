@@ -152,6 +152,16 @@ func main() {
 	}
 
 	if initIdentities {
+		err = conf.loadIdentitiesFile()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = conf.loadTokens()
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		err = idHandler.initIdentities(conf.identities)
 		if err != nil {
 			log.Fatalf("initialization of identities from configuration failed: %v", err)
