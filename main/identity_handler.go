@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -38,7 +39,7 @@ type Identity struct {
 	AuthToken  string    `json:"token"`
 }
 
-func (i *IdentityHandler) initIdentities(identities []Identity) error {
+func (i *IdentityHandler) initIdentities(identities []*Identity) error {
 	// create and register keys for identities
 	log.Debugf("initializing %d identities...", len(identities))
 	for _, id := range identities {
@@ -47,7 +48,6 @@ func (i *IdentityHandler) initIdentities(identities []Identity) error {
 		if err != nil {
 			return fmt.Errorf("can not check existing context for %s: %s", id.Uid, err)
 		}
-
 		if exists {
 			// already initialized
 			log.Debugf("%s already initialized (skip)", id.Uid)
@@ -68,33 +68,42 @@ func (i *IdentityHandler) initIdentities(identities []Identity) error {
 	return nil
 }
 
-func (i *IdentityHandler) initIdentity(id Identity) (csr []byte, err error) {
+func (i *IdentityHandler) initIdentity(id *Identity) (csr []byte, err error) {
 	log.Infof("initializing new identity %s", id.Uid)
 
-	// generate a new key pair
-	privKeyPEM, err := i.protocol.GenerateKey()
-	if err != nil {
-		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", id.Uid, err)
+	if len(id.PrivateKey) == 0 {
+		// generate a new private key
+		id.PrivateKey, err = i.protocol.GenerateKey()
+		if err != nil {
+			return nil, fmt.Errorf("generating new key for UUID %s failed: %v", id.Uid, err)
+		}
 	}
 
-	pubKeyPEM, err := i.protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
-	if err != nil {
-		return nil, err
-	}
-
-	// store key pair
-	err = i.protocol.SetPrivateKey(id.Uid, privKeyPEM)
+	id.PublicKey, err = i.protocol.GetPublicKeyFromPrivateKey(id.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.protocol.SetPublicKey(id.Uid, pubKeyPEM)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := i.protocol.StartTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.protocol.StoreNewIdentity(tx, id)
 	if err != nil {
 		return nil, err
 	}
 
 	// register public key at the ubirch backend
-	return i.registerPublicKey(privKeyPEM, id.Uid)
+	csr, err = i.registerPublicKey(id.PrivateKey, id.Uid)
+	if err != nil {
+		return nil, err
+	}
+
+	return csr, i.protocol.CloseTransaction(tx, Commit)
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {
