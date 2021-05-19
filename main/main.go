@@ -169,6 +169,10 @@ func main() {
 		CoseSigner: coseSigner,
 	}
 
+	// set up endpoint for identity registration
+	creator := handlers.NewIdentityCreator(conf.RegisterAuth)
+	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, idHandler.protocol.ExistsPrivateKey))
+
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
 	httpServer.Router.Post(directUuidEndpoint, service.directUUID())

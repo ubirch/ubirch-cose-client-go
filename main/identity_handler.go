@@ -59,7 +59,7 @@ func (i *IdentityHandler) initIdentities(identities []*Identity) error {
 			return fmt.Errorf("missing auth token for identity %s", id.Uid)
 		}
 
-		_, err = i.initIdentity(id)
+		_, err = i.initIdentity(id.Uid, id.AuthToken)
 		if err != nil {
 			return err
 		}
@@ -68,20 +68,25 @@ func (i *IdentityHandler) initIdentities(identities []*Identity) error {
 	return nil
 }
 
-func (i *IdentityHandler) initIdentity(id *Identity) (csr []byte, err error) {
-	log.Infof("initializing new identity %s", id.Uid)
+func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, err error) {
+	log.Infof("initializing new identity %s", uid)
 
-	if len(id.PrivateKey) == 0 {
-		// generate a new private key
-		id.PrivateKey, err = i.protocol.GenerateKey()
-		if err != nil {
-			return nil, fmt.Errorf("generating new key for UUID %s failed: %v", id.Uid, err)
-		}
+	// generate a new kew pair
+	privKeyPEM, err := i.protocol.GenerateKey()
+	if err != nil {
+		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
 
-	id.PublicKey, err = i.protocol.GetPublicKeyFromPrivateKey(id.PrivateKey)
+	pubKeyPEM, err := i.protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		return nil, err
+	}
+
+	newIdentity := Identity{
+		Uid:        uid,
+		PrivateKey: privKeyPEM,
+		PublicKey:  pubKeyPEM,
+		AuthToken:  auth,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -92,13 +97,13 @@ func (i *IdentityHandler) initIdentity(id *Identity) (csr []byte, err error) {
 		return nil, err
 	}
 
-	err = i.protocol.StoreNewIdentity(tx, *id)
+	err = i.protocol.StoreNewIdentity(tx, newIdentity)
 	if err != nil {
 		return nil, err
 	}
 
 	// register public key at the ubirch backend
-	csr, err = i.registerPublicKey(id.PrivateKey, id.Uid)
+	csr, err = i.registerPublicKey(privKeyPEM, uid)
 	if err != nil {
 		return nil, err
 	}
