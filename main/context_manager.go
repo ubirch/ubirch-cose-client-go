@@ -23,7 +23,7 @@ type ContextManager interface {
 	StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error)
 	CloseTransaction(transactionCtx interface{}, commit bool) error
 
-	StoreNewIdentity(tx interface{}, id *Identity) error
+	StoreNewIdentity(tx interface{}, id Identity) error
 
 	ExistsPrivateKey(uid uuid.UUID) (bool, error)
 	GetPrivateKey(uid uuid.UUID) (privKey []byte, err error)

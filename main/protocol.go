@@ -64,9 +64,9 @@ func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 	return p.ctxManager.ExistsPrivateKey(uid)
 }
 
-func (p *Protocol) StoreNewIdentity(tx interface{}, i *Identity) error {
+func (p *Protocol) StoreNewIdentity(tx interface{}, i Identity) error {
 	// check validity of identity attributes
-	err := p.checkIdentityAttributes(i)
+	err := p.checkIdentityAttributes(&i)
 	if err != nil {
 		return err
 	}

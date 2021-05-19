@@ -71,7 +71,7 @@ type Config struct {
 	//SigningService   string               // signing service URL
 	configDir   string // directory where config and protocol ctx are stored
 	secretBytes []byte // the decoded key store secret
-	identities  []Identity
+	identities  []*Identity
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -280,7 +280,7 @@ func (c *Config) loadTokens() error {
 			AuthToken: token,
 		}
 
-		c.identities = append(c.identities, i)
+		c.identities = append(c.identities, &i)
 	}
 
 	return nil

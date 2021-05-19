@@ -92,7 +92,7 @@ func (i *IdentityHandler) initIdentity(id *Identity) (csr []byte, err error) {
 		return nil, err
 	}
 
-	err = i.protocol.StoreNewIdentity(tx, id)
+	err = i.protocol.StoreNewIdentity(tx, *id)
 	if err != nil {
 		return nil, err
 	}

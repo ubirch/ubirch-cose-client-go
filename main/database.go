@@ -213,7 +213,7 @@ func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit b
 	}
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *Identity) error {
+func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -240,7 +240,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	return dm.storeIdentity(tx, identity)
 }
 
-func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *Identity) error {
+func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity Identity) error {
 	_, err := tx.Exec(
 		"INSERT INTO cose_identity (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
 		&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)

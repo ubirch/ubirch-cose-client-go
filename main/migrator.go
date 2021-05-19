@@ -7,18 +7,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Migrate(c *Config, identities []*Identity) error {
+func Migrate(c *Config) error {
 	dbManager, err := NewSqlDatabaseInfo(c)
 	if err != nil {
 		return err
 	}
 
-	err = getKeysFromLegacyCtx(c, identities)
+	err = getKeysFromLegacyCtx(c)
 	if err != nil {
 		return err
 	}
 
-	err = migrateIdentities(dbManager, identities)
+	err = migrateIdentities(dbManager, c.identities)
 	if err != nil {
 		return err
 	}
@@ -27,13 +27,13 @@ func Migrate(c *Config, identities []*Identity) error {
 	return nil
 }
 
-func getKeysFromLegacyCtx(c *Config, identities []*Identity) error {
+func getKeysFromLegacyCtx(c *Config) error {
 	fileManager, err := NewFileManager(c.configDir)
 	if err != nil {
 		return err
 	}
 
-	for _, i := range identities {
+	for _, i := range c.identities {
 		i.PrivateKey, err = fileManager.GetPrivateKey(i.Uid)
 		if err != nil {
 			return fmt.Errorf("%s: %v", i.Uid, err)
@@ -74,7 +74,7 @@ func migrateIdentities(dm *DatabaseManager, identities []*Identity) error {
 			return fmt.Errorf("%s: empty auth token", id.Uid)
 		}
 
-		err = dm.StoreNewIdentity(tx, id)
+		err = dm.StoreNewIdentity(tx, *id)
 		if err != nil {
 			if err == ErrExists {
 				log.Warnf("%s: %v -> skip", id.Uid, err)

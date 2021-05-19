@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/ubirch/ubirch-client-go/main/vars"
 	"os"
 	"os/signal"
 	"path"
@@ -59,11 +60,19 @@ func main() {
 
 	var (
 		configDir string
+		migrate   bool
 		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {
-		configDir = os.Args[1]
+		for i, arg := range os.Args[1:] {
+			log.Infof("arg #%d: %s", i+1, arg)
+			if arg == vars.MigrateArg {
+				migrate = true
+			} else {
+				configDir = arg
+			}
+		}
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
@@ -71,7 +80,7 @@ func main() {
 	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
-	conf := Config{}
+	conf := &Config{}
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
@@ -108,8 +117,16 @@ func main() {
 	// set up endpoint for liveliness checks
 	httpServer.Router.Get("/healtz", h.Health(serverID))
 
+	if migrate {
+		err := Migrate(conf)
+		if err != nil {
+			log.Fatalf("migration failed: %v", err)
+		}
+		os.Exit(0)
+	}
+
 	// initialize COSE service
-	ctxManager, err := NewFileManager(conf.configDir)
+	ctxManager, err := NewSqlDatabaseInfo(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -153,12 +170,12 @@ func main() {
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
 	httpServer.Router.Post(directUuidHashEndpoint, service.directUUID())
 
-	// set up endpoints for COSE signing (UUID via pattern matching)
-	matchUuidEndpoint := CBORPath // /cbor
-	httpServer.Router.Post(matchUuidEndpoint, service.matchUUID())
-
-	matchUuidHashEndpoint := path.Join(matchUuidEndpoint, HashEndpoint) // /cbor/hash
-	httpServer.Router.Post(matchUuidHashEndpoint, service.matchUUID())
+	//// set up endpoints for COSE signing (UUID via pattern matching)
+	//matchUuidEndpoint := CBORPath // /cbor
+	//httpServer.Router.Post(matchUuidEndpoint, service.matchUUID())
+	//
+	//matchUuidHashEndpoint := path.Join(matchUuidEndpoint, HashEndpoint) // /cbor/hash
+	//httpServer.Router.Post(matchUuidHashEndpoint, service.matchUUID())
 
 	// set up endpoint for readiness checks
 	httpServer.Router.Get("/readiness", h.Health(serverID))
