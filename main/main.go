@@ -160,7 +160,6 @@ func main() {
 
 	service := &COSEService{
 		CoseSigner: coseSigner,
-		identities: conf.identities,
 	}
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
