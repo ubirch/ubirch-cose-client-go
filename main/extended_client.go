@@ -15,12 +15,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"io/ioutil"
 	"net/http"
 	"path"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -44,12 +46,25 @@ func UCCHeader(auth string) map[string]string {
 	}
 }
 
-func (c *ExtendedClient) RequestCertificate(uid uuid.UUID) (cert []byte, err error) {
-	endpoint := path.Join(c.CertificateServiceURL, uid.String())
+type trustList struct {
+	SignatureHEX string         `json:"signature"`
+	Certificates []certificates `json:"certificates"`
+}
 
-	log.Debugf("%s: getting certificate from %s", uid, endpoint)
+type certificates struct {
+	CertificateType string    `json:"certificateType"`
+	Country         string    `json:"country"`
+	Kid             []byte    `json:"kid"`
+	RawData         []byte    `json:"rawData"`
+	Signature       []byte    `json:"signature"`
+	ThumbprintHEX   string    `json:"thumbprint"`
+	Timestamp       time.Time `json:"timestamp"`
+}
 
-	resp, err := http.Get(endpoint)
+func (c *ExtendedClient) RequestCertificates() ([]certificates, error) {
+	log.Debugf("requesting certificates from %s", c.CertificateServiceURL)
+
+	resp, err := http.Get(c.CertificateServiceURL)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %v", err)
 	}
@@ -58,13 +73,16 @@ func (c *ExtendedClient) RequestCertificate(uid uuid.UUID) (cert []byte, err err
 
 	if h.HttpFailed(resp.StatusCode) {
 		respContent, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving certificate from %s failed: (%s) %s", endpoint, resp.Status, string(respContent))
+		return nil, fmt.Errorf("retrieving certificates from %s failed: (%s) %s", c.CertificateServiceURL, resp.Status, string(respContent))
 	}
 
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	newTrustList := &trustList{}
+	err = json.NewDecoder(resp.Body).Decode(newTrustList)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read response body: %v", err)
+		return nil, fmt.Errorf("unable to decode certificates list: %v", err)
 	}
 
-	return respBodyBytes, nil
+	// todo verify signature
+
+	return newTrustList.Certificates, nil
 }
