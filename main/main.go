@@ -17,7 +17,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/ubirch/ubirch-client-go/main/vars"
 	"os"
 	"os/signal"
 	"path"
@@ -56,19 +55,24 @@ func main() {
 	const (
 		serviceName = "cose-client"
 		configFile  = "config.json"
+		MigrateArg  = "--migrate"
+		InitIdsArg  = "--init-identities-conf"
 	)
 
 	var (
-		configDir string
-		migrate   bool
-		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
+		configDir      string
+		migrate        bool
+		initIdentities bool
+		serverID       = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {
 		for i, arg := range os.Args[1:] {
 			log.Infof("arg #%d: %s", i+1, arg)
-			if arg == vars.MigrateArg {
+			if arg == MigrateArg {
 				migrate = true
+			} else if arg == InitIdsArg {
+				initIdentities = true
 			} else {
 				configDir = arg
 			}
@@ -147,10 +151,12 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	// generate and register keys for known identities
-	err = idHandler.initIdentities(conf.identities)
-	if err != nil {
-		log.Fatal(err)
+	if initIdentities {
+		err = idHandler.initIdentities(conf.identities)
+		if err != nil {
+			log.Fatalf("initialization of identities from configuration failed: %v", err)
+		}
+		log.Infof("successfully initialized identities from configuration")
 	}
 
 	coseSigner, err := NewCoseSigner(protocol)
