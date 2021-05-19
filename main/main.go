@@ -130,7 +130,7 @@ func main() {
 	}
 
 	// initialize COSE service
-	ctxManager, err := NewSqlDatabaseInfo(conf)
+	ctxManager, err := GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
