@@ -33,7 +33,7 @@ const (
 
 	PROD_STAGE = "prod"
 
-	defaultKeyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
 	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
 	//defaultSigningServiceURL = "http://localhost:8080"
 
