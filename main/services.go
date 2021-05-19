@@ -69,43 +69,44 @@ type HTTPResponse struct {
 
 type COSEService struct {
 	*CoseSigner
-	identities []Identity
 }
 
 func (s *COSEService) directUUID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := getIdentityUUID(r, s.identities)
+		uid, err := getUUID(r)
 		if err != nil {
 			log.Warn(err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
-		s.handleRequest(w, r, id)
+		s.handleRequest(w, r, uid)
 	}
 }
 
-func (s *COSEService) matchUUID() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := getIdentityMatch(r, s.identities)
-		if err != nil {
-			log.Warn(err)
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
+//func (s *COSEService) matchUUID() http.HandlerFunc {
+//	return func(w http.ResponseWriter, r *http.Request) {
+//		id, err := getIdentityMatch(r, s.identities)
+//		if err != nil {
+//			log.Warn(err)
+//			http.Error(w, err.Error(), http.StatusNotFound)
+//			return
+//		}
+//
+//		s.handleRequest(w, r, id)
+//	}
+//}
 
-		s.handleRequest(w, r, id)
-	}
-}
+func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid uuid.UUID) {
+	authToken, err := s.protocol.GetAuthToken(uid)
 
-func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, id *Identity) {
-	err := checkAuth(r, id.Token)
+	err = checkAuth(r, authToken)
 	if err != nil {
-		Error(id.Uid, w, err, http.StatusUnauthorized)
+		Error(uid, w, err, http.StatusUnauthorized)
 		return
 	}
 
-	msg := HTTPRequest{ID: id.Uid}
+	msg := HTTPRequest{ID: uid}
 
 	msg.Payload, msg.Hash, err = s.getPayloadAndHash(r)
 	if err != nil {
@@ -177,46 +178,39 @@ func ContentEncoding(header http.Header) string {
 	return strings.ToLower(header.Get("Content-Transfer-Encoding"))
 }
 
-// getIdentityUUID returns the identity which matches the UUID parameter from the request URL
-func getIdentityUUID(r *http.Request, identities []Identity) (*Identity, error) {
+// getUUID returns the UUID parameter from the request URL
+func getUUID(r *http.Request) (uuid.UUID, error) {
 	uuidParam := chi.URLParam(r, UUIDKey)
 	uid, err := uuid.Parse(uuidParam)
 	if err != nil {
-		return nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
+		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
 	}
-
-	for _, i := range identities {
-		if uid == i.Uid {
-			return &i, nil
-		}
-	}
-
-	return nil, fmt.Errorf("unknown UUID: \"%s\"", uuidParam)
+	return uid, nil
 }
 
-// getIdentity matches attributes from the request header with a known identity and returns it
-func getIdentityMatch(r *http.Request, identities []Identity) (*Identity, error) {
-	t := r.Header.Get(TenantHeader)
-	if len(t) == 0 {
-		return nil, fmt.Errorf("missing header: %s", TenantHeader)
-	}
-	cat := r.Header.Get(CategoryHeader)
-	if len(cat) == 0 {
-		return nil, fmt.Errorf("missing header: %s", CategoryHeader)
-	}
-	poc := r.Header.Get(PocHeader) // can be empty
-
-	for _, i := range identities {
-		if t == i.Tenant && cat == i.Category && poc == i.Poc {
-			log.Debugf("%s: matched identity: tenant \"%s\", category \"%s\", poc \"%s\"",
-				i.Uid, i.Tenant, i.Category, i.Poc)
-			return &i, nil
-		}
-	}
-
-	return nil, fmt.Errorf("could not match request headers with any known identity: tenant \"%s\", category \"%s\", poc \"%s\"",
-		t, cat, poc)
-}
+//// getIdentity matches attributes from the request header with a known identity and returns it
+//func getIdentityMatch(r *http.Request, identities []Identity) (*Identity, error) {
+//	t := r.Header.Get(TenantHeader)
+//	if len(t) == 0 {
+//		return nil, fmt.Errorf("missing header: %s", TenantHeader)
+//	}
+//	cat := r.Header.Get(CategoryHeader)
+//	if len(cat) == 0 {
+//		return nil, fmt.Errorf("missing header: %s", CategoryHeader)
+//	}
+//	poc := r.Header.Get(PocHeader) // can be empty
+//
+//	for _, i := range identities {
+//		if t == i.Tenant && cat == i.Category && poc == i.Poc {
+//			log.Debugf("%s: matched identity: tenant \"%s\", category \"%s\", poc \"%s\"",
+//				i.Uid, i.Tenant, i.Category, i.Poc)
+//			return &i, nil
+//		}
+//	}
+//
+//	return nil, fmt.Errorf("could not match request headers with any known identity: tenant \"%s\", category \"%s\", poc \"%s\"",
+//		t, cat, poc)
+//}
 
 // checkAuth checks the auth token from the request header
 // Returns error if auth token is not correct

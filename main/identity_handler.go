@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -28,15 +29,37 @@ type IdentityHandler struct {
 	subjectOrganization string
 }
 
-func (i *IdentityHandler) initIdentities(identities []Identity) error {
+type Identity struct {
+	//Tenant     string    `json:"tenant"`
+	//Category   string    `json:"category"`
+	//Poc        string    `json:"poc"` // can be empty
+	Uid        uuid.UUID `json:"uuid"`
+	PrivateKey []byte    `json:"privKey"`
+	PublicKey  []byte    `json:"pubKey"`
+	AuthToken  string    `json:"token"`
+}
+
+func (i *IdentityHandler) initIdentities(identities []*Identity) error {
 	// create and register keys for identities
 	log.Debugf("initializing %d identities...", len(identities))
 	for _, id := range identities {
 		// check if identity is already initialized
-		if i.protocol.Exists(id.Uid) {
+		exists, err := i.protocol.ExistsPrivateKey(id.Uid)
+		if err != nil {
+			return fmt.Errorf("can not check existing context for %s: %s", id.Uid, err)
+		}
+		if exists {
+			// already initialized
+			log.Debugf("%s already initialized (skip)", id.Uid)
 			continue
 		}
-		_, err := i.initIdentity(id.Uid)
+
+		// make sure identity has an auth token
+		if len(id.AuthToken) == 0 {
+			return fmt.Errorf("missing auth token for identity %s", id.Uid)
+		}
+
+		_, err = i.initIdentity(id.Uid, id.AuthToken)
 		if err != nil {
 			return err
 		}
@@ -45,10 +68,10 @@ func (i *IdentityHandler) initIdentities(identities []Identity) error {
 	return nil
 }
 
-func (i *IdentityHandler) initIdentity(uid uuid.UUID) (csr []byte, err error) {
+func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, err error) {
 	log.Infof("initializing new identity %s", uid)
 
-	// generate a new key pair
+	// generate a new kew pair
 	privKeyPEM, err := i.protocol.GenerateKey()
 	if err != nil {
 		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
@@ -59,19 +82,33 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID) (csr []byte, err error) {
 		return nil, err
 	}
 
-	// store key pair
-	err = i.protocol.SetPrivateKey(uid, privKeyPEM)
+	newIdentity := Identity{
+		Uid:        uid,
+		PrivateKey: privKeyPEM,
+		PublicKey:  pubKeyPEM,
+		AuthToken:  auth,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := i.protocol.StartTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.protocol.SetPublicKey(uid, pubKeyPEM)
+	err = i.protocol.StoreNewIdentity(tx, newIdentity)
 	if err != nil {
 		return nil, err
 	}
 
 	// register public key at the ubirch backend
-	return i.registerPublicKey(privKeyPEM, uid)
+	csr, err = i.registerPublicKey(privKeyPEM, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	return csr, i.protocol.CloseTransaction(tx, Commit)
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {

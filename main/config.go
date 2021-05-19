@@ -50,22 +50,28 @@ const (
 
 type Config struct {
 	Tokens           map[uuid.UUID]string `json:"tokens"`
-	SecretBase64     string               `json:"secret32" envconfig:"secret32"` // 32 byte secret used to encrypt the key store (mandatory)
-	Env              string               `json:"env"`                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	TCP_addr         string               `json:"TCP_addr"`                      // the TCP address for the server to listen on, in the form "host:port"
-	TLS              bool                 `json:"TLS"`                           // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile     string               `json:"TLSCertFile"`                   // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile      string               `json:"TLSKeyFile"`                    // filename of TLS key file name, defaults to "key.pem"
-	CSR_Country      string               `json:"CSR_country"`                   // subject country for public key Certificate Signing Requests
-	CSR_Organization string               `json:"CSR_organization"`              // subject organization for public key Certificate Signing Requests
-	Debug            bool                 `json:"debug"`                         // enable extended debug output, defaults to 'false'
-	LogTextFormat    bool                 `json:"logTextFormat"`                 // log in text format for better human readability, default format is JSON
+	SecretBase64     string               `json:"secret32" envconfig:"secret32"`         // 32 byte secret used to encrypt the key store (mandatory)
+	RegisterAuth     string               `json:"registerAuth"`                          // auth token needed for new identity registration
+	Env              string               `json:"env"`                                   // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	DsnInitContainer bool                 `json:"DSN_InitDb" envconfig:"DSN_InitDb"`     // flag to determine if a database should be used for context management
+	DsnHost          string               `json:"DSN_Host" envconfig:"DSN_Host"`         // database host name
+	DsnUser          string               `json:"DSN_User" envconfig:"DSN_User"`         // database user name
+	DsnPassword      string               `json:"DSN_Password" envconfig:"DSN_Password"` // database password
+	DsnDb            string               `json:"DSN_Database" envconfig:"DSN_Database"` // database name
+	TCP_addr         string               `json:"TCP_addr"`                              // the TCP address for the server to listen on, in the form "host:port"
+	TLS              bool                 `json:"TLS"`                                   // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile     string               `json:"TLSCertFile"`                           // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile      string               `json:"TLSKeyFile"`                            // filename of TLS key file name, defaults to "key.pem"
+	CSR_Country      string               `json:"CSR_country"`                           // subject country for public key Certificate Signing Requests
+	CSR_Organization string               `json:"CSR_organization"`                      // subject organization for public key Certificate Signing Requests
+	Debug            bool                 `json:"debug"`                                 // enable extended debug output, defaults to 'false'
+	LogTextFormat    bool                 `json:"logTextFormat"`                         // log in text format for better human readability, default format is JSON
 	KeyService       string               // key service URL
 	IdentityService  string               // identity service URL
 	//SigningService   string               // signing service URL
 	configDir   string // directory where config and protocol ctx are stored
 	secretBytes []byte // the decoded key store secret
-	identities  []Identity
+	identities  []*Identity
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -141,6 +147,10 @@ func (c *Config) checkMandatory() error {
 		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
 	}
 
+	if len(c.RegisterAuth) == 0 {
+		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
+	}
+
 	return nil
 }
 
@@ -206,14 +216,6 @@ func (c *Config) setDefaultURLs() error {
 	return nil
 }
 
-type Identity struct {
-	Tenant   string    `json:"tenant"`
-	Category string    `json:"category"`
-	Poc      string    `json:"poc"` // can be empty
-	Uid      uuid.UUID `json:"uuid"`
-	Token    string    `json:"token"`
-}
-
 // loadIdentitiesFile loads identities from the identities JSON file.
 func (c *Config) loadIdentitiesFile() error {
 	identitiesFile := filepath.Join(c.configDir, identitiesFileName)
@@ -250,13 +252,13 @@ func (c *Config) loadIdentitiesFile() error {
 		}
 		log.Debugf("  - %s", i.Uid)
 
-		if len(i.Token) == 0 {
+		if len(i.AuthToken) == 0 {
 			return fmt.Errorf("%s: empty auth token field", i.Uid)
 		}
-		if tokenAlreadyExists[i.Token] {
+		if tokenAlreadyExists[i.AuthToken] {
 			return fmt.Errorf("%s: can not use same token for multiple identities", i.Uid)
 		} else {
-			tokenAlreadyExists[i.Token] = true
+			tokenAlreadyExists[i.AuthToken] = true
 		}
 	}
 
@@ -274,11 +276,11 @@ func (c *Config) loadTokens() error {
 		}
 
 		i := Identity{
-			Uid:   uid,
-			Token: token,
+			Uid:       uid,
+			AuthToken: token,
 		}
 
-		c.identities = append(c.identities, i)
+		c.identities = append(c.identities, &i)
 	}
 
 	return nil
