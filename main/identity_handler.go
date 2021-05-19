@@ -71,7 +71,7 @@ func (i *IdentityHandler) initIdentities(identities []*Identity) error {
 func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, err error) {
 	log.Infof("initializing new identity %s", uid)
 
-	// generate a new kew pair
+	// generate a new new pair
 	privKeyPEM, err := i.protocol.GenerateKey()
 	if err != nil {
 		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
