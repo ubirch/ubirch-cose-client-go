@@ -180,13 +180,6 @@ func main() {
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
 	httpServer.Router.Post(directUuidHashEndpoint, service.directUUID())
 
-	//// set up endpoints for COSE signing (UUID via pattern matching)
-	//matchUuidEndpoint := CBORPath // /cbor
-	//httpServer.Router.Post(matchUuidEndpoint, service.matchUUID())
-	//
-	//matchUuidHashEndpoint := path.Join(matchUuidEndpoint, HashEndpoint) // /cbor/hash
-	//httpServer.Router.Post(matchUuidHashEndpoint, service.matchUUID())
-
 	// set up endpoint for readiness checks
 	httpServer.Router.Get("/readiness", h.Health(serverID))
 	log.Info("ready")

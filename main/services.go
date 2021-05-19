@@ -32,10 +32,7 @@ import (
 )
 
 const (
-	AuthHeader     = "X-Auth-Token"
-	TenantHeader   = "X-Tenant"
-	CategoryHeader = "X-Category"
-	PocHeader      = "X-PoC"
+	AuthHeader = "X-Auth-Token"
 
 	UUIDKey      = "uuid"
 	CBORPath     = "/cbor"
@@ -83,19 +80,6 @@ func (s *COSEService) directUUID() http.HandlerFunc {
 		s.handleRequest(w, r, uid)
 	}
 }
-
-//func (s *COSEService) matchUUID() http.HandlerFunc {
-//	return func(w http.ResponseWriter, r *http.Request) {
-//		id, err := getIdentityMatch(r, s.identities)
-//		if err != nil {
-//			log.Warn(err)
-//			http.Error(w, err.Error(), http.StatusNotFound)
-//			return
-//		}
-//
-//		s.handleRequest(w, r, id)
-//	}
-//}
 
 func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid uuid.UUID) {
 	exists, err := s.protocol.ExistsPrivateKey(uid)
@@ -201,30 +185,6 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 	}
 	return uid, nil
 }
-
-//// getIdentity matches attributes from the request header with a known identity and returns it
-//func getIdentityMatch(r *http.Request, identities []Identity) (*Identity, error) {
-//	t := r.Header.Get(TenantHeader)
-//	if len(t) == 0 {
-//		return nil, fmt.Errorf("missing header: %s", TenantHeader)
-//	}
-//	cat := r.Header.Get(CategoryHeader)
-//	if len(cat) == 0 {
-//		return nil, fmt.Errorf("missing header: %s", CategoryHeader)
-//	}
-//	poc := r.Header.Get(PocHeader) // can be empty
-//
-//	for _, i := range identities {
-//		if t == i.Tenant && cat == i.Category && poc == i.Poc {
-//			log.Debugf("%s: matched identity: tenant \"%s\", category \"%s\", poc \"%s\"",
-//				i.Uid, i.Tenant, i.Category, i.Poc)
-//			return &i, nil
-//		}
-//	}
-//
-//	return nil, fmt.Errorf("could not match request headers with any known identity: tenant \"%s\", category \"%s\", poc \"%s\"",
-//		t, cat, poc)
-//}
 
 // checkAuth checks the auth token from the request header
 // Returns error if auth token is not correct
