@@ -33,7 +33,7 @@ func (i *IdentityHandler) initIdentities(identities []Identity) error {
 	log.Debugf("initializing %d identities...", len(identities))
 	for _, id := range identities {
 		// check if identity is already initialized
-		if i.protocol.Exists(id.Uid) {
+		if i.protocol.ExistsPrivateKey(id.Uid) {
 			continue
 		}
 		_, err := i.initIdentity(id.Uid)

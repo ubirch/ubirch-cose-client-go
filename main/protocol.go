@@ -46,12 +46,12 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 	}, nil
 }
 
-func (p *Protocol) Exists(uid uuid.UUID) bool {
-	return p.ctxManager.Exists(uid)
+func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) bool {
+	return p.ctxManager.ExistsPrivateKey(uid)
 }
 
 func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
-	if p.Exists(uid) {
+	if p.ExistsPrivateKey(uid) {
 		return ErrExists
 	}
 
@@ -70,6 +70,10 @@ func (p *Protocol) GetPrivateKey(uid uuid.UUID) (privateKeyPem []byte, err error
 	}
 
 	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
+}
+
+func (p *Protocol) ExistsPublicKey(uid uuid.UUID) bool {
+	return p.ctxManager.ExistsPublicKey(uid)
 }
 
 func (p *Protocol) SetPublicKey(uid uuid.UUID, publicKeyPEM []byte) error {

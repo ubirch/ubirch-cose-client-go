@@ -26,7 +26,7 @@ type FileManager struct {
 }
 
 // Ensure FileManager implements the ContextManager interface
-var _ ContextManager = (*FileManager)(nil)
+//var _ ContextManager = (*FileManager)(nil)
 
 func NewFileManager(configDir string) (*FileManager, error) {
 	f := &FileManager{
@@ -46,12 +46,8 @@ func NewFileManager(configDir string) (*FileManager, error) {
 	return f, nil
 }
 
-func (f *FileManager) Exists(uid uuid.UUID) bool {
-	f.keystoreMutex.RLock()
-	defer f.keystoreMutex.RUnlock()
-
-	_, exists := f.keystore[uid.String()]
-	return exists
+func (f *FileManager) ExistsPrivateKey(uid uuid.UUID) bool {
+	return f.exists(privateKeyEntryID(uid))
 }
 
 func (f *FileManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
@@ -68,6 +64,14 @@ func (f *FileManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 
 func (f *FileManager) SetPublicKey(uid uuid.UUID, key []byte) error {
 	return f.setKey(publicKeyEntryID(uid), key)
+}
+
+func (f *FileManager) exists(entryID string) bool {
+	f.keystoreMutex.RLock()
+	defer f.keystoreMutex.RUnlock()
+
+	_, exists := f.keystore[entryID]
+	return exists
 }
 
 func (f *FileManager) getKey(entryID string) ([]byte, error) {
