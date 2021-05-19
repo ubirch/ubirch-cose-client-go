@@ -33,8 +33,8 @@ const (
 
 	PROD_STAGE = "prod"
 
-	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
-	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	defaultKeyURL         = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
+	defaultIdentityURL    = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
 	defaultCertificateURL = "https://TODO"
 	//defaultSigningServiceURL = "http://localhost:8080"
 
@@ -50,30 +50,30 @@ const (
 )
 
 type Config struct {
-	Tokens           map[uuid.UUID]string `json:"tokens"`
-	SecretBase64     string               `json:"secret32" envconfig:"secret32"`         // 32 byte secret used to encrypt the key store (mandatory)
-	RegisterAuth     string               `json:"registerAuth"`                          // auth token needed for new identity registration
-	Env              string               `json:"env"`                                   // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	DsnInitContainer bool                 `json:"DSN_InitDb" envconfig:"DSN_InitDb"`     // flag to determine if a database should be used for context management
-	DsnHost          string               `json:"DSN_Host" envconfig:"DSN_Host"`         // database host name
-	DsnUser          string               `json:"DSN_User" envconfig:"DSN_User"`         // database user name
-	DsnPassword      string               `json:"DSN_Password" envconfig:"DSN_Password"` // database password
-	DsnDb            string               `json:"DSN_Database" envconfig:"DSN_Database"` // database name
-	TCP_addr         string               `json:"TCP_addr"`                              // the TCP address for the server to listen on, in the form "host:port"
-	TLS              bool                 `json:"TLS"`                                   // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile     string               `json:"TLSCertFile"`                           // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile      string               `json:"TLSKeyFile"`                            // filename of TLS key file name, defaults to "key.pem"
-	CSR_Country      string               `json:"CSR_country"`                           // subject country for public key Certificate Signing Requests
-	CSR_Organization string               `json:"CSR_organization"`                      // subject organization for public key Certificate Signing Requests
-	Debug            bool                 `json:"debug"`                                 // enable extended debug output, defaults to 'false'
-	LogTextFormat    bool                 `json:"logTextFormat"`                         // log in text format for better human readability, default format is JSON
-	KeyService       string               // key service URL
-	IdentityService  string               // identity service URL
+	Tokens             map[uuid.UUID]string `json:"tokens"`
+	SecretBase64       string               `json:"secret32" envconfig:"secret32"`         // 32 byte secret used to encrypt the key store (mandatory)
+	RegisterAuth       string               `json:"registerAuth"`                          // auth token needed for new identity registration
+	Env                string               `json:"env"`                                   // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	DsnInitContainer   bool                 `json:"DSN_InitDb" envconfig:"DSN_InitDb"`     // flag to determine if a database should be used for context management
+	DsnHost            string               `json:"DSN_Host" envconfig:"DSN_Host"`         // database host name
+	DsnUser            string               `json:"DSN_User" envconfig:"DSN_User"`         // database user name
+	DsnPassword        string               `json:"DSN_Password" envconfig:"DSN_Password"` // database password
+	DsnDb              string               `json:"DSN_Database" envconfig:"DSN_Database"` // database name
+	TCP_addr           string               `json:"TCP_addr"`                              // the TCP address for the server to listen on, in the form "host:port"
+	TLS                bool                 `json:"TLS"`                                   // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile       string               `json:"TLSCertFile"`                           // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile        string               `json:"TLSKeyFile"`                            // filename of TLS key file name, defaults to "key.pem"
+	CSR_Country        string               `json:"CSR_country"`                           // subject country for public key Certificate Signing Requests
+	CSR_Organization   string               `json:"CSR_organization"`                      // subject organization for public key Certificate Signing Requests
+	Debug              bool                 `json:"debug"`                                 // enable extended debug output, defaults to 'false'
+	LogTextFormat      bool                 `json:"logTextFormat"`                         // log in text format for better human readability, default format is JSON
+	KeyService         string               // key service URL
+	IdentityService    string               // identity service URL
 	CertificateService string               // certificate service URL
 	//SigningService   string               // signing service URL
 	configDir   string // directory where config and protocol ctx are stored
 	secretBytes []byte // the decoded key store secret
-	identities  []Identity
+	identities  []*Identity
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -196,6 +196,10 @@ func (c *Config) setDefaultURLs() error {
 		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
 	}
 
+	if c.CertificateService == "" {
+		c.CertificateService = defaultCertificateURL
+	}
+
 	//if c.SigningService == "" {
 	//	c.SigningService = defaultSigningServiceURL
 	//}
@@ -203,6 +207,7 @@ func (c *Config) setDefaultURLs() error {
 	log.Infof("UBIRCH backend environment: %s", c.Env)
 	log.Debugf(" - Key Service:      %s", c.KeyService)
 	log.Debugf(" - Identity Service: %s", c.IdentityService)
+	log.Debugf(" - Certificates:      %s", c.CertificateService)
 	//log.Debugf(" - Signing Service:  %s", c.SigningService)
 
 	return nil
