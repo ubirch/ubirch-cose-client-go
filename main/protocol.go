@@ -218,7 +218,7 @@ func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
 	p.skidStoreMutex.RUnlock()
 
 	if !exists {
-		return nil, ErrNotExist
+		return nil, fmt.Errorf("SKID unknown for identity %s (missing X.509 public key certificate)", uid)
 	}
 
 	return skid, nil
