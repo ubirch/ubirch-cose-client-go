@@ -56,14 +56,12 @@ func main() {
 		serviceName = "cose-client"
 		configFile  = "config.json"
 		MigrateArg  = "--migrate"
-		InitIdsArg  = "--init-identities-conf"
 	)
 
 	var (
-		configDir      string
-		migrate        bool
-		initIdentities bool
-		serverID       = fmt.Sprintf("%s/%s", serviceName, Version)
+		configDir string
+		migrate   bool
+		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {
@@ -71,8 +69,6 @@ func main() {
 			log.Infof("arg #%d: %s", i+1, arg)
 			if arg == MigrateArg {
 				migrate = true
-			} else if arg == InitIdsArg {
-				initIdentities = true
 			} else {
 				configDir = arg
 			}
@@ -152,25 +148,6 @@ func main() {
 		protocol:            protocol,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
-	}
-
-	if initIdentities {
-		err = conf.loadIdentitiesFile()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		err = conf.loadTokens()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		err = idHandler.initIdentities(conf.identities)
-		if err != nil {
-			log.Fatalf("initialization of identities from configuration failed: %v", err)
-		}
-		log.Infof("successfully initialized identities from configuration")
-		os.Exit(0)
 	}
 
 	coseSigner, err := NewCoseSigner(protocol)

@@ -35,9 +35,7 @@ func NewFileManager(configDir string) (*FileManager, error) {
 		keystoreMutex: &sync.RWMutex{},
 	}
 
-	log.Info("keys are stored in local file system")
-	log.Debugf(" - keystore file: %s", f.keyFile)
-
+	log.Debugf("loading keystore file: %s", f.keyFile)
 	err := f.loadKeys()
 	if err != nil {
 		return nil, err
