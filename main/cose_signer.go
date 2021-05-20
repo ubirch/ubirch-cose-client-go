@@ -98,7 +98,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 
 	cose, err := c.createSignedCOSE(msg.ID, msg.Hash, msg.Payload)
 	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
+		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
@@ -113,17 +113,17 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, payload []byte) ([]byte, error) {
 	skid, err := c.GetSKID(uid)
 	if err != nil {
-		return nil, fmt.Errorf("could not get SKID: %v", err)
+		return nil, fmt.Errorf("SKID unknown (missing X.509 public key certificate)")
 	}
 
 	signature, err := c.getSignature(uid, hash)
 	if err != nil {
-		return nil, fmt.Errorf("could not create signature: %v", err)
+		return nil, err
 	}
 
 	coseBytes, err := c.getCOSE(skid, payload, signature)
 	if err != nil {
-		return nil, fmt.Errorf("could not create signed COSE object: %v", err)
+		return nil, err
 	}
 
 	return coseBytes, nil

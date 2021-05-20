@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -273,7 +274,10 @@ func (p *Protocol) loadSKIDs() {
 			continue
 		}
 
+		log.Debugf("matched SKID for identity %s: %s", uid, kid)
 		loadedSKIDs += 1
 	}
-	log.Infof("loaded %d certificates from server", loadedSKIDs)
+
+	skids, _ := json.Marshal(p.skidStore)
+	log.Infof("loaded %d matching certificates from server: %s", loadedSKIDs, skids)
 }
