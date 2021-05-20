@@ -32,8 +32,8 @@ import (
 
 type ExtendedClient struct {
 	clients.Client
-	CertificateServiceURL string
-	SigningServiceURL     string
+	SigningServiceURL    string
+	CertificateServerURL string
 }
 
 func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
@@ -64,9 +64,9 @@ type certificates struct {
 }
 
 func (c *ExtendedClient) RequestCertificates() ([]certificates, error) {
-	log.Debugf("requesting certificates from %s", c.CertificateServiceURL)
+	log.Debugf("requesting certificates from %s", c.CertificateServerURL)
 
-	resp, err := http.Get(c.CertificateServiceURL)
+	resp, err := http.Get(c.CertificateServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %v", err)
 	}
@@ -75,7 +75,7 @@ func (c *ExtendedClient) RequestCertificates() ([]certificates, error) {
 
 	if h.HttpFailed(resp.StatusCode) {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving certificates from %s failed: (%s) %s", c.CertificateServiceURL, resp.Status, string(respBodyBytes))
+		return nil, fmt.Errorf("retrieving certificates from %s failed: (%s) %s", c.CertificateServerURL, resp.Status, string(respBodyBytes))
 	}
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
