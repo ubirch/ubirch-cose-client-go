@@ -136,6 +136,7 @@ func main() {
 	client.IdentityServiceURL = conf.IdentityService
 	//todo client.SigningServiceURL = conf.SigningService
 	client.CertificateServerURL = conf.CertificateServer
+	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
 
 	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client)
 	if err != nil {

@@ -236,7 +236,7 @@ func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
 }
 
 func (p *Protocol) loadSKIDs() {
-	certs, err := p.RequestCertificates()
+	certs, err := p.RequestCertificates(p.Verify)
 	if err != nil {
 		log.Error(err)
 		return
