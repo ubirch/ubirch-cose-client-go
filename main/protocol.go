@@ -220,11 +220,6 @@ func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
 	return skid, nil
 }
 
-/*
-type Certificate
-    func ParseCertificate(asn1Data []byte) (*Certificate, error)
-    func (c *Certificate) CheckSignature(algo SignatureAlgorithm, signed, signature []byte) error
-*/
 func (p *Protocol) loadSKIDs() {
 	certs, err := p.RequestCertificates()
 	if err != nil {
