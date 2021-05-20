@@ -274,7 +274,6 @@ func (p *Protocol) loadSKIDs() {
 			continue
 		}
 
-		log.Debugf("matched SKID for identity %s: %s", uid, kid)
 		loadedSKIDs += 1
 	}
 
