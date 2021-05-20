@@ -54,6 +54,9 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 		ExtendedClient: client,
 		ctxManager:     ctxManager,
 		keyEncrypter:   enc,
+
+		skidStore:      map[uuid.UUID][]byte{},
+		skidStoreMutex: &sync.RWMutex{},
 	}, nil
 }
 
