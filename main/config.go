@@ -72,7 +72,6 @@ type Config struct {
 	//SigningService   string               // signing service URL
 	configDir   string // directory where config and protocol ctx are stored
 	secretBytes []byte // the decoded key store secret
-	identities  []*Identity
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -213,7 +212,7 @@ func (c *Config) setDefaultURLs() error {
 }
 
 // loadIdentitiesFile loads identities from the identities JSON file.
-func (c *Config) loadIdentitiesFile() error {
+func (c *Config) loadIdentitiesFile(identities *[]*Identity) error {
 	identitiesFile := filepath.Join(c.configDir, identitiesFileName)
 
 	// if file does not exist, return right away
@@ -227,16 +226,16 @@ func (c *Config) loadIdentitiesFile() error {
 	}
 	defer fileHandle.Close()
 
-	err = json.NewDecoder(fileHandle).Decode(&c.identities)
+	err = json.NewDecoder(fileHandle).Decode(identities)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("found %d entries in file %s", len(c.identities), identitiesFile)
+	log.Infof("found %d entries in file %s", len(*identities), identitiesFile)
 
-	tokenAlreadyExists := make(map[string]bool, len(c.identities))
+	tokenAlreadyExists := make(map[string]bool, len(*identities))
 
-	for _, i := range c.identities {
+	for _, i := range *identities {
 		//if len(i.Tenant) == 0 {
 		//	return fmt.Errorf("%s: empty tenant field", i.Uid)
 		//}
@@ -261,7 +260,7 @@ func (c *Config) loadIdentitiesFile() error {
 	return nil
 }
 
-func (c *Config) loadTokens() error {
+func (c *Config) loadTokens(identities *[]*Identity) error {
 	log.Infof("found %d UUIDs in tokens map", len(c.Tokens))
 
 	for uid, token := range c.Tokens {
@@ -276,7 +275,7 @@ func (c *Config) loadTokens() error {
 			AuthToken: token,
 		}
 
-		c.identities = append(c.identities, &i)
+		*identities = append(*identities, &i)
 	}
 
 	return nil

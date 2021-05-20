@@ -8,17 +8,34 @@ import (
 )
 
 func Migrate(c *Config) error {
+	identities := new([]*Identity)
+
+	err := c.loadIdentitiesFile(identities)
+	if err != nil {
+		return err
+	}
+
+	err = c.loadTokens(identities)
+	if err != nil {
+		return err
+	}
+
+	fileManager, err := NewFileManager(c.configDir)
+	if err != nil {
+		return err
+	}
+
+	err = getKeysFromLegacyCtx(fileManager, identities)
+	if err != nil {
+		return err
+	}
+
 	dbManager, err := NewSqlDatabaseInfo(c)
 	if err != nil {
 		return err
 	}
 
-	err = getKeysFromLegacyCtx(c)
-	if err != nil {
-		return err
-	}
-
-	err = migrateIdentities(dbManager, c.identities)
+	err = migrateIdentities(dbManager, identities)
 	if err != nil {
 		return err
 	}
@@ -27,19 +44,14 @@ func Migrate(c *Config) error {
 	return nil
 }
 
-func getKeysFromLegacyCtx(c *Config) error {
-	fileManager, err := NewFileManager(c.configDir)
-	if err != nil {
-		return err
-	}
-
-	for _, i := range c.identities {
-		i.PrivateKey, err = fileManager.GetPrivateKey(i.Uid)
+func getKeysFromLegacyCtx(f *FileManager, identities *[]*Identity) (err error) {
+	for _, i := range *identities {
+		i.PrivateKey, err = f.GetPrivateKey(i.Uid)
 		if err != nil {
 			return fmt.Errorf("%s: %v", i.Uid, err)
 		}
 
-		i.PublicKey, err = fileManager.GetPublicKey(i.Uid)
+		i.PublicKey, err = f.GetPublicKey(i.Uid)
 		if err != nil {
 			return fmt.Errorf("%s: %v", i.Uid, err)
 		}
@@ -48,7 +60,7 @@ func getKeysFromLegacyCtx(c *Config) error {
 	return nil
 }
 
-func migrateIdentities(dm *DatabaseManager, identities []*Identity) error {
+func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 	log.Infof("starting migration...")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -59,7 +71,7 @@ func migrateIdentities(dm *DatabaseManager, identities []*Identity) error {
 		return err
 	}
 
-	for i, id := range identities {
+	for i, id := range *identities {
 		log.Infof("%4d: %s", i+1, id.Uid)
 
 		if len(id.PrivateKey) == 0 {
