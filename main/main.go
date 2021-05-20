@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"path"
 	"syscall"
+	"time"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/auditlogger"
@@ -142,7 +143,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	go protocol.loadSKIDs() // todo scheduler
+	// check for new certificates every hour
+	go func() {
+		protocol.loadSKIDs()
+		for range time.Tick(time.Hour) {
+			protocol.loadSKIDs()
+		}
+	}()
 
 	idHandler := &IdentityHandler{
 		protocol:            protocol,
