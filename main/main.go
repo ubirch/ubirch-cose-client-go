@@ -90,6 +90,14 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	if migrate {
+		err := Migrate(conf)
+		if err != nil {
+			log.Fatalf("migration failed: %v", err)
+		}
+		os.Exit(0)
+	}
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	ctx, cancel := context.WithCancel(context.Background())
@@ -121,14 +129,6 @@ func main() {
 	// set up endpoint for liveliness checks
 	httpServer.Router.Get("/healtz", h.Health(serverID))
 
-	if migrate {
-		err := Migrate(conf)
-		if err != nil {
-			log.Fatalf("migration failed: %v", err)
-		}
-		os.Exit(0)
-	}
-
 	// initialize COSE service
 	ctxManager, err := GetCtxManager(conf)
 	if err != nil {
@@ -145,6 +145,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	go protocol.loadSKIDs() // todo scheduler
 
 	idHandler := &IdentityHandler{
 		protocol:            protocol,
@@ -170,8 +172,6 @@ func main() {
 		log.Infof("successfully initialized identities from configuration")
 		os.Exit(0)
 	}
-
-	protocol.loadSKIDs() // todo scheduler
 
 	coseSigner, err := NewCoseSigner(protocol)
 	if err != nil {

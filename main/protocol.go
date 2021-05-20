@@ -17,7 +17,7 @@ package main
 import (
 	"context"
 	"crypto/x509"
-	"encoding/pem"
+	"encoding/base64"
 	"fmt"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -228,42 +228,54 @@ type Certificate
 func (p *Protocol) loadSKIDs() {
 	certs, err := p.RequestCertificates()
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return
 	}
 
+	var loadedSKIDs int
+
 	for _, cert := range certs {
-		block, _ := pem.Decode(cert.RawData)
-		if block == nil || block.Bytes == nil {
-			log.Fatal(fmt.Errorf("unable to parse PEM block"))
-		}
-		certificate, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			log.Fatal(err)
-		}
+		kid := base64.StdEncoding.EncodeToString(cert.Kid)
 
 		// get public key from certificate
-		pubKeyPEM, err := p.Crypto.EncodePublicKey(certificate.PublicKey)
+		certificate, err := x509.ParseCertificate(cert.RawData)
 		if err != nil {
-			log.Fatal(err)
+			log.Errorf("%s: %v", kid, err)
+			continue
 		}
 
-		// look up public key
+		pubKeyPEM, err := p.Crypto.EncodePublicKey(certificate.PublicKey)
+		if err != nil {
+			log.Debugf("%s: unable to encode public key: %v", kid, err)
+			continue
+		}
+
+		// look up matching UUID for public key
 		exists, err := p.ExistsUuidForPublicKey(pubKeyPEM)
 		if err != nil {
-			log.Fatal(err)
+			log.Errorf("%s: %v", kid, err)
+			continue
 		}
 		if !exists {
-			log.Warn("public key %s from trust list certificate not found", pubKeyPEM)
+			log.Debugf("%s: public key not found", kid)
+			continue
 		}
+		log.Debugf("%s: public key found", kid)
+
 		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
 		if err != nil {
-			log.Fatal(err)
+			log.Errorf("%s: %v", kid, err)
+			continue
 		}
 
 		// store KID
 		err = p.SetSKID(uid, cert.Kid)
 		if err != nil {
-			log.Fatal(err)
+			log.Errorf("%s: %v", kid, err)
+			continue
 		}
+
+		loadedSKIDs += 1
 	}
+	log.Infof("loaded %d certificates from server", loadedSKIDs)
 }
