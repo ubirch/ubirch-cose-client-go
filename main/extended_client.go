@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -47,7 +49,7 @@ func UCCHeader(auth string) map[string]string {
 }
 
 type trustList struct {
-	SignatureHEX string         `json:"signature"`
+	//SignatureHEX string         `json:"signature"`
 	Certificates []certificates `json:"certificates"`
 }
 
@@ -72,17 +74,31 @@ func (c *ExtendedClient) RequestCertificates() ([]certificates, error) {
 	defer resp.Body.Close()
 
 	if h.HttpFailed(resp.StatusCode) {
-		respContent, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving certificates from %s failed: (%s) %s", c.CertificateServiceURL, resp.Status, string(respContent))
+		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("retrieving certificates from %s failed: (%s) %s", c.CertificateServiceURL, resp.Status, string(respBodyBytes))
 	}
 
+	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	respContent := strings.SplitN(string(respBodyBytes), "\n", 2)
+	if len(respContent) != 2 {
+		return nil, fmt.Errorf("unexpected response content")
+	}
+
+	signature, err := base64.StdEncoding.DecodeString(respContent[0])
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("signature: %s", base64.StdEncoding.EncodeToString(signature))
+	// todo verify signature
+
 	newTrustList := &trustList{}
-	err = json.NewDecoder(resp.Body).Decode(newTrustList)
+	err = json.Unmarshal([]byte(respContent[1]), newTrustList)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode certificates list: %v", err)
 	}
-
-	// todo verify signature
 
 	return newTrustList.Certificates, nil
 }
