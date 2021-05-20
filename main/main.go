@@ -142,8 +142,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	go protocol.loadSKIDs() // todo scheduler
-
 	idHandler := &IdentityHandler{
 		protocol:            protocol,
 		subjectCountry:      conf.CSR_Country,

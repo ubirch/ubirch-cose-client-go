@@ -25,6 +25,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"sync"
+	"time"
 )
 
 const SkidLen = 8
@@ -50,7 +51,7 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 		return nil, err
 	}
 
-	return &Protocol{
+	p := &Protocol{
 		Crypto:         crypto,
 		ExtendedClient: client,
 		ctxManager:     ctxManager,
@@ -58,7 +59,17 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
-	}, nil
+	}
+
+	// load certificates from server and check for new certificates every hour
+	go func() {
+		p.loadSKIDs()
+		for range time.Tick(time.Hour) {
+			p.loadSKIDs()
+		}
+	}()
+
+	return p, nil
 }
 
 func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
@@ -218,7 +229,7 @@ func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
 	p.skidStoreMutex.RUnlock()
 
 	if !exists {
-		return nil, ErrNotExist
+		return nil, fmt.Errorf("SKID unknown for identity %s (missing X.509 public key certificate)", uid)
 	}
 
 	return skid, nil
