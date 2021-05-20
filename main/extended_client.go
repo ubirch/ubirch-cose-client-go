@@ -15,7 +15,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
@@ -50,10 +49,10 @@ func UCCHeader(auth string) map[string]string {
 
 type trustList struct {
 	//SignatureHEX string         `json:"signature"`
-	Certificates []certificates `json:"certificates"`
+	Certificates []certificate `json:"certificates"`
 }
 
-type certificates struct {
+type certificate struct {
 	CertificateType string    `json:"certificateType"`
 	Country         string    `json:"country"`
 	Kid             []byte    `json:"kid"`
@@ -63,7 +62,7 @@ type certificates struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
-func (c *ExtendedClient) RequestCertificates() ([]certificates, error) {
+func (c *ExtendedClient) RequestCertificates() ([]certificate, error) {
 	log.Debugf("requesting certificates from %s", c.CertificateServerURL)
 
 	resp, err := http.Get(c.CertificateServerURL)
@@ -82,17 +81,11 @@ func (c *ExtendedClient) RequestCertificates() ([]certificates, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	respContent := strings.SplitN(string(respBodyBytes), "\n", 2)
-	if len(respContent) != 2 {
+	if len(respContent) < 2 {
 		return nil, fmt.Errorf("unexpected response content")
 	}
-
-	signature, err := base64.StdEncoding.DecodeString(respContent[0])
-	if err != nil {
-		return nil, err
-	}
-	log.Debugf("signature: %s", base64.StdEncoding.EncodeToString(signature))
-	// todo verify signature
 
 	newTrustList := &trustList{}
 	err = json.Unmarshal([]byte(respContent[1]), newTrustList)
