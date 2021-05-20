@@ -233,7 +233,7 @@ func (p *Protocol) loadSKIDs() {
 
 	for _, cert := range certs {
 		block, _ := pem.Decode(cert.RawData)
-		if block == nil {
+		if block == nil || block.Bytes == nil {
 			log.Fatal(fmt.Errorf("unable to parse PEM block"))
 		}
 		certificate, err := x509.ParseCertificate(block.Bytes)
