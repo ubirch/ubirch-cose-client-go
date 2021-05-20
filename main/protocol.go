@@ -16,17 +16,26 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"sync"
 )
+
+const SkidLen = 8
 
 type Protocol struct {
 	ubirch.Crypto
 	*ExtendedClient
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
+
+	skidStore      map[uuid.UUID][]byte
+	skidStoreMutex *sync.RWMutex
 }
 
 // Ensure Protocol implements the ContextManager interface
@@ -161,4 +170,107 @@ func (p *Protocol) checkIdentityAttributes(i *Identity) error {
 	}
 
 	return nil
+}
+
+func (p *Protocol) ExistsUuidForPublicKey(publicKeyPEM []byte) (bool, error) {
+	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
+	if err != nil {
+		return false, err
+	}
+	return p.ctxManager.ExistsUuidForPublicKey(publicKeyBytes)
+}
+
+func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID, error) {
+	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
+}
+
+func (p *Protocol) ExistsSKID(uid uuid.UUID) bool {
+	p.skidStoreMutex.RLock()
+	defer p.skidStoreMutex.RUnlock()
+
+	_, exists := p.skidStore[uid]
+	return exists
+}
+
+func (p *Protocol) SetSKID(uid uuid.UUID, skid []byte) error {
+	if len(skid) != SkidLen {
+		return fmt.Errorf("invalid SKID length: expected %d, got %d", SkidLen, len(skid))
+	}
+
+	p.skidStoreMutex.Lock()
+	p.skidStore[uid] = skid
+	p.skidStoreMutex.Unlock()
+
+	return nil
+}
+
+func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
+	p.skidStoreMutex.RLock()
+	skid, exists := p.skidStore[uid]
+	p.skidStoreMutex.RUnlock()
+
+	if !exists {
+		return nil, ErrNotExist
+	}
+
+	return skid, nil
+}
+
+func (p *Protocol) loadSKIDs() {
+	certs, err := p.RequestCertificates()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	var loadedSKIDs int
+
+	for _, cert := range certs {
+		kid := base64.StdEncoding.EncodeToString(cert.Kid)
+
+		// get public key from certificate
+		certificate, err := x509.ParseCertificate(cert.RawData)
+		if err != nil {
+			log.Errorf("%s: %v", kid, err)
+			continue
+		}
+
+		pubKeyPEM, err := p.Crypto.EncodePublicKey(certificate.PublicKey)
+		if err != nil {
+			log.Debugf("%s: unable to encode public key: %v", kid, err)
+			continue
+		}
+
+		// look up matching UUID for public key
+		exists, err := p.ExistsUuidForPublicKey(pubKeyPEM)
+		if err != nil {
+			log.Errorf("%s: %v", kid, err)
+			continue
+		}
+		if !exists {
+			log.Debugf("%s: public key not found", kid)
+			continue
+		}
+		log.Debugf("%s: public key found", kid)
+
+		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
+		if err != nil {
+			log.Errorf("%s: %v", kid, err)
+			continue
+		}
+
+		// store KID
+		err = p.SetSKID(uid, cert.Kid)
+		if err != nil {
+			log.Errorf("%s: %v", kid, err)
+			continue
+		}
+
+		loadedSKIDs += 1
+	}
+	log.Infof("loaded %d certificates from server", loadedSKIDs)
 }

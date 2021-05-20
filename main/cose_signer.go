@@ -64,9 +64,14 @@ type Sig_structure struct {
 }
 
 type CoseSigner struct {
-	protocol        *Protocol
+	*Protocol
 	encMode         cbor.EncMode
 	protectedHeader []byte
+}
+
+func initCBOREncMode() (cbor.EncMode, error) {
+	encOpt := cbor.CanonicalEncOptions() //https://cose-wg.github.io/cose-spec/#rfc.section.14
+	return encOpt.EncMode()
 }
 
 func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
@@ -82,7 +87,7 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 	}
 
 	return &CoseSigner{
-		protocol:        p,
+		Protocol:        p,
 		encMode:         encMode,
 		protectedHeader: protectedHeaderAlgES256CBOR,
 	}, nil
@@ -91,22 +96,51 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 	log.Infof("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	coseBytes, err := c.getSignedCOSE(msg.ID, msg.Hash, msg.Payload)
+	cose, err := c.createSignedCOSE(msg.ID, msg.Hash, msg.Payload)
 	if err != nil {
-		log.Errorf("%s: could not create signed COSE object: %v", msg.ID, err)
+		log.Errorf("%s: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: COSE: %x", msg.ID, coseBytes)
+	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
 	return HTTPResponse{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
-		Content:    coseBytes,
+		Content:    cose,
 	}
 }
 
-// getSignedCOSE creates a COSE Single Signer Data Object (COSE_Sign1) with ECDSA P-256 signature
-func (c *CoseSigner) getSignedCOSE(uid uuid.UUID, hash [32]byte, payload []byte) ([]byte, error) {
+func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, payload []byte) ([]byte, error) {
+	skid, err := c.GetSKID(uid)
+	if err != nil {
+		return nil, fmt.Errorf("could not get SKID: %v", err)
+	}
+
+	signature, err := c.getSignature(uid, hash)
+	if err != nil {
+		return nil, fmt.Errorf("could not create signature: %v", err)
+	}
+
+	coseBytes, err := c.getCOSE(skid, payload, signature)
+	if err != nil {
+		return nil, fmt.Errorf("could not create signed COSE object: %v", err)
+	}
+
+	return coseBytes, nil
+}
+
+// getSignature creates ECDSA P-256 signature and returns the bytes
+func (c *CoseSigner) getSignature(uid uuid.UUID, hash Sha256Sum) (signatureBytes []byte, err error) {
+	privateKeyPEM, err := c.GetPrivateKey(uid)
+	if err != nil {
+		return nil, err
+	}
+	return c.SignHash(privateKeyPEM, hash[:])
+}
+
+// getCOSE creates a COSE Single Signer Data Object (COSE_Sign1)
+// and returns the Canonical-CBOR-encoded object with tag 18
+func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error) {
 	/*
 		* https://cose-wg.github.io/cose-spec/#rfc.section.4.2
 			[COSE Single Signer Data Object]
@@ -189,32 +223,17 @@ func (c *CoseSigner) getSignedCOSE(uid uuid.UUID, hash [32]byte, payload []byte)
 			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
 																							payload is unknown
 	*/
-	privKeyPEM, err := c.protocol.GetPrivateKey(uid)
-	if err != nil {
-		return nil, err
-	}
-
-	// create ES256 signature
-	signatureBytes, err := c.protocol.SignHash(privKeyPEM, hash[:])
-	if err != nil {
-		return nil, err
-	}
 
 	// create COSE_Sign1 object
 	coseSign1 := &COSE_Sign1{
 		Protected:   c.protectedHeader,
-		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: uid[:]},
+		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: kid},
 		Payload:     payload,
 		Signature:   signatureBytes,
 	}
 
 	// encode COSE_Sign1 object with tag
 	return c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
-}
-
-func initCBOREncMode() (cbor.EncMode, error) {
-	encOpt := cbor.CanonicalEncOptions() //https://cose-wg.github.io/cose-spec/#rfc.section.14
-	return encOpt.EncMode()
 }
 
 // GetSigStructBytes creates a "Canonical CBOR"-encoded](https://tools.ietf.org/html/rfc7049#section-3.9)
