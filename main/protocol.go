@@ -256,7 +256,7 @@ func (p *Protocol) loadSKIDs() {
 
 		pubKeyPEM, err := p.Crypto.EncodePublicKey(certificate.PublicKey)
 		if err != nil {
-			log.Debugf("%s: unable to encode public key: %v", kid, err)
+			//log.Debugf("%s: unable to encode public key: %v", kid, err)
 			continue
 		}
 
@@ -267,10 +267,10 @@ func (p *Protocol) loadSKIDs() {
 			continue
 		}
 		if !exists {
-			log.Debugf("%s: public key not found", kid)
+			//log.Debugf("%s: public key not found", kid)
 			continue
 		}
-		log.Debugf("%s: public key found", kid)
+		log.Debugf("%s: public key certificate match", kid)
 
 		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
 		if err != nil {
