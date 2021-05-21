@@ -109,6 +109,11 @@ func MigrateLegacyFileToDB(c *Config) error {
 		return err
 	}
 
+	err = c.loadTokens(identities)
+	if err != nil {
+		return err
+	}
+
 	err = getKeysFromFileWithDecryption(c, identities)
 	if err != nil {
 		return err
