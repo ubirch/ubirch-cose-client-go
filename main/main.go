@@ -87,7 +87,7 @@ func main() {
 	}
 
 	if migrate {
-		err := MigrateLegacyFileToDB(conf)
+		err := MigrateFileToDB(conf)
 		if err != nil {
 			log.Fatalf("migration failed: %v", err)
 		}
