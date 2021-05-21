@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-
 	log "github.com/sirupsen/logrus"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 func MigrateFileToDB(c *Config) error {
@@ -118,12 +119,7 @@ func MigrateLegacyFileToDB(c *Config) error {
 		return err
 	}
 
-	p, err := NewProtocol(dbManager, c.secretBytes, nil)
-	if err != nil {
-		return err
-	}
-
-	err = migrateIdentitiesWithEncryption(p, identities)
+	err = migrateIdentitiesWithEncryption(dbManager, c.secretBytes, identities)
 	if err != nil {
 		return err
 	}
@@ -163,7 +159,20 @@ func getKeysFromFileWithDecryption(c *Config, identities *[]*Identity) (err erro
 	return nil
 }
 
-func migrateIdentitiesWithEncryption(p *Protocol, identities *[]*Identity) error {
+func migrateIdentitiesWithEncryption(dm *DatabaseManager, secret []byte, identities *[]*Identity) error {
+	crypto := &ubirch.ECDSACryptoContext{}
+
+	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
+	if err != nil {
+		return err
+	}
+
+	p := &Protocol{
+		Crypto:       crypto,
+		ctxManager:   dm,
+		keyEncrypter: enc,
+	}
+
 	log.Infof("starting migration...")
 
 	ctx, cancel := context.WithCancel(context.Background())
