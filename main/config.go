@@ -51,6 +51,7 @@ const (
 type Config struct {
 	Tokens            map[uuid.UUID]string `json:"tokens"`
 	SecretBase64      string               `json:"secret32" envconfig:"secret32"`         // 32 byte secret used to encrypt the key store (mandatory)
+	Secret16Base64    string               `json:"secret"`                                // secret used to encrypt the legacy key store (mandatory for migration)
 	RegisterAuth      string               `json:"registerAuth"`                          // auth token needed for new identity registration
 	Env               string               `json:"env"`                                   // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	DsnInitContainer  bool                 `json:"DSN_InitDb" envconfig:"DSN_InitDb"`     // flag to determine if a database should be used for context management
