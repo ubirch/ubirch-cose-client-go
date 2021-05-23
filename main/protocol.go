@@ -236,14 +236,18 @@ func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
 }
 
 func (p *Protocol) loadSKIDs() {
-	certs, err := p.RequestCertificates(p.Verify)
+	certs, err := p.RequestCertificateList(p.Verify)
 	if err != nil {
 		log.Error(err)
 		return
 	}
 
-	var loadedSKIDs int
+	// clear the SKID lookup
+	p.skidStoreMutex.Lock()
+	defer p.skidStoreMutex.Unlock()
+	p.skidStore = make(map[uuid.UUID][]byte)
 
+	// go through certificate list and match known public keys
 	for _, cert := range certs {
 		kid := base64.StdEncoding.EncodeToString(cert.Kid)
 
@@ -284,10 +288,8 @@ func (p *Protocol) loadSKIDs() {
 			log.Errorf("%s: %v", kid, err)
 			continue
 		}
-
-		loadedSKIDs += 1
 	}
 
 	skids, _ := json.Marshal(p.skidStore)
-	log.Infof("loaded %d matching certificates from server: %s", loadedSKIDs, skids)
+	log.Infof("loaded %d matching certificates from server: %s", len(p.skidStore), skids)
 }
