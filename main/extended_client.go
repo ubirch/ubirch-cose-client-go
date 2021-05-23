@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
@@ -31,8 +32,9 @@ import (
 
 type ExtendedClient struct {
 	clients.Client
-	SigningServiceURL    string
-	CertificateServerURL string
+	SigningServiceURL          string
+	CertificateServerURL       string
+	CertificateServerPubKeyURL string
 }
 
 func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
@@ -49,10 +51,10 @@ func UCCHeader(auth string) map[string]string {
 
 type trustList struct {
 	//SignatureHEX string         `json:"signature"`
-	Certificates []certificate `json:"certificates"`
+	Certificates []Certificate `json:"certificates"`
 }
 
-type certificate struct {
+type Certificate struct {
 	CertificateType string    `json:"certificateType"`
 	Country         string    `json:"country"`
 	Kid             []byte    `json:"kid"`
@@ -62,8 +64,10 @@ type certificate struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
-func (c *ExtendedClient) RequestCertificates() ([]certificate, error) {
-	log.Debugf("requesting certificates from %s", c.CertificateServerURL)
+type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
+
+func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, error) {
+	log.Debugf("requesting public key certificate list")
 
 	resp, err := http.Get(c.CertificateServerURL)
 	if err != nil {
@@ -74,7 +78,7 @@ func (c *ExtendedClient) RequestCertificates() ([]certificate, error) {
 
 	if h.HttpFailed(resp.StatusCode) {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving certificates from %s failed: (%s) %s", c.CertificateServerURL, resp.Status, string(respBodyBytes))
+		return nil, fmt.Errorf("retrieving public key certificate list from %s failed: (%s) %s", c.CertificateServerURL, resp.Status, string(respBodyBytes))
 	}
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
@@ -87,11 +91,48 @@ func (c *ExtendedClient) RequestCertificates() ([]certificate, error) {
 		return nil, fmt.Errorf("unexpected response content")
 	}
 
-	newTrustList := &trustList{}
-	err = json.Unmarshal([]byte(respContent[1]), newTrustList)
+	// verify signature
+	pubKeyPEM, err := c.RequestCertificateListPublicKey()
 	if err != nil {
-		return nil, fmt.Errorf("unable to decode certificates list: %v", err)
+		return nil, fmt.Errorf("unable to retrieve public key for certificate list verification: %v", err)
+	}
+
+	signature, err := base64.StdEncoding.DecodeString(respContent[0])
+	if err != nil {
+		return nil, err
+	}
+
+	certList := []byte(respContent[1])
+
+	ok, err := verify(pubKeyPEM, certList, signature)
+	if err != nil {
+		return nil, fmt.Errorf("unable to verify signature for public key certificate list: %v", err)
+	}
+	if !ok {
+		return nil, fmt.Errorf("invalid signature for public key certificate list")
+	}
+
+	newTrustList := &trustList{}
+	err = json.Unmarshal(certList, newTrustList)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode public key certificate list: %v", err)
 	}
 
 	return newTrustList.Certificates, nil
+}
+
+func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
+	resp, err := http.Get(c.CertificateServerPubKeyURL)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %v", err)
+	}
+	//noinspection GoUnhandledErrorResult
+	defer resp.Body.Close()
+
+	if h.HttpFailed(resp.StatusCode) {
+		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("retrieving public key from %s failed: (%s) %s", c.CertificateServerPubKeyURL, resp.Status, string(respBodyBytes))
+	}
+
+	return ioutil.ReadAll(resp.Body)
 }
