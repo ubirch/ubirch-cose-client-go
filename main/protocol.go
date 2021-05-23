@@ -249,10 +249,10 @@ func (p *Protocol) loadSKIDs() {
 		return
 	}
 
-	// clear the SKID lookup and block reading access until reloaded
+	// clear the SKID lookup
 	p.skidStoreMutex.Lock()
-	defer p.skidStoreMutex.Unlock()
 	p.skidStore = make(map[uuid.UUID][]byte)
+	p.skidStoreMutex.Unlock()
 
 	// go through certificate list and match known public keys
 	for _, cert := range certs {
