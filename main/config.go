@@ -68,6 +68,7 @@ type Config struct {
 	LogTextFormat           bool                 `json:"logTextFormat"`                                                 // log in text format for better human readability, default format is JSON
 	CertificateServer       string               `json:"certificateServer" envconfig:"certificate_server"`              // public key certificate list server URL
 	CertificateServerPubKey string               `json:"certificateServerPubKey" envconfig:"certificate_server_pubkey"` // public key for verification of the public key certificate list signature server URL
+	ReloadCertsEveryMinute  bool                 `json:"reloadCertsEveryMinute" envconfig:"reload_certs_every_minute"`  // setting to make the service request the public key certificate list once a minute
 	KeyService              string               // key service URL
 	IdentityService         string               // identity service URL
 	//SigningService   string               // signing service URL

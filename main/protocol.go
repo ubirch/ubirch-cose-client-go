@@ -43,7 +43,7 @@ type Protocol struct {
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClient) (*Protocol, error) {
+func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClient, reloadCertsEveryMinute bool) (*Protocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
 	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
@@ -61,10 +61,17 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 		skidStoreMutex: &sync.RWMutex{},
 	}
 
-	// load certificates from server and check for new certificates every hour
+	// load public key certificates from server and check for new certificates frequently
 	go func() {
+		var interval time.Duration
+		if reloadCertsEveryMinute {
+			interval = time.Minute
+		} else {
+			interval = time.Hour
+		}
+
 		p.loadSKIDs()
-		for range time.Tick(time.Hour) {
+		for range time.Tick(interval) {
 			p.loadSKIDs()
 		}
 	}()
@@ -242,7 +249,7 @@ func (p *Protocol) loadSKIDs() {
 		return
 	}
 
-	// clear the SKID lookup
+	// clear the SKID lookup and block reading access until reloaded
 	p.skidStoreMutex.Lock()
 	defer p.skidStoreMutex.Unlock()
 	p.skidStore = make(map[uuid.UUID][]byte)
@@ -274,7 +281,7 @@ func (p *Protocol) loadSKIDs() {
 			//log.Debugf("%s: public key not found", kid)
 			continue
 		}
-		log.Debugf("%s: public key certificate match", kid)
+		//log.Debugf("%s: public key certificate match", kid)
 
 		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
 		if err != nil {

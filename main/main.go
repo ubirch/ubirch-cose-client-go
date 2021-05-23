@@ -138,7 +138,7 @@ func main() {
 	client.CertificateServerURL = conf.CertificateServer
 	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
 
-	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client)
+	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client, conf.ReloadCertsEveryMinute)
 	if err != nil {
 		log.Fatal(err)
 	}
