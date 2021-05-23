@@ -102,9 +102,9 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 		return nil, err
 	}
 
-	rest := []byte(respContent[1])
+	certList := []byte(respContent[1])
 
-	ok, err := verify(pubKeyPEM, rest, signature)
+	ok, err := verify(pubKeyPEM, certList, signature)
 	if err != nil {
 		return nil, fmt.Errorf("unable to verify signature for public key certificate list: %v", err)
 	}
@@ -113,7 +113,7 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 	}
 
 	newTrustList := &trustList{}
-	err = json.Unmarshal([]byte(respContent[1]), newTrustList)
+	err = json.Unmarshal(certList, newTrustList)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode public key certificate list: %v", err)
 	}
