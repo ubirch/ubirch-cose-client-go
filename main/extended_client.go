@@ -66,8 +66,8 @@ type Certificate struct {
 
 type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
 
-func (c *ExtendedClient) RequestCertificates(verify Verify) ([]Certificate, error) {
-	log.Debugf("requesting certificates from %s", c.CertificateServerURL)
+func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, error) {
+	log.Debugf("requesting public key certificate list")
 
 	resp, err := http.Get(c.CertificateServerURL)
 	if err != nil {
@@ -78,7 +78,7 @@ func (c *ExtendedClient) RequestCertificates(verify Verify) ([]Certificate, erro
 
 	if h.HttpFailed(resp.StatusCode) {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving certificates from %s failed: (%s) %s", c.CertificateServerURL, resp.Status, string(respBodyBytes))
+		return nil, fmt.Errorf("retrieving public key certificate list from %s failed: (%s) %s", c.CertificateServerURL, resp.Status, string(respBodyBytes))
 	}
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
@@ -92,7 +92,7 @@ func (c *ExtendedClient) RequestCertificates(verify Verify) ([]Certificate, erro
 	}
 
 	// verify signature
-	pubKeyPEM, err := c.RequestPublicKey()
+	pubKeyPEM, err := c.RequestCertificateListPublicKey()
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve public key for certificate list verification: %v", err)
 	}
@@ -106,24 +106,22 @@ func (c *ExtendedClient) RequestCertificates(verify Verify) ([]Certificate, erro
 
 	ok, err := verify(pubKeyPEM, rest, signature)
 	if err != nil {
-		return nil, fmt.Errorf("unable to verify signature for certificate list: %v", err)
+		return nil, fmt.Errorf("unable to verify signature for public key certificate list: %v", err)
 	}
 	if !ok {
-		return nil, fmt.Errorf("invalid signature for certificate list")
+		return nil, fmt.Errorf("invalid signature for public key certificate list")
 	}
 
 	newTrustList := &trustList{}
 	err = json.Unmarshal([]byte(respContent[1]), newTrustList)
 	if err != nil {
-		return nil, fmt.Errorf("unable to decode certificates list: %v", err)
+		return nil, fmt.Errorf("unable to decode public key certificate list: %v", err)
 	}
 
 	return newTrustList.Certificates, nil
 }
 
-func (c *ExtendedClient) RequestPublicKey() ([]byte, error) {
-	log.Debugf("requesting public key from %s", c.CertificateServerPubKeyURL)
-
+func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
 	resp, err := http.Get(c.CertificateServerPubKeyURL)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %v", err)
