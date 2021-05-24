@@ -50,14 +50,14 @@ const (
 
 type Config struct {
 	Tokens                  map[uuid.UUID]string `json:"tokens"`
-	SecretBase64            string               `json:"secret32" envconfig:"secret32"`                                 // 32 byte secret used to encrypt the key store (mandatory)
-	RegisterAuth            string               `json:"registerAuth"`                                                  // auth token needed for new identity registration
+	SecretBase64            string               `json:"secret32" envconfig:"SECRET32"`                                 // 32 byte secret used to encrypt the key store (mandatory)
+	RegisterAuth            string               `json:"registerAuth" envconfig:"REGISTER_AUTH"`                        // auth token needed for new identity registration
 	Env                     string               `json:"env"`                                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	DsnInitContainer        bool                 `json:"DSN_InitDb" envconfig:"DSN_InitDb"`                             // flag to determine if a database should be used for context management
-	DsnHost                 string               `json:"DSN_Host" envconfig:"DSN_Host"`                                 // database host name
-	DsnUser                 string               `json:"DSN_User" envconfig:"DSN_User"`                                 // database user name
-	DsnPassword             string               `json:"DSN_Password" envconfig:"DSN_Password"`                         // database password
-	DsnDb                   string               `json:"DSN_Database" envconfig:"DSN_Database"`                         // database name
+	DsnInitContainer        bool                 `json:"DSN_InitDb" envconfig:"DSN_INITDB"`                             // flag to determine if a database should be used for context management
+	DsnHost                 string               `json:"DSN_Host" envconfig:"DSN_HOST"`                                 // database host name
+	DsnUser                 string               `json:"DSN_User" envconfig:"DSN_USER"`                                 // database user name
+	DsnPassword             string               `json:"DSN_Password" envconfig:"DSN_PASSWORD"`                         // database password
+	DsnDb                   string               `json:"DSN_Database" envconfig:"DSN_DATABASE"`                         // database name
 	TCP_addr                string               `json:"TCP_addr"`                                                      // the TCP address for the server to listen on, in the form "host:port"
 	TLS                     bool                 `json:"TLS"`                                                           // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile            string               `json:"TLSCertFile"`                                                   // filename of TLS certificate file name, defaults to "cert.pem"
@@ -66,9 +66,9 @@ type Config struct {
 	CSR_Organization        string               `json:"CSR_organization"`                                              // subject organization for public key Certificate Signing Requests
 	Debug                   bool                 `json:"debug"`                                                         // enable extended debug output, defaults to 'false'
 	LogTextFormat           bool                 `json:"logTextFormat"`                                                 // log in text format for better human readability, default format is JSON
-	CertificateServer       string               `json:"certificateServer" envconfig:"certificate_server"`              // public key certificate list server URL
-	CertificateServerPubKey string               `json:"certificateServerPubKey" envconfig:"certificate_server_pubkey"` // public key for verification of the public key certificate list signature server URL
-	ReloadCertsEveryMinute  bool                 `json:"reloadCertsEveryMinute" envconfig:"reload_certs_every_minute"`  // setting to make the service request the public key certificate list once a minute
+	CertificateServer       string               `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
+	CertificateServerPubKey string               `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
+	ReloadCertsEveryMinute  bool                 `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
 	KeyService              string               // key service URL
 	IdentityService         string               // identity service URL
 	//SigningService   string               // signing service URL
