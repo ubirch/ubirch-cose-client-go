@@ -74,46 +74,9 @@ type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
 func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, error) {
 	log.Debugf("requesting public key certificate list")
 
-	// get TLS certificate fingerprint for host
-	url, err := urlpkg.Parse(c.CertificateServerURL)
+	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
-		return nil, err
-	}
-
-	tlsCertFingerprint, exists := c.ServerTLSCertFingerprints[url.Host]
-	if !exists {
-		return nil, fmt.Errorf("missing TLS certificate fingerprint for host %s", url.Host)
-	}
-
-	// set up TLS certificate verification
-	client := &http.Client{}
-	client.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{
-			//VerifyPeerCertificate: NewPeerCertificateVerifier(tlsCertFingerprint),
-			VerifyConnection: NewConnectionVerifier(tlsCertFingerprint),
-		},
-	}
-
-	// make request
-	req, err := http.NewRequest(http.MethodGet, c.CertificateServerURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %v", err)
-	}
-	//noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
-
-	if h.HttpFailed(resp.StatusCode) {
-		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving public key certificate list from %s failed: (%s) %s", c.CertificateServerURL, resp.Status, string(respBodyBytes))
-	}
-
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("retrieving public key certificate list from %s failed: %v", c.CertificateServerURL, err)
 	}
 
 	respContent := strings.SplitN(string(respBodyBytes), "\n", 2)
@@ -152,16 +115,49 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 }
 
 func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
-	resp, err := http.Get(c.CertificateServerPubKeyURL)
+	resp, err := c.getWithCertPinning(c.CertificateServerPubKeyURL)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %v", err)
+		return nil, fmt.Errorf("retrieving public key from %s failed: %v", c.CertificateServerPubKeyURL, err)
+	}
+
+	return resp, nil
+}
+
+func (c *ExtendedClient) getWithCertPinning(url string) ([]byte, error) {
+	// get TLS certificate fingerprint for host
+	u, err := urlpkg.Parse(url)
+	if err != nil {
+		return nil, err
+	}
+	tlsCertFingerprint, exists := c.ServerTLSCertFingerprints[u.Host]
+	if !exists {
+		return nil, fmt.Errorf("missing TLS certificate fingerprint for host %s", u.Host)
+	}
+
+	// set up TLS certificate verification
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			//VerifyPeerCertificate: NewPeerCertificateVerifier(tlsCertFingerprint),
+			VerifyConnection: NewConnectionVerifier(tlsCertFingerprint),
+		},
+	}
+
+	// make request
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
 	}
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
 	if h.HttpFailed(resp.StatusCode) {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving public key from %s failed: (%s) %s", c.CertificateServerPubKeyURL, resp.Status, string(respBodyBytes))
+		return nil, fmt.Errorf("response: (%s) %s", resp.Status, string(respBodyBytes))
 	}
 
 	return ioutil.ReadAll(resp.Body)
