@@ -15,6 +15,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -38,6 +40,7 @@ const (
 	//defaultSigningServiceURL = "http://localhost:8080"
 
 	identitiesFileName = "identities.json"
+	TLSCertsFileName   = "ubirch_tls_certs.json"
 
 	defaultCSRCountry      = "DE"
 	defaultCSROrganization = "ubirch GmbH"
@@ -72,8 +75,9 @@ type Config struct {
 	KeyService              string               // key service URL
 	IdentityService         string               // identity service URL
 	//SigningService   string               // signing service URL
-	configDir   string // directory where config and protocol ctx are stored
-	secretBytes []byte // the decoded key store secret
+	ServerTLSCertFingerprints map[string][32]byte
+	configDir                 string // directory where config and protocol ctx are stored
+	secretBytes               []byte // the decoded key store secret
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -105,6 +109,11 @@ func (c *Config) Load(configDir string, filename string) error {
 	}
 
 	err = c.checkMandatory()
+	if err != nil {
+		return err
+	}
+
+	err = c.loadServerTLSCertificates()
 	if err != nil {
 		return err
 	}
@@ -281,6 +290,44 @@ func (c *Config) loadTokens(identities *[]*Identity) error {
 		}
 
 		*identities = append(*identities, &i)
+	}
+
+	return nil
+}
+
+func (c *Config) loadServerTLSCertificates() error {
+	serverTLSCertFile := filepath.Join(c.configDir, TLSCertsFileName)
+
+	fileHandle, err := os.Open(serverTLSCertFile)
+	if err != nil {
+		return err
+	}
+	defer fileHandle.Close()
+
+	serverTLSCertBuffer := make(map[string][]byte)
+
+	err = json.NewDecoder(fileHandle).Decode(&serverTLSCertBuffer)
+	if err != nil {
+		return err
+	}
+
+	if len(serverTLSCertBuffer) == 0 {
+		return fmt.Errorf("no TLS certificates found in file %s", serverTLSCertFile)
+	}
+	log.Infof("found %d entries in file %s", len(serverTLSCertBuffer), serverTLSCertFile)
+
+	c.ServerTLSCertFingerprints = make(map[string][32]byte)
+
+	for host, cert := range serverTLSCertBuffer {
+		// sanity check
+		_, err := x509.ParseCertificate(cert)
+		if err != nil {
+			log.Errorf("parsing certificate for host %s failed: %v, expected certificate format: base64 encoded ASN.1 DER", host, err)
+			continue
+		}
+
+		fingerprint := sha256.Sum256(cert)
+		c.ServerTLSCertFingerprints[host] = fingerprint
 	}
 
 	return nil
