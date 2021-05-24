@@ -137,6 +137,7 @@ func main() {
 	//todo client.SigningServiceURL = conf.SigningService
 	client.CertificateServerURL = conf.CertificateServer
 	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
+	client.ServerTLSCertFingerprints = conf.ServerTLSCertFingerprints
 
 	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client, conf.ReloadCertsEveryMinute)
 	if err != nil {

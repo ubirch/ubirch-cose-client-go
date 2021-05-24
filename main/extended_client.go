@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -40,6 +39,7 @@ type ExtendedClient struct {
 	SigningServiceURL          string
 	CertificateServerURL       string
 	CertificateServerPubKeyURL string
+	ServerTLSCertFingerprints  map[string][32]byte
 }
 
 func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
@@ -71,7 +71,7 @@ type Certificate struct {
 
 type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
 
-func (c *ExtendedClient) RequestCertificateList(tlsCertFingerprints map[string][32]byte, verify Verify) ([]Certificate, error) {
+func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, error) {
 	log.Debugf("requesting public key certificate list")
 
 	// get TLS certificate fingerprint for host
@@ -80,7 +80,7 @@ func (c *ExtendedClient) RequestCertificateList(tlsCertFingerprints map[string][
 		return nil, err
 	}
 
-	tlsCertFingerprint, exists := tlsCertFingerprints[url.Host]
+	tlsCertFingerprint, exists := c.ServerTLSCertFingerprints[url.Host]
 	if !exists {
 		return nil, fmt.Errorf("missing TLS certificate fingerprint for host %s", url.Host)
 	}
@@ -89,8 +89,8 @@ func (c *ExtendedClient) RequestCertificateList(tlsCertFingerprints map[string][
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
-			VerifyPeerCertificate: NewPeerCertificateVerifier(tlsCertFingerprint),
-			VerifyConnection:      NewConnectionVerifier(tlsCertFingerprint),
+			//VerifyPeerCertificate: NewPeerCertificateVerifier(tlsCertFingerprint),
+			VerifyConnection: NewConnectionVerifier(tlsCertFingerprint),
 		},
 	}
 
@@ -167,25 +167,25 @@ func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
 	return ioutil.ReadAll(resp.Body)
 }
 
-// VerifyPeerCertificate is called after normal certificate verification by either a TLS client or server. It receives
-// the raw ASN.1 certificates provided by the peer and also any verified chains that normal processing found.
-// If it returns a non-nil error, the handshake is aborted and that error results.
+//// VerifyPeerCertificate is called after normal certificate verification by either a TLS client or server. It receives
+//// the raw ASN.1 certificates provided by the peer and also any verified chains that normal processing found.
+//// If it returns a non-nil error, the handshake is aborted and that error results.
+////
+//// If normal verification fails then the handshake will abort before considering this callback.
+//type VerifyPeerCertificate func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
 //
-// If normal verification fails then the handshake will abort before considering this callback.
-type VerifyPeerCertificate func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
-
-func NewPeerCertificateVerifier(fingerprint [32]byte) VerifyPeerCertificate {
-	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-
-		serverCertFingerprint := sha256.Sum256(rawCerts[0])
-
-		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
-			return fmt.Errorf("server TLS certificate mismatch: pinning failed")
-		}
-
-		return nil
-	}
-}
+//func NewPeerCertificateVerifier(fingerprint [32]byte) VerifyPeerCertificate {
+//	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+//
+//		serverCertFingerprint := sha256.Sum256(rawCerts[0])
+//
+//		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
+//			return fmt.Errorf("pinned server TLS certificate mismatch")
+//		}
+//
+//		return nil
+//	}
+//}
 
 // VerifyConnection is called after normal certificate verification and after VerifyPeerCertificate by
 // either a TLS client or server. If it returns a non-nil error, the handshake is aborted and that error results.
@@ -202,7 +202,7 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 		serverCertFingerprint := sha256.Sum256(connectionState.PeerCertificates[0].Raw)
 
 		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
-			return fmt.Errorf("server TLS certificate mismatch: pinning failed")
+			return fmt.Errorf("pinned server TLS certificate mismatch")
 		}
 
 		return nil
