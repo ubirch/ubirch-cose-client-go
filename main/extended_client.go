@@ -15,6 +15,10 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -28,6 +32,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	urlpkg "net/url"
 )
 
 type ExtendedClient struct {
@@ -66,10 +71,35 @@ type Certificate struct {
 
 type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
 
-func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, error) {
+func (c *ExtendedClient) RequestCertificateList(tlsCertFingerprints map[string][32]byte, verify Verify) ([]Certificate, error) {
 	log.Debugf("requesting public key certificate list")
 
-	resp, err := http.Get(c.CertificateServerURL)
+	// get TLS certificate fingerprint for host
+	url, err := urlpkg.Parse(c.CertificateServerURL)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsCertFingerprint, exists := tlsCertFingerprints[url.Host]
+	if !exists {
+		return nil, fmt.Errorf("missing TLS certificate fingerprint for host %s", url.Host)
+	}
+
+	// set up TLS certificate verification
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			VerifyPeerCertificate: NewPeerCertificateVerifier(tlsCertFingerprint),
+			VerifyConnection:      NewConnectionVerifier(tlsCertFingerprint),
+		},
+	}
+
+	// make request
+	req, err := http.NewRequest(http.MethodGet, c.CertificateServerURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %v", err)
 	}
@@ -135,4 +165,46 @@ func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
 	}
 
 	return ioutil.ReadAll(resp.Body)
+}
+
+// VerifyPeerCertificate is called after normal certificate verification by either a TLS client or server. It receives
+// the raw ASN.1 certificates provided by the peer and also any verified chains that normal processing found.
+// If it returns a non-nil error, the handshake is aborted and that error results.
+//
+// If normal verification fails then the handshake will abort before considering this callback.
+type VerifyPeerCertificate func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
+
+func NewPeerCertificateVerifier(fingerprint [32]byte) VerifyPeerCertificate {
+	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+
+		serverCertFingerprint := sha256.Sum256(rawCerts[0])
+
+		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
+			return fmt.Errorf("server TLS certificate mismatch: pinning failed")
+		}
+
+		return nil
+	}
+}
+
+// VerifyConnection is called after normal certificate verification and after VerifyPeerCertificate by
+// either a TLS client or server. If it returns a non-nil error, the handshake is aborted and that error results.
+//
+// If normal verification fails then the handshake will abort before considering this callback. This callback will run
+// for all connections regardless of InsecureSkipVerify or ClientAuth settings.
+type VerifyConnection func(connectionState tls.ConnectionState) error
+
+func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
+	return func(connectionState tls.ConnectionState) error {
+
+		// PeerCertificates are the parsed certificates sent by the peer, in the order in which they were sent.
+		// The first element is the leaf certificate that the connection is verified against.
+		serverCertFingerprint := sha256.Sum256(connectionState.PeerCertificates[0].Raw)
+
+		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
+			return fmt.Errorf("server TLS certificate mismatch: pinning failed")
+		}
+
+		return nil
+	}
 }
