@@ -76,7 +76,7 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 
 	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
-		return nil, fmt.Errorf("retrieving public key certificate list from %s failed: %v", c.CertificateServerURL, err)
+		return nil, fmt.Errorf("retrieving public key certificate list failed: %v", err)
 	}
 
 	respContent := strings.SplitN(string(respBodyBytes), "\n", 2)
@@ -117,7 +117,7 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
 	resp, err := c.getWithCertPinning(c.CertificateServerPubKeyURL)
 	if err != nil {
-		return nil, fmt.Errorf("retrieving public key from %s failed: %v", c.CertificateServerPubKeyURL, err)
+		return nil, fmt.Errorf("retrieving public key for certificate list verification failed: %v", err)
 	}
 
 	return resp, nil
