@@ -40,7 +40,7 @@ const (
 	//defaultSigningServiceURL = "http://localhost:8080"
 
 	identitiesFileName = "identities.json"
-	TLSCertsFileName   = "ubirch_tls_certs.json"
+	TLSCertsFileName   = "%s_ubirch_tls_certs.json"
 
 	defaultCSRCountry      = "DE"
 	defaultCSROrganization = "ubirch GmbH"
@@ -113,14 +113,16 @@ func (c *Config) Load(configDir string, filename string) error {
 		return err
 	}
 
+	c.setDefaultCSR()
+	c.setDefaultTLS()
+	c.setDefaultURLs()
+
 	err = c.loadServerTLSCertificates()
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
-	c.setDefaultCSR()
-	c.setDefaultTLS()
-	return c.setDefaultURLs()
+	return nil
 }
 
 // loadEnv reads the configuration from environment variables
@@ -198,10 +200,12 @@ func (c *Config) setDefaultTLS() {
 	}
 }
 
-func (c *Config) setDefaultURLs() error {
+func (c *Config) setDefaultURLs() {
 	if c.Env == "" {
 		c.Env = PROD_STAGE
 	}
+
+	log.Infof("UBIRCH backend environment: %s", c.Env)
 
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
@@ -212,17 +216,6 @@ func (c *Config) setDefaultURLs() error {
 	if c.IdentityService == "" {
 		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
 	}
-
-	//if c.SigningService == "" {
-	//	c.SigningService = defaultSigningServiceURL
-	//}
-
-	log.Infof("UBIRCH backend environment: %s", c.Env)
-	log.Debugf(" - Key Service:      %s", c.KeyService)
-	log.Debugf(" - Identity Service: %s", c.IdentityService)
-	//log.Debugf(" - Signing Service:  %s", c.SigningService)
-
-	return nil
 }
 
 // loadIdentitiesFile loads identities from the identities JSON file.
@@ -296,7 +289,7 @@ func (c *Config) loadTokens(identities *[]*Identity) error {
 }
 
 func (c *Config) loadServerTLSCertificates() error {
-	serverTLSCertFile := filepath.Join(c.configDir, TLSCertsFileName)
+	serverTLSCertFile := filepath.Join(c.configDir, fmt.Sprintf(TLSCertsFileName, c.Env))
 
 	fileHandle, err := os.Open(serverTLSCertFile)
 	if err != nil {
