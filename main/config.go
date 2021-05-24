@@ -115,7 +115,7 @@ func (c *Config) Load(configDir string, filename string) error {
 
 	err = c.loadServerTLSCertificates()
 	if err != nil {
-		return err
+		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
 	c.setDefaultCSR()
