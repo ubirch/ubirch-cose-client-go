@@ -28,7 +28,10 @@ import (
 	"time"
 )
 
-const SkidLen = 8
+const (
+	MaxCertLoadFail = 3
+	SkidLen         = 8
+)
 
 type Protocol struct {
 	ubirch.Crypto
@@ -36,8 +39,9 @@ type Protocol struct {
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
 
-	skidStore      map[uuid.UUID][]byte
-	skidStoreMutex *sync.RWMutex
+	skidStore           map[uuid.UUID][]byte
+	skidStoreMutex      *sync.RWMutex
+	certLoadFailCounter int
 }
 
 // Ensure Protocol implements the ContextManager interface
@@ -61,7 +65,7 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 		skidStoreMutex: &sync.RWMutex{},
 	}
 
-	// load public key certificates from server and check for new certificates frequently
+	// load public key certificate list from server and check for new certificates frequently
 	go func() {
 		var interval time.Duration
 		if reloadCertsEveryMinute {
@@ -234,7 +238,22 @@ func (p *Protocol) loadSKIDs() {
 	certs, err := p.RequestCertificateList(p.Verify)
 	if err != nil {
 		log.Error(err)
-		return
+
+		p.certLoadFailCounter++
+		log.Debugf("loading certificate list failed %d times,"+
+			" clearing local certificate lookup after %d failed attempts",
+			p.certLoadFailCounter, MaxCertLoadFail)
+
+		// if we have not yet reached the maximum amount of failed attempts to load the certificate list,
+		// return and try again later
+		if p.certLoadFailCounter < MaxCertLoadFail {
+			return
+		}
+		// if we have reached the maximum amount of failed attempts to load the certificate list,
+		// clear the SKID lookup
+	} else {
+		// reset fail counter if certs were loaded successfully
+		p.certLoadFailCounter = 0
 	}
 
 	// clear the SKID lookup
