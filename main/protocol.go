@@ -212,22 +212,10 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID, error) {
 
 func (p *Protocol) ExistsSKID(uid uuid.UUID) bool {
 	p.skidStoreMutex.RLock()
-	defer p.skidStoreMutex.RUnlock()
-
 	_, exists := p.skidStore[uid]
+	p.skidStoreMutex.RUnlock()
+
 	return exists
-}
-
-func (p *Protocol) SetSKID(uid uuid.UUID, skid []byte) error {
-	if len(skid) != SkidLen {
-		return fmt.Errorf("invalid SKID length: expected %d, got %d", SkidLen, len(skid))
-	}
-
-	p.skidStoreMutex.Lock()
-	p.skidStore[uid] = skid
-	p.skidStoreMutex.Unlock()
-
-	return nil
 }
 
 func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
@@ -251,8 +239,8 @@ func (p *Protocol) loadSKIDs() {
 
 	// clear the SKID lookup
 	p.skidStoreMutex.Lock()
+	defer p.skidStoreMutex.Unlock()
 	p.skidStore = make(map[uuid.UUID][]byte)
-	p.skidStoreMutex.Unlock()
 
 	// go through certificate list and match known public keys
 	for _, cert := range certs {
@@ -289,12 +277,13 @@ func (p *Protocol) loadSKIDs() {
 			continue
 		}
 
-		// store KID
-		err = p.SetSKID(uid, cert.Kid)
-		if err != nil {
-			log.Errorf("%s: %v", kid, err)
+		if len(cert.Kid) != SkidLen {
+			log.Errorf("invalid KID length: expected %d, got %d", SkidLen, len(kid))
 			continue
 		}
+
+		// store KID
+		p.skidStore[uid] = cert.Kid
 	}
 
 	skids, _ := json.Marshal(p.skidStore)
