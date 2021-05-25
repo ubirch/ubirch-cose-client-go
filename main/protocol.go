@@ -94,8 +94,8 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 				// clear the SKID lookup
 				if p.certLoadFailCounter == MaxCertLoadFail {
 					p.skidStoreMutex.Lock()
-					defer p.skidStoreMutex.Unlock()
 					p.skidStore = make(map[uuid.UUID][]byte)
+					p.skidStoreMutex.Unlock()
 
 					log.Warnf("cleared local KID lookup after %d failed attempts to load public key certificate list", MaxCertLoadFail)
 				}
