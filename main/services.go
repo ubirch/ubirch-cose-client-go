@@ -25,10 +25,12 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 const (
@@ -112,13 +114,18 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 		return
 	}
 
+	timer := prometheus.NewTimer(p.SignatureCreationDuration)
 	resp := s.Sign(msg)
+	timer.ObserveDuration()
+
 	sendResponse(w, resp)
 
 	if h.HttpSuccess(resp.StatusCode) {
 		infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 		auditlogger.AuditLog("create", "COSE", infos)
 	}
+
+	p.SignatureCreationCounter.Inc()
 }
 
 func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
