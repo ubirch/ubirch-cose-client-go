@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -108,7 +109,15 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, err
 	}
 
-	return csr, i.protocol.CloseTransaction(tx, Commit)
+	err = i.protocol.CloseTransaction(tx, Commit)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)
+	auditlogger.AuditLog("create", "device", infos)
+
+	return csr, nil
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {
