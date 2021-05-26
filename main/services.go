@@ -25,6 +25,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
@@ -113,7 +114,10 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 		return
 	}
 
+	timer := prometheus.NewTimer(p.SignatureCreationDuration)
 	resp := s.Sign(msg)
+	timer.ObserveDuration()
+
 	sendResponse(w, resp)
 
 	if h.HttpSuccess(resp.StatusCode) {
