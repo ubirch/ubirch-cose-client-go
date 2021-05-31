@@ -113,10 +113,6 @@ func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interfa
 	return p.ctxManager.StartTransaction(ctx)
 }
 
-func (p *Protocol) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	return p.ctxManager.StartTransactionWithLock(ctx, uid)
-}
-
 func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
 	return p.ctxManager.CloseTransaction(tx, commit)
 }

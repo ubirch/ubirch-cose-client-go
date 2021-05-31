@@ -56,11 +56,7 @@ type Config struct {
 	SecretBase64            string               `json:"secret32" envconfig:"SECRET32"`                                 // 32 byte secret used to encrypt the key store (mandatory)
 	RegisterAuth            string               `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
 	Env                     string               `json:"env"`                                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	DsnInitContainer        bool                 `json:"DSN_InitDb" envconfig:"DSN_INITDB"`                             // flag to determine if a database should be used for context management
-	DsnHost                 string               `json:"DSN_Host" envconfig:"DSN_HOST"`                                 // database host name
-	DsnUser                 string               `json:"DSN_User" envconfig:"DSN_USER"`                                 // database user name
-	DsnPassword             string               `json:"DSN_Password" envconfig:"DSN_PASSWORD"`                         // database password
-	DsnDb                   string               `json:"DSN_Database" envconfig:"DSN_DATABASE"`                         // database name
+	PostgresDSN             string               `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
 	TCP_addr                string               `json:"TCP_addr"`                                                      // the TCP address for the server to listen on, in the form "host:port"
 	TLS                     bool                 `json:"TLS"`                                                           // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile            string               `json:"TLSCertFile"`                                                   // filename of TLS certificate file name, defaults to "cert.pem"
