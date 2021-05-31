@@ -46,6 +46,14 @@ func TestDatabaseManager(t *testing.T) {
 		t.Errorf("dbManager.ExistsPrivateKey returned TRUE")
 	}
 
+	exists, err = dbManager.ExistsUuidForPublicKey(testIdentity.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Error("dbManager.ExistsUuidForPublicKey returned TRUE")
+	}
+
 	// store identity
 	tx, err := dbManager.StartTransaction(context.Background())
 	if err != nil {
@@ -70,12 +78,21 @@ func TestDatabaseManager(t *testing.T) {
 	if !exists {
 		t.Errorf("dbManager.ExistsPublicKey returned FALSE")
 	}
+
 	exists, err = dbManager.ExistsPrivateKey(testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !exists {
 		t.Errorf("dbManager.ExistsPrivateKey returned FALSE")
+	}
+
+	exists, err = dbManager.ExistsUuidForPublicKey(testIdentity.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Error("public key not found")
 	}
 
 	// get attributes
@@ -101,6 +118,14 @@ func TestDatabaseManager(t *testing.T) {
 	}
 	if !bytes.Equal(pub, testIdentity.PublicKey) {
 		t.Error("GetPublicKey returned unexpected value")
+	}
+
+	uid, err := dbManager.GetUuidForPublicKey(testIdentity.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
+		t.Error("GetUuidForPublicKey returned unexpected value")
 	}
 }
 
