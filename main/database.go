@@ -30,7 +30,6 @@ import (
 
 const (
 	PostgreSql                  string = "postgres"
-	PostgreSqlPort              int    = 5432
 	PostgreSqlIdentityTableName string = "cose_identity"
 )
 
@@ -38,26 +37,32 @@ const (
 	PostgresIdentity = iota
 )
 
-var CREATE = map[int]string{
-	PostgresIdentity: "CREATE TABLE IF NOT EXISTS " + PostgreSqlIdentityTableName + "(" +
+var create = map[int]string{
+	PostgresIdentity: "CREATE TABLE IF NOT EXISTS %s(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"private_key BYTEA NOT NULL, " +
 		"public_key BYTEA NOT NULL, " +
 		"auth_token VARCHAR(255) NOT NULL);",
 }
 
+func CreateTable(tableType int, tableName string) string {
+	return fmt.Sprintf(create[tableType], tableName)
+}
+
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options *sql.TxOptions
-	db      *sql.DB
+	options   *sql.TxOptions
+	db        *sql.DB
+	tableName string
 }
 
 func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
 	var uid uuid.UUID
 
-	err := dm.db.QueryRow("SELECT uid FROM cose_identity WHERE public_key = $1", pubKey).
-		Scan(&uid)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetUuidForPublicKey(pubKey)
@@ -71,8 +76,9 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 func (dm *DatabaseManager) ExistsUuidForPublicKey(pubKey []byte) (bool, error) {
 	var uid uuid.UUID
 
-	err := dm.db.QueryRow("SELECT uid FROM cose_identity WHERE public_key = $1", pubKey).
-		Scan(&uid)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.ExistsUuidForPublicKey(pubKey)
@@ -92,10 +98,7 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(conf *Config) (*DatabaseManager, error) {
-	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
-		conf.DsnHost, conf.DsnUser, conf.DsnPassword, PostgreSqlPort, conf.DsnDb)
-
+func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, error) {
 	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
@@ -114,10 +117,11 @@ func NewSqlDatabaseInfo(conf *Config) (*DatabaseManager, error) {
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
-		db: pg,
+		db:        pg,
+		tableName: tableName,
 	}
 
-	if _, err = dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
+	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
 		return nil, err
 	}
 
@@ -127,8 +131,9 @@ func NewSqlDatabaseInfo(conf *Config) (*DatabaseManager, error) {
 func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 	var privateKey []byte
 
-	err := dm.db.QueryRow("SELECT private_key FROM cose_identity WHERE uid = $1", uid.String()).
-		Scan(&privateKey)
+	query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.ExistsPrivateKey(uid)
@@ -146,8 +151,9 @@ func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 func (dm *DatabaseManager) ExistsPublicKey(uid uuid.UUID) (bool, error) {
 	var publicKey []byte
 
-	err := dm.db.QueryRow("SELECT public_key FROM cose_identity WHERE uid = $1", uid.String()).
-		Scan(&publicKey)
+	query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&publicKey)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.ExistsPublicKey(uid)
@@ -165,8 +171,9 @@ func (dm *DatabaseManager) ExistsPublicKey(uid uuid.UUID) (bool, error) {
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	var privateKey []byte
 
-	err := dm.db.QueryRow("SELECT private_key FROM cose_identity WHERE uid = $1", uid.String()).
-		Scan(&privateKey)
+	query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetPrivateKey(uid)
@@ -180,8 +187,9 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	var publicKey []byte
 
-	err := dm.db.QueryRow("SELECT public_key FROM cose_identity WHERE uid = $1", uid.String()).
-		Scan(&publicKey)
+	query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&publicKey)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetPublicKey(uid)
@@ -195,8 +203,9 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	var authToken string
 
-	err := dm.db.QueryRow("SELECT auth_token FROM cose_identity WHERE uid = $1", uid.String()).
-		Scan(&authToken)
+	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&authToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetAuthToken(uid)
@@ -209,29 +218,6 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
 	return dm.db.BeginTx(ctx, dm.options)
-}
-
-// StartTransactionWithLock starts a transaction and acquires a lock on the row with the specified uuid as key.
-// Returns error if row does not exist.
-func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	tx, err := dm.db.BeginTx(ctx, dm.options)
-	if err != nil {
-		return nil, err
-	}
-
-	var id string
-
-	// lock row FOR UPDATE
-	err = tx.QueryRow("SELECT uid FROM cose_identity WHERE uid = $1 FOR UPDATE", uid).
-		Scan(&id)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StartTransactionWithLock(ctx, uid)
-		}
-		return nil, err
-	}
-
-	return tx, nil
 }
 
 func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
@@ -256,8 +242,9 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	// make sure identity does not exist yet
 	var uid string
 
-	err := tx.QueryRow("SELECT uid FROM cose_identity WHERE uid = $1 FOR UPDATE", identity.Uid.String()).
-		Scan(&uid)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
+
+	err := tx.QueryRow(query, identity.Uid.String()).Scan(&uid)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.StoreNewIdentity(tx, identity)
@@ -274,9 +261,11 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 }
 
 func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity Identity) error {
-	_, err := tx.Exec(
-		"INSERT INTO cose_identity (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
-		&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
+	query := fmt.Sprintf(
+		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
+		dm.tableName)
+
+	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.storeIdentity(tx, identity)
@@ -287,7 +276,7 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity Identity) error {
 	return nil
 }
 
-func (dm *DatabaseManager) isConnectionAvailable(err error) bool { // todo this will only work with postgres
+func (dm *DatabaseManager) isConnectionAvailable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(100 * time.Millisecond)

@@ -24,7 +24,7 @@ func MigrateFileToDB(c *Config) error {
 		return err
 	}
 
-	dbManager, err := NewSqlDatabaseInfo(c)
+	dbManager, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
 	if err != nil {
 		return err
 	}

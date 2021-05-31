@@ -20,7 +20,6 @@ var (
 
 type ContextManager interface {
 	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error)
 	CloseTransaction(transactionCtx interface{}, commit bool) error
 
 	StoreNewIdentity(tx interface{}, id Identity) error
@@ -40,8 +39,8 @@ type ContextManager interface {
 }
 
 func GetCtxManager(c *Config) (ContextManager, error) {
-	if c.DsnInitContainer {
-		return NewSqlDatabaseInfo(c)
+	if c.PostgresDSN != "" {
+		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
 	} else {
 		return nil, fmt.Errorf("file-based context management is not supported in the current version")
 	}
