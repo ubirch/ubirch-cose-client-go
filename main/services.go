@@ -123,9 +123,9 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 	if h.HttpSuccess(resp.StatusCode) {
 		infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 		auditlogger.AuditLog("create", "COSE", infos)
-	}
 
-	p.SignatureCreationCounter.Inc()
+		p.SignatureCreationCounter.Inc()
+	}
 }
 
 func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
