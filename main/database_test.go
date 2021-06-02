@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,14 +13,10 @@ import (
 
 const (
 	TestTableName = "test_cose_identity"
-	TestUUID      = "2336c75d-a14a-47dd-80d9-3cbe9d560433"
-	TestAuthToken = "TEST_auth"
-	TestPrivKey   = "Qkp+ZVAlEKCQNvI+OCbY7LKcQVW5iKfFMfzedTI3uG0="
-	TestPubKey    = "bvXP3mQ42hXpcqo0ms7Lr1n6Q4L5CsS8HXk0mdXlsXLwYjd35jLlX3iHrXMgUH92N8ujbZ3h3TnLk8a0GikUbg=="
 )
 
 var (
-	testIdentity = initTestIdentity()
+	testIdentity = generateRandomIdentity()
 )
 
 func TestDatabaseManager(t *testing.T) {
@@ -139,27 +136,27 @@ func initDB() (*DatabaseManager, error) {
 	return NewSqlDatabaseInfo(conf.PostgresDSN, TestTableName)
 }
 
-func initTestIdentity() *Identity {
-	priv, _ := base64.StdEncoding.DecodeString(TestPrivKey)
-	pub, _ := base64.StdEncoding.DecodeString(TestPubKey)
+func generateRandomIdentity() *Identity {
+	priv := make([]byte, 32)
+	rand.Read(priv)
+
+	pub := make([]byte, 64)
+	rand.Read(pub)
+
+	auth := make([]byte, 16)
+	rand.Read(auth)
 
 	return &Identity{
-		Uid:        uuid.MustParse(TestUUID),
+		Uid:        uuid.New(),
 		PrivateKey: priv,
 		PublicKey:  pub,
-		AuthToken:  TestAuthToken,
+		AuthToken:  base64.StdEncoding.EncodeToString(auth),
 	}
 }
 
 func cleanUp(t *testing.T, dbManager *DatabaseManager) {
-	deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE uid = $1;", TestTableName)
-	_, err := dbManager.db.Exec(deleteQuery, TestUUID)
-	if err != nil {
-		t.Error(err)
-	}
-
 	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", TestTableName)
-	_, err = dbManager.db.Exec(dropTableQuery)
+	_, err := dbManager.db.Exec(dropTableQuery)
 	if err != nil {
 		t.Error(err)
 	}
