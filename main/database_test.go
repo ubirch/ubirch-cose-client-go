@@ -126,6 +126,40 @@ func TestDatabaseManager(t *testing.T) {
 	}
 }
 
+func TestDatabaseLoad(t *testing.T) {
+	dbManager, err := initDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanUp(t, dbManager)
+
+	for i := 0; i < 100; i++ {
+		go storeRandomIdentity(t, dbManager)
+	}
+}
+
+func storeRandomIdentity(t *testing.T, dbManager *DatabaseManager) {
+	id := generateRandomIdentity()
+
+	tx, err := dbManager.StartTransaction(context.Background())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = dbManager.StoreNewIdentity(tx, *id)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = dbManager.CloseTransaction(tx, Commit)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+}
+
 func initDB() (*DatabaseManager, error) {
 	conf := &Config{}
 	err := conf.Load("", "config.json")
