@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
 	"sync"
 	"testing"
 
@@ -163,14 +165,24 @@ func TestDatabaseLoad(t *testing.T) {
 	wg.Wait()
 }
 
+type dbConfig struct {
+	PostgresDSN string
+}
+
 func initDB() (*DatabaseManager, error) {
-	conf := &Config{}
-	err := conf.Load("", "config.json")
+	fileHandle, err := os.Open("config.json")
 	if err != nil {
-		return nil, fmt.Errorf("ERROR: unable to load configuration: %s", err)
+		return nil, err
+	}
+	defer fileHandle.Close()
+
+	c := &dbConfig{}
+	err = json.NewDecoder(fileHandle).Decode(c)
+	if err != nil {
+		return nil, err
 	}
 
-	return NewSqlDatabaseInfo(conf.PostgresDSN, TestTableName)
+	return NewSqlDatabaseInfo(c.PostgresDSN, TestTableName)
 }
 
 func cleanUp(t *testing.T, dm *DatabaseManager) {
