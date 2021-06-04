@@ -18,8 +18,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/dlmiddlecote/sqlstats"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"time"
 	// postgres driver is imported for side effects
@@ -112,7 +114,7 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 
 	log.Print("preparing postgres usage")
 
-	dbManager := &DatabaseManager{
+	dm := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
@@ -121,11 +123,17 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 		tableName: tableName,
 	}
 
-	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
+	if _, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
 		return nil, err
 	}
 
-	return dbManager, nil
+	// Create a new collector, the name will be used as a label on the metrics
+	statsCollector := sqlstats.NewStatsCollector("cose-client-postgres-db", dm.db)
+
+	// Register it with Prometheus
+	prometheus.MustRegister(statsCollector)
+
+	return dm, nil
 }
 
 func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
@@ -146,6 +154,18 @@ func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 	} else {
 		return true, nil
 	}
+}
+
+func (dm *DatabaseManager) Stats() {
+	log.Infof("    MaxOpenConnections %4d", dm.db.Stats().MaxOpenConnections)
+	log.Infof("    OpenConnections    %4d", dm.db.Stats().OpenConnections)
+	log.Infof("    InUse              %4d", dm.db.Stats().InUse)
+	log.Infof("    Idle               %4d", dm.db.Stats().Idle)
+	log.Infof("    WaitCount          %4d", dm.db.Stats().WaitCount)
+	log.Infof("    WaitDuration       %5s", dm.db.Stats().WaitDuration.String())
+	log.Infof("    MaxIdleClosed      %4d", dm.db.Stats().MaxIdleClosed)
+	log.Infof("    MaxIdleTimeClosed  %4d", dm.db.Stats().MaxIdleTimeClosed)
+	log.Infof("    MaxLifetimeClosed  %4d", dm.db.Stats().MaxLifetimeClosed)
 }
 
 func (dm *DatabaseManager) ExistsPublicKey(uid uuid.UUID) (bool, error) {

@@ -3,6 +3,7 @@ module github.com/ubirch/ubirch-cose-client-go/main
 go 1.16
 
 require (
+	github.com/dlmiddlecote/sqlstats v1.0.2 // indirect
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/go-chi/chi v1.5.4
 	github.com/google/uuid v1.2.0
