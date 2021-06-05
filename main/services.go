@@ -94,15 +94,15 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 		h.Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
 		return
 	}
-	authToken, err := s.GetAuthToken(uid)
+
+	ok, err := s.CheckAuthToken(uid, r.Header.Get(AuthHeader))
 	if err != nil {
 		log.Errorf("%s: %v", uid, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	err = checkAuth(r, authToken)
-	if err != nil {
-		Error(uid, w, err, http.StatusUnauthorized)
+	if !ok {
+		Error(uid, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
 		return
 	}
 
@@ -191,15 +191,6 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
 	}
 	return uid, nil
-}
-
-// checkAuth checks the auth token from the request header
-// Returns error if auth token is not correct
-func checkAuth(r *http.Request, correctAuthToken string) error {
-	if r.Header.Get(AuthHeader) != correctAuthToken {
-		return fmt.Errorf("invalid auth token")
-	}
-	return nil
 }
 
 func readBody(r *http.Request) ([]byte, error) {

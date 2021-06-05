@@ -139,7 +139,7 @@ func main() {
 	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
 	client.ServerTLSCertFingerprints = conf.ServerTLSCertFingerprints
 
-	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client, conf.ReloadCertsEveryMinute)
+	protocol, err := NewProtocol(ctxManager, conf.secretBytes, conf.saltBytes, client, conf.ReloadCertsEveryMinute)
 	if err != nil {
 		log.Fatal(err)
 	}

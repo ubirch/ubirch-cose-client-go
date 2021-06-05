@@ -38,16 +38,14 @@ type Protocol struct {
 	*ExtendedClient
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
+	keyDerivator *encrypters.KeyDerivator
 
 	skidStore           map[uuid.UUID][]byte
 	skidStoreMutex      *sync.RWMutex
 	certLoadFailCounter int
 }
 
-// Ensure Protocol implements the ContextManager interface
-var _ ContextManager = (*Protocol)(nil)
-
-func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClient, reloadCertsEveryMinute bool) (*Protocol, error) {
+func NewProtocol(ctxManager ContextManager, secret, salt []byte, client *ExtendedClient, reloadCertsEveryMinute bool) (*Protocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
 	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
@@ -60,6 +58,7 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 		ExtendedClient: client,
 		ctxManager:     ctxManager,
 		keyEncrypter:   enc,
+		keyDerivator:   encrypters.NewDefaultKeyDerivator(salt),
 
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -140,6 +139,9 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, i Identity) error {
 		return err
 	}
 
+	// get a derived key from the auth token
+	i.AuthToken = p.keyDerivator.GetDerivedKey(i.AuthToken)
+
 	return p.ctxManager.StoreNewIdentity(tx, i)
 }
 
@@ -191,17 +193,17 @@ func (p *Protocol) GetPublicKey(uid uuid.UUID) (publicKeyPEM []byte, err error) 
 	return p.PublicKeyBytesToPEM(publicKeyBytes)
 }
 
-func (p *Protocol) GetAuthToken(uid uuid.UUID) (string, error) {
-	authToken, err := p.ctxManager.GetAuthToken(uid)
+func (p *Protocol) CheckAuthToken(uid uuid.UUID, authTokenToCheck string) (bool, error) {
+	derivedKeyFromToken, err := p.ctxManager.GetAuthToken(uid)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
-	if len(authToken) == 0 {
-		return "", ErrNotExist
+	if len(derivedKeyFromToken) == 0 {
+		return false, ErrNotExist
 	}
 
-	return authToken, nil
+	return derivedKeyFromToken == p.keyDerivator.GetDerivedKey(authTokenToCheck), nil
 }
 
 func (p *Protocol) checkIdentityAttributes(i *Identity) error {
