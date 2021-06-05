@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	secretLength = 32
+	secretLength  = 32
+	minSaltLength = 16
 
 	PROD_STAGE = "prod"
 
@@ -54,6 +55,7 @@ const (
 type Config struct {
 	Tokens                  map[uuid.UUID]string `json:"tokens"`
 	SecretBase64            string               `json:"secret32" envconfig:"SECRET32"`                                 // 32 byte secret used to encrypt the key store (mandatory)
+	SaltBase64              string               `json:"salt" envconfig:"SALT"`                                         // salt for Key Derivation Function, should be 16 bytes or longer (mandatory)
 	RegisterAuth            string               `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
 	Env                     string               `json:"env"`                                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	PostgresDSN             string               `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
@@ -74,6 +76,7 @@ type Config struct {
 	ServerTLSCertFingerprints map[string][32]byte
 	configDir                 string // directory where config and protocol ctx are stored
 	secretBytes               []byte // the decoded key store secret
+	saltBytes                 []byte // the decoded key derivation salt
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -102,6 +105,11 @@ func (c *Config) Load(configDir string, filename string) error {
 	c.secretBytes, err = base64.StdEncoding.DecodeString(c.SecretBase64)
 	if err != nil {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
+	}
+
+	c.saltBytes, err = base64.StdEncoding.DecodeString(c.SaltBase64)
+	if err != nil {
+		return fmt.Errorf("unable to decode base64 encoded salt (%s): %v", c.SaltBase64, err)
 	}
 
 	err = c.checkMandatory()
@@ -144,6 +152,10 @@ func (c *Config) loadFile(filename string) error {
 func (c *Config) checkMandatory() error {
 	if len(c.secretBytes) != secretLength {
 		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
+	}
+
+	if len(c.saltBytes) < minSaltLength {
+		return fmt.Errorf("salt for key derivation ('salt') length must be at least %d bytes (is %d)", minSaltLength, len(c.saltBytes))
 	}
 
 	if len(c.RegisterAuth) == 0 {
