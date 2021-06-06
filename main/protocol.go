@@ -207,6 +207,10 @@ func (p *Protocol) CheckAuthToken(uid uuid.UUID, authTokenToCheck string) (bool,
 }
 
 func (p *Protocol) checkIdentityAttributes(i *Identity) error {
+	if i.Uid == uuid.Nil {
+		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
+	}
+
 	if len(i.PrivateKey) == 0 {
 		return fmt.Errorf("empty private key")
 	}
