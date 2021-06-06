@@ -114,7 +114,7 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 
 	dbManager := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelReadCommitted,
+			Isolation: sql.LevelSerializable,
 			ReadOnly:  false,
 		},
 		db:        pg,
@@ -239,10 +239,10 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	// make sure identity does not exist yet
-	var uid string
+	// make sure identity does not already exist
+	var uid uuid.UUID
 
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
 
 	err := tx.QueryRow(query, identity.Uid.String()).Scan(&uid)
 	if err != nil {
