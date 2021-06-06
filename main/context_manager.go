@@ -33,6 +33,7 @@ type ContextManager interface {
 	//SetPublicKey(tx interface{}, uid uuid.UUID, pubKey []byte) error
 
 	GetAuthToken(uid uuid.UUID) (string, error)
+	SetAuthToken(transactionCtx interface{}, uid uuid.UUID, authToken string) error
 
 	ExistsUuidForPublicKey(pubKey []byte) (bool, error)
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)

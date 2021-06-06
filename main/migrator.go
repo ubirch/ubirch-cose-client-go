@@ -2,11 +2,63 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"github.com/google/uuid"
+	"strings"
+
 	log "github.com/sirupsen/logrus"
 )
 
-func MigrateFileToDB(c *Config) error {
+const (
+	MigrationID      = "cose_identity_db_migration"
+	MigrationVersion = "2.0"
+)
+
+type Migration struct {
+	Id               string
+	MigrationVersion string
+}
+
+func Migrate(c *Config) error {
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
+	if err != nil {
+		return err
+	}
+
+	v, err := getVersion(dm)
+	if err != nil {
+		return err
+	}
+	if v.MigrationVersion == MigrationVersion {
+		log.Infof("database migration version already up to date")
+		return nil
+	}
+	log.Debugf("database migration version: %s / application migration version: %s", v.MigrationVersion, MigrationVersion)
+
+	if strings.HasPrefix(v.MigrationVersion, "0.") {
+		err = migrateFileToDB(c, dm)
+		if err != nil {
+			return err
+		}
+
+		p, err := NewProtocol(dm, c.secretBytes, c.saltBytes, nil, false)
+		if err != nil {
+			return err
+		}
+
+		err = encryptTokens(dm, p)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("successfully encrypted auth tokens in database")
+	}
+
+	return updateVersion(dm, v)
+}
+
+func migrateFileToDB(c *Config, dm *DatabaseManager) error {
 	identities := new([]*Identity)
 
 	err := c.loadIdentitiesFile(identities)
@@ -24,12 +76,7 @@ func MigrateFileToDB(c *Config) error {
 		return err
 	}
 
-	dbManager, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
-	if err != nil {
-		return err
-	}
-
-	err = migrateIdentities(dbManager, identities)
+	err = migrateIdentities(dm, identities)
 	if err != nil {
 		return err
 	}
@@ -96,4 +143,98 @@ func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 	}
 
 	return dm.CloseTransaction(tx, Commit)
+}
+
+func encryptTokens(dm *DatabaseManager, p *Protocol) error {
+	query := fmt.Sprintf("SELECT uid, auth_token FROM %s", dm.tableName)
+
+	rows, err := dm.db.Query(query)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var (
+		uid  uuid.UUID
+		auth string
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		err = rows.Scan(&uid, &auth)
+		if err != nil {
+			return err
+		}
+
+		err = p.SetAuthToken(tx, uid, auth)
+		if err != nil {
+			return err
+		}
+	}
+	if rows.Err() != nil {
+		return rows.Err()
+	}
+
+	return p.CloseTransaction(tx, Commit)
+}
+
+func createVersionTable(dm *DatabaseManager) error {
+	_, err := dm.db.Exec("CREATE TABLE IF NOT EXISTS version(" +
+		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
+		"migration_version VARCHAR(255) NOT NULL);")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func getVersion(dm *DatabaseManager) (*Migration, error) {
+	err := createVersionTable(dm)
+	if err != nil {
+		return nil, err
+	}
+
+	version := &Migration{
+		Id: MigrationID,
+	}
+
+	err = dm.db.QueryRow("SELECT migration_version FROM version WHERE id = $1", version.Id).
+		Scan(&version.MigrationVersion)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			version.MigrationVersion = "0.0"
+		} else {
+			return nil, err
+		}
+	}
+	return version, nil
+}
+
+func updateVersion(dm *DatabaseManager, v *Migration) error {
+	if strings.HasPrefix(v.MigrationVersion, "0.") {
+		return createVersionEntry(dm, v)
+	}
+
+	_, err := dm.db.Exec("UPDATE version SET migration_version = $1 WHERE id = $2;",
+		MigrationVersion, &v.Id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func createVersionEntry(dm *DatabaseManager, v *Migration) error {
+	_, err := dm.db.Exec("INSERT INTO version (id, migration_version) VALUES ($1, $2);",
+		&v.Id, MigrationVersion)
+	if err != nil {
+		return err
+	}
+	return nil
 }

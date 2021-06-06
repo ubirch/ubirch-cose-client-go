@@ -233,6 +233,25 @@ func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit b
 	}
 }
 
+func (dm *DatabaseManager) SetAuthToken(transactionCtx interface{}, uid uuid.UUID, authToken string) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", dm.tableName)
+
+	_, err := tx.Exec(query, &authToken, uid.String())
+	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.SetAuthToken(tx, uid, authToken)
+		}
+		return err
+	}
+
+	return nil
+}
+
 func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {

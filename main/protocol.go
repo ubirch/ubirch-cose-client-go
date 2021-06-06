@@ -193,6 +193,16 @@ func (p *Protocol) GetPublicKey(uid uuid.UUID) (publicKeyPEM []byte, err error) 
 	return p.PublicKeyBytesToPEM(publicKeyBytes)
 }
 
+func (p *Protocol) SetAuthToken(tx interface{}, uid uuid.UUID, authToken string) error {
+	if len(authToken) == 0 {
+		return fmt.Errorf("empty auth token")
+	}
+
+	derivedKeyFromToken := p.keyDerivator.GetDerivedKey(authToken)
+
+	return p.ctxManager.SetAuthToken(tx, uid, derivedKeyFromToken)
+}
+
 func (p *Protocol) CheckAuthToken(uid uuid.UUID, authTokenToCheck string) (bool, error) {
 	derivedKeyFromToken, err := p.ctxManager.GetAuthToken(uid)
 	if err != nil {
