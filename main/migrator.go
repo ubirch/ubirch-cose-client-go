@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
@@ -13,9 +12,9 @@ import (
 )
 
 const (
+	VersionTableName = "version"
 	MigrationID      = "cose_identity_db_migration"
 	MigrationVersion = "2.0"
-	VersionTableName = "version"
 )
 
 type Migration struct {
@@ -24,9 +23,21 @@ type Migration struct {
 }
 
 func Migrate(c *Config) error {
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
+	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
 	if err != nil {
 		return err
+	}
+	if err = pg.Ping(); err != nil {
+		return err
+	}
+
+	dm := &DatabaseManager{
+		options: &sql.TxOptions{
+			Isolation: sql.LevelSerializable,
+			ReadOnly:  false,
+		},
+		db:        pg,
+		tableName: PostgreSqlIdentityTableName,
 	}
 
 	v, err := getVersion(dm)
@@ -46,6 +57,10 @@ func Migrate(c *Config) error {
 		}
 
 		v.MigrationVersion = "1.0"
+		err = updateVersion(dm, v)
+		if err != nil {
+			return err
+		}
 	}
 
 	if v.MigrationVersion == "1.0" {
@@ -54,10 +69,14 @@ func Migrate(c *Config) error {
 			return err
 		}
 
-		log.Infof("successfully encrypted auth tokens in database")
+		v.MigrationVersion = "2.0"
+		err = updateVersion(dm, v)
+		if err != nil {
+			return err
+		}
 	}
 
-	return updateVersion(dm, v)
+	return nil
 }
 
 func migrateFileToDB(c *Config, dm *DatabaseManager) error {
@@ -148,8 +167,6 @@ func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 }
 
 func encryptTokens(dm *DatabaseManager, salt []byte) error {
-	kd := encrypters.NewDefaultKeyDerivator(salt)
-
 	query := fmt.Sprintf("SELECT uid, auth_token FROM %s", dm.tableName)
 
 	rows, err := dm.db.Query(query)
@@ -171,6 +188,8 @@ func encryptTokens(dm *DatabaseManager, salt []byte) error {
 		return err
 	}
 
+	kd := encrypters.NewDefaultKeyDerivator(salt)
+
 	for rows.Next() {
 		err = rows.Scan(&uid, &auth)
 		if err != nil {
@@ -190,7 +209,13 @@ func encryptTokens(dm *DatabaseManager, salt []byte) error {
 		return rows.Err()
 	}
 
-	return dm.CloseTransaction(tx, Commit)
+	err = dm.CloseTransaction(tx, Commit)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("successfully encrypted auth tokens in database")
+	return nil
 }
 
 func tableExists(dm *DatabaseManager, tableName string) (bool, error) {
@@ -198,17 +223,15 @@ func tableExists(dm *DatabaseManager, tableName string) (bool, error) {
 
 	query := fmt.Sprintf("SELECT to_regclass('%s') IS NOT NULL", tableName)
 
-	// FIXME DatabaseManager constructor creates table, so this will always return true
-
 	err := dm.db.QueryRow(query).Scan(&exists)
 	if err != nil {
 		return false, err
 	}
 
 	if !exists {
-		log.Debugf("database table %s does not exist", tableName)
+		log.Debugf("database table %s does not yet exist", tableName)
 	} else {
-		log.Debugf("database table %s does exist", tableName)
+		log.Debugf("database table %s already exists", tableName)
 	}
 
 	return exists, nil
@@ -236,15 +259,7 @@ func getVersion(dm *DatabaseManager) (*Migration, error) {
 		Id: MigrationID,
 	}
 
-	dbTableExists, err := tableExists(dm, PostgreSqlIdentityTableName)
-	if err != nil {
-		return nil, err
-	}
-
-	if !dbTableExists {
-		version.MigrationVersion = "0.0"
-		return version, nil
-	}
+	var noRows bool
 
 	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1", VersionTableName)
 
@@ -253,7 +268,23 @@ func getVersion(dm *DatabaseManager) (*Migration, error) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			version.MigrationVersion = "1.0"
+			noRows = true
 		} else {
+			return nil, err
+		}
+	}
+
+	dbTableExists, err := tableExists(dm, PostgreSqlIdentityTableName)
+	if err != nil {
+		return nil, err
+	}
+	if !dbTableExists {
+		version.MigrationVersion = "0.0"
+	}
+
+	if noRows {
+		err = createVersionEntry(dm, version)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -262,13 +293,9 @@ func getVersion(dm *DatabaseManager) (*Migration, error) {
 }
 
 func updateVersion(dm *DatabaseManager, v *Migration) error {
-	if strings.HasPrefix(v.MigrationVersion, "0.") {
-		return createVersionEntry(dm, v)
-	}
-
 	query := fmt.Sprintf("UPDATE %s SET migration_version = $1 WHERE id = $2;", VersionTableName)
 	_, err := dm.db.Exec(query,
-		MigrationVersion, &v.Id)
+		v.MigrationVersion, &v.Id)
 	if err != nil {
 		return err
 	}
@@ -278,7 +305,7 @@ func updateVersion(dm *DatabaseManager, v *Migration) error {
 func createVersionEntry(dm *DatabaseManager, v *Migration) error {
 	query := fmt.Sprintf("INSERT INTO %s (id, migration_version) VALUES ($1, $2);", VersionTableName)
 	_, err := dm.db.Exec(query,
-		&v.Id, MigrationVersion)
+		&v.Id, v.MigrationVersion)
 	if err != nil {
 		return err
 	}
