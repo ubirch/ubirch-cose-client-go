@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/google/uuid"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -37,18 +39,17 @@ func Migrate(c *Config) error {
 	}
 	log.Debugf("database migration version: %s / application migration version: %s", v.MigrationVersion, MigrationVersion)
 
-	if strings.HasPrefix(v.MigrationVersion, "0.") {
+	if v.MigrationVersion == "0.0" {
 		err = migrateFileToDB(c, dm)
 		if err != nil {
 			return err
 		}
 
-		p, err := NewProtocol(dm, c.secretBytes, c.saltBytes, nil, false)
-		if err != nil {
-			return err
-		}
+		v.MigrationVersion = "1.0"
+	}
 
-		err = encryptTokens(dm, p)
+	if v.MigrationVersion == "1.0" {
+		err = encryptTokens(dm, c.saltBytes)
 		if err != nil {
 			return err
 		}
@@ -146,7 +147,9 @@ func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 	return dm.CloseTransaction(tx, Commit)
 }
 
-func encryptTokens(dm *DatabaseManager, p *Protocol) error {
+func encryptTokens(dm *DatabaseManager, salt []byte) error {
+	kd := encrypters.NewDefaultKeyDerivator(salt)
+
 	query := fmt.Sprintf("SELECT uid, auth_token FROM %s", dm.tableName)
 
 	rows, err := dm.db.Query(query)
@@ -163,7 +166,7 @@ func encryptTokens(dm *DatabaseManager, p *Protocol) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := p.StartTransaction(ctx)
+	tx, err := dm.StartTransaction(ctx)
 	if err != nil {
 		return err
 	}
@@ -174,7 +177,11 @@ func encryptTokens(dm *DatabaseManager, p *Protocol) error {
 			return err
 		}
 
-		err = p.SetAuthToken(tx, uid, auth)
+		if len(auth) == 0 {
+			return fmt.Errorf("%s: empty auth token", uid)
+		}
+
+		err = dm.SetAuthToken(tx, uid, kd.GetDerivedKey(auth))
 		if err != nil {
 			return err
 		}
@@ -183,7 +190,28 @@ func encryptTokens(dm *DatabaseManager, p *Protocol) error {
 		return rows.Err()
 	}
 
-	return p.CloseTransaction(tx, Commit)
+	return dm.CloseTransaction(tx, Commit)
+}
+
+func tableExists(dm *DatabaseManager, tableName string) (bool, error) {
+	var exists bool
+
+	query := fmt.Sprintf("SELECT to_regclass('%s') IS NOT NULL", tableName)
+
+	// FIXME DatabaseManager constructor creates table, so this will always return true
+
+	err := dm.db.QueryRow(query).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+
+	if !exists {
+		log.Debugf("database table %s does not exist", tableName)
+	} else {
+		log.Debugf("database table %s does exist", tableName)
+	}
+
+	return exists, nil
 }
 
 func createVersionTable(dm *DatabaseManager) error {
@@ -208,16 +236,28 @@ func getVersion(dm *DatabaseManager) (*Migration, error) {
 		Id: MigrationID,
 	}
 
+	dbTableExists, err := tableExists(dm, PostgreSqlIdentityTableName)
+	if err != nil {
+		return nil, err
+	}
+
+	if !dbTableExists {
+		version.MigrationVersion = "0.0"
+		return version, nil
+	}
+
 	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1", VersionTableName)
+
 	err = dm.db.QueryRow(query, version.Id).
 		Scan(&version.MigrationVersion)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			version.MigrationVersion = "0.0"
+			version.MigrationVersion = "1.0"
 		} else {
 			return nil, err
 		}
 	}
+
 	return version, nil
 }
 
