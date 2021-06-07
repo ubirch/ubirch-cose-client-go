@@ -13,6 +13,7 @@ import (
 const (
 	MigrationID      = "cose_identity_db_migration"
 	MigrationVersion = "2.0"
+	VersionTableName = "version"
 )
 
 type Migration struct {
@@ -186,9 +187,11 @@ func encryptTokens(dm *DatabaseManager, p *Protocol) error {
 }
 
 func createVersionTable(dm *DatabaseManager) error {
-	_, err := dm.db.Exec("CREATE TABLE IF NOT EXISTS version(" +
-		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
-		"migration_version VARCHAR(255) NOT NULL);")
+	query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
+		"id VARCHAR(255) NOT NULL PRIMARY KEY, "+
+		"migration_version VARCHAR(255) NOT NULL);", VersionTableName)
+
+	_, err := dm.db.Exec(query)
 	if err != nil {
 		return err
 	}
@@ -205,7 +208,8 @@ func getVersion(dm *DatabaseManager) (*Migration, error) {
 		Id: MigrationID,
 	}
 
-	err = dm.db.QueryRow("SELECT migration_version FROM version WHERE id = $1", version.Id).
+	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1", VersionTableName)
+	err = dm.db.QueryRow(query, version.Id).
 		Scan(&version.MigrationVersion)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -222,7 +226,8 @@ func updateVersion(dm *DatabaseManager, v *Migration) error {
 		return createVersionEntry(dm, v)
 	}
 
-	_, err := dm.db.Exec("UPDATE version SET migration_version = $1 WHERE id = $2;",
+	query := fmt.Sprintf("UPDATE %s SET migration_version = $1 WHERE id = $2;", VersionTableName)
+	_, err := dm.db.Exec(query,
 		MigrationVersion, &v.Id)
 	if err != nil {
 		return err
@@ -231,7 +236,8 @@ func updateVersion(dm *DatabaseManager, v *Migration) error {
 }
 
 func createVersionEntry(dm *DatabaseManager, v *Migration) error {
-	_, err := dm.db.Exec("INSERT INTO version (id, migration_version) VALUES ($1, $2);",
+	query := fmt.Sprintf("INSERT INTO %s (id, migration_version) VALUES ($1, $2);", VersionTableName)
+	_, err := dm.db.Exec(query,
 		&v.Id, MigrationVersion)
 	if err != nil {
 		return err
