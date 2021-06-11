@@ -81,7 +81,7 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 
 	respContent := strings.SplitN(string(respBodyBytes), "\n", 2)
 	if len(respContent) < 2 {
-		return nil, fmt.Errorf("unexpected response content")
+		return nil, fmt.Errorf("unexpected response content from public key certificate server")
 	}
 
 	// verify signature
@@ -92,7 +92,7 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 
 	signature, err := base64.StdEncoding.DecodeString(respContent[0])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decoding signature of public key certificate list failed:: %v", err)
 	}
 
 	certList := []byte(respContent[1])
