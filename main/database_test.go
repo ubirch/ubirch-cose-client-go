@@ -131,6 +131,46 @@ func TestDatabaseManager(t *testing.T) {
 	}
 }
 
+func TestStoreExisting(t *testing.T) {
+	dm, err := initDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanUp(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := dm.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dm.StoreNewIdentity(tx, *testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dm.CloseTransaction(tx, Commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// store same identity again
+	tx2, err := dm.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dm.StoreNewIdentity(tx2, *testIdentity)
+	if err == nil {
+		t.Fatal("existing identity was overwritten")
+	}
+}
+
 func TestDatabaseLoad(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
