@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	TestTableName = "test_cose_identity"
+	testTableName = "test_cose_identity"
+	testLoad      = 10000
 )
 
 func TestDatabaseManager(t *testing.T) {
@@ -141,7 +142,7 @@ func TestDatabaseLoad(t *testing.T) {
 
 	// generate identities
 	var testIdentities []*Identity
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < testLoad; i++ {
 		testIdentities = append(testIdentities, generateRandomIdentity())
 	}
 
@@ -187,11 +188,11 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewSqlDatabaseInfo(c.PostgresDSN, TestTableName)
+	return NewSqlDatabaseInfo(c.PostgresDSN, testTableName)
 }
 
 func cleanUp(t *testing.T, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", TestTableName)
+	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", testTableName)
 	_, err := dm.db.Exec(dropTableQuery)
 	if err != nil {
 		t.Error(err)
