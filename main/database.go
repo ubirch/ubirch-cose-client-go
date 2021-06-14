@@ -57,42 +57,6 @@ type DatabaseManager struct {
 	tableName string
 }
 
-func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
-	var uid uuid.UUID
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetUuidForPublicKey(pubKey)
-		}
-		return uuid.Nil, err
-	}
-
-	return uid, nil
-}
-
-func (dm *DatabaseManager) ExistsUuidForPublicKey(pubKey []byte) (bool, error) {
-	var uid uuid.UUID
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.ExistsUuidForPublicKey(pubKey)
-		}
-		if err == sql.ErrNoRows {
-			return false, nil
-		} else {
-			return false, err
-		}
-	} else {
-		return true, nil
-	}
-}
-
 // Ensure Database implements the ContextManager interface
 var _ ContextManager = (*DatabaseManager)(nil)
 
@@ -148,6 +112,26 @@ func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	}
 }
 
+func (dm *DatabaseManager) ExistsUuidForPublicKey(pubKey []byte) (bool, error) {
+	var uid uuid.UUID
+
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
+	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.ExistsUuidForPublicKey(pubKey)
+		}
+		if err == sql.ErrNoRows {
+			return false, nil
+		} else {
+			return false, err
+		}
+	} else {
+		return true, nil
+	}
+}
+
 func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 	var privateKey []byte
 
@@ -186,6 +170,22 @@ func (dm *DatabaseManager) ExistsPublicKey(uid uuid.UUID) (bool, error) {
 	} else {
 		return true, nil
 	}
+}
+
+func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
+	var uid uuid.UUID
+
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
+	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.GetUuidForPublicKey(pubKey)
+		}
+		return uuid.Nil, err
+	}
+
+	return uid, nil
 }
 
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
@@ -265,6 +265,25 @@ func (dm *DatabaseManager) SetAuthToken(transactionCtx interface{}, uid uuid.UUI
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.SetAuthToken(tx, uid, authToken)
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (dm *DatabaseManager) SetPublicKey(transactionCtx interface{}, uid uuid.UUID, pub string) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET public_key = $1 WHERE uid = $2;", dm.tableName)
+
+	_, err := tx.Exec(query, &pub, uid.String())
+	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.SetPublicKey(tx, uid, pub)
 		}
 		return err
 	}
