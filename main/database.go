@@ -104,7 +104,7 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 		return nil, err
 	}
 	pg.SetMaxOpenConns(100)
-	pg.SetMaxIdleConns(70)
+	pg.SetMaxIdleConns(75)
 	pg.SetConnMaxLifetime(10 * time.Minute)
 	if err = pg.Ping(); err != nil {
 		return nil, err
@@ -126,6 +126,26 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 	}
 
 	return dbManager, nil
+}
+
+func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
+	var buf uuid.UUID
+
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&buf)
+	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.Exists(uid)
+		}
+		if err == sql.ErrNoRows {
+			return false, nil
+		} else {
+			return false, err
+		}
+	} else {
+		return true, nil
+	}
 }
 
 func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
@@ -258,28 +278,6 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	// make sure identity does not already exist
-	var uid uuid.UUID
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
-
-	err := tx.QueryRow(query, identity.Uid.String()).Scan(&uid)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StoreNewIdentity(tx, identity)
-		}
-		if err == sql.ErrNoRows {
-			// there were no rows, but otherwise no error occurred
-			return dm.storeIdentity(tx, identity)
-		} else {
-			return err
-		}
-	} else {
-		return ErrExists
-	}
-}
-
-func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity Identity) error {
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
 		dm.tableName)
@@ -287,7 +285,7 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity Identity) error {
 	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
-			return dm.storeIdentity(tx, identity)
+			return dm.StoreNewIdentity(tx, identity)
 		}
 		return err
 	}

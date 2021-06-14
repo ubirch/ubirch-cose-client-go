@@ -141,6 +141,14 @@ func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 	for i, id := range *identities {
 		log.Infof("%4d: %s", i+1, id.Uid)
 
+		exists, err := dm.Exists(id.Uid)
+		if err != nil {
+			return err
+		}
+		if exists {
+			log.Warnf("%s: identity already exists in database", id.Uid)
+		}
+
 		if len(id.PrivateKey) == 0 {
 			return fmt.Errorf("%s: empty private key", id.Uid)
 		}
@@ -155,11 +163,7 @@ func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 
 		err = dm.StoreNewIdentity(tx, *id)
 		if err != nil {
-			if err == ErrExists {
-				log.Warnf("%s: %v -> skip", id.Uid, err)
-			} else {
-				return err
-			}
+			return err
 		}
 	}
 
