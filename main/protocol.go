@@ -31,9 +31,23 @@ import (
 )
 
 const (
-	MaxCertLoadFail = 3
-	SkidLen         = 8
+	SkidLen = 8
 )
+
+var (
+	certLoadInterval     time.Duration
+	maxCertLoadFailCount int
+)
+
+func setInterval(reloadEveryMinute bool) {
+	if reloadEveryMinute {
+		certLoadInterval = time.Minute
+		maxCertLoadFailCount = 60
+	} else {
+		certLoadInterval = time.Hour
+		maxCertLoadFailCount = 3
+	}
+}
 
 type Protocol struct {
 	ubirch.Crypto
@@ -69,15 +83,10 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 
 	// load public key certificate list from server and check for new certificates frequently
 	go func() {
-		var interval time.Duration
-		if reloadCertsEveryMinute {
-			interval = time.Minute
-		} else {
-			interval = time.Hour
-		}
+		setInterval(reloadCertsEveryMinute)
 
 		p.loadSKIDs()
-		for range time.Tick(interval) {
+		for range time.Tick(certLoadInterval) {
 			p.loadSKIDs()
 		}
 	}()
@@ -240,11 +249,11 @@ func (p *Protocol) loadSKIDs() {
 		p.certLoadFailCounter++
 		log.Debugf("loading certificate list failed %d times,"+
 			" clearing local KID lookup after %d failed attempts",
-			p.certLoadFailCounter, MaxCertLoadFail)
+			p.certLoadFailCounter, maxCertLoadFailCount)
 
 		// if we have not yet reached the maximum amount of failed attempts to load the certificate list,
 		// return and try again later
-		if p.certLoadFailCounter != MaxCertLoadFail {
+		if p.certLoadFailCounter != maxCertLoadFailCount {
 			return
 		}
 
