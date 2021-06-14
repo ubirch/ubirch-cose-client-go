@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 const (
@@ -128,6 +130,59 @@ func TestDatabaseManager(t *testing.T) {
 	}
 	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
 		t.Error("GetUuidForPublicKey returned unexpected value")
+	}
+}
+
+func TestDatabaseManagerWithProtocol(t *testing.T) {
+	dm, err := initDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanUp(t, dm)
+
+	crypto := &ubirch.ECDSACryptoContext{}
+
+	enc, err := encrypters.NewKeyEncrypter(make([]byte, 32), crypto)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p := &Protocol{
+		Crypto:       crypto,
+		ctxManager:   dm,
+		keyEncrypter: enc,
+		keyDerivator: encrypters.NewDefaultKeyDerivator(make([]byte, 32)),
+	}
+
+	testIdentity := generateRandomIdentity()
+
+	testIdentity.PrivateKey, err = p.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testIdentity.PublicKey, err = p.GetPublicKeyFromPrivateKey(testIdentity.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// store identity
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.StoreNewIdentity(tx, *testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.CloseTransaction(tx, Commit)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
