@@ -53,7 +53,10 @@ func TestDatabaseManager(t *testing.T) {
 	}
 
 	// store identity
-	tx, err := dm.StartTransaction(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,10 +147,11 @@ func TestDatabaseLoad(t *testing.T) {
 
 	// store identities
 	for i, testId := range testIdentities {
+		wg.Add(1)
 		go func(idx int, identity *Identity) {
 			err := storeIdentity(dm, identity, wg)
 			if err != nil {
-				t.Errorf("%s: identity could not be stored %v", identity.Uid, err)
+				t.Errorf("%s: identity could not be stored: %v", identity.Uid, err)
 			}
 		}(i, testId)
 	}
@@ -155,6 +159,7 @@ func TestDatabaseLoad(t *testing.T) {
 
 	// check identities
 	for _, testId := range testIdentities {
+		wg.Add(1)
 		go func(id *Identity) {
 			err := checkIdentity(dm, id, wg)
 			if err != nil {
@@ -212,10 +217,12 @@ func generateRandomIdentity() *Identity {
 }
 
 func storeIdentity(dm *DatabaseManager, id *Identity, wg *sync.WaitGroup) error {
-	wg.Add(1)
 	defer wg.Done()
 
-	tx, err := dm.StartTransaction(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
 	if err != nil {
 		return err
 	}
@@ -225,16 +232,10 @@ func storeIdentity(dm *DatabaseManager, id *Identity, wg *sync.WaitGroup) error 
 		return err
 	}
 
-	err = dm.CloseTransaction(tx, Commit)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return dm.CloseTransaction(tx, Commit)
 }
 
 func checkIdentity(dm *DatabaseManager, id *Identity, wg *sync.WaitGroup) error {
-	wg.Add(1)
 	defer wg.Done()
 
 	exists, err := dm.ExistsPublicKey(id.Uid)
