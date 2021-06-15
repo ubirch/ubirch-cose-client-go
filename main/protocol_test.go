@@ -7,6 +7,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"math/rand"
+	"sync"
 	"testing"
 )
 
@@ -66,6 +67,74 @@ func TestProtocol(t *testing.T) {
 	if !bytes.Equal(storedIdentity.Uid[:], testIdentity.Uid[:]) {
 		t.Error("GetIdentity returned unexpected Uid value")
 	}
+}
+
+func TestProtocolLoad(t *testing.T) {
+	wg := &sync.WaitGroup{}
+
+	dm, err := initDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanUp(t, dm)
+
+	crypto := &ubirch.ECDSACryptoContext{}
+
+	secret := make([]byte, 32)
+	rand.Read(secret)
+
+	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p := &Protocol{
+		Crypto:       crypto,
+		ctxManager:   dm,
+		keyEncrypter: enc,
+	}
+
+	// generate identities
+	var testIdentities []*Identity
+	for i := 0; i < testLoad/10; i++ {
+		testId := generateRandomIdentity()
+
+		testId.PrivateKey, err = p.GenerateKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testId.PublicKey, err = p.GetPublicKeyFromPrivateKey(testId.PrivateKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		testIdentities = append(testIdentities, testId)
+	}
+
+	// store identities
+	for i, testId := range testIdentities {
+		wg.Add(1)
+		go func(idx int, identity *Identity) {
+			err := storeIdentity(p, identity, wg)
+			if err != nil {
+				t.Errorf("%s: identity could not be stored: %v", identity.Uid, err)
+			}
+		}(i, testId)
+	}
+	wg.Wait()
+
+	// check identities
+	for _, testId := range testIdentities {
+		wg.Add(1)
+		go func(id *Identity) {
+			err := checkIdentity(p, id, wg)
+			if err != nil {
+				t.Errorf("%s: %v", id.Uid, err)
+			}
+		}(testId)
+	}
+	wg.Wait()
 }
 
 type mockCtxMngr struct {

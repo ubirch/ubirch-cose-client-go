@@ -279,29 +279,29 @@ func generateRandomIdentity() *Identity {
 	}
 }
 
-func storeIdentity(dm *DatabaseManager, id *Identity, wg *sync.WaitGroup) error {
+func storeIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := dm.StartTransaction(ctx)
+	tx, err := ctxMngr.StartTransaction(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = dm.StoreNewIdentity(tx, *id)
+	err = ctxMngr.StoreNewIdentity(tx, *id)
 	if err != nil {
 		return err
 	}
 
-	return dm.CloseTransaction(tx, Commit)
+	return ctxMngr.CloseTransaction(tx, Commit)
 }
 
-func checkIdentity(dm *DatabaseManager, id *Identity, wg *sync.WaitGroup) error {
+func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	exists, err := dm.ExistsPrivateKey(id.Uid)
+	exists, err := ctxMngr.ExistsPrivateKey(id.Uid)
 	if err != nil {
 		return err
 	}
@@ -309,31 +309,7 @@ func checkIdentity(dm *DatabaseManager, id *Identity, wg *sync.WaitGroup) error 
 		return fmt.Errorf("ExistsPrivateKey returned FALSE")
 	}
 
-	auth, err := dm.GetAuthToken(id.Uid)
-	if err != nil {
-		return err
-	}
-	if auth != id.AuthToken {
-		return fmt.Errorf("GetAuthToken returned unexpected value: %s, expected: %s", auth, id.AuthToken)
-	}
-
-	priv, err := dm.GetPrivateKey(id.Uid)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(priv, id.PrivateKey) {
-		return fmt.Errorf("GetPrivateKey returned unexpected value: %s, expected: %s", priv, id.PrivateKey)
-	}
-
-	pub, err := dm.GetPublicKey(id.Uid)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(pub, id.PublicKey) {
-		return fmt.Errorf("GetPublicKey returned unexpected value: %s, expected: %s", pub, id.PublicKey)
-	}
-
-	uid, err := dm.GetUuidForPublicKey(id.PublicKey)
+	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -341,7 +317,7 @@ func checkIdentity(dm *DatabaseManager, id *Identity, wg *sync.WaitGroup) error 
 		return fmt.Errorf("GetUuidForPublicKey returned unexpected value: %s, expected: %s", uid, id.Uid)
 	}
 
-	idFromDb, err := dm.GetIdentity(id.Uid)
+	idFromDb, err := ctxMngr.GetIdentity(id.Uid)
 	if err != nil {
 		return err
 	}
