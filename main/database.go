@@ -74,8 +74,8 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 
 	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
 	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
-	log.Debugf("ConnMaxLifetime: %d", dbParams.ConnMaxLifetime)
-	log.Debugf("ConnMaxIdleTime: %d", dbParams.ConnMaxIdleTime)
+	log.Debugf("ConnMaxLifetime: %s", dbParams.ConnMaxLifetime.String())
+	log.Debugf("ConnMaxIdleTime: %s", dbParams.ConnMaxIdleTime.String())
 
 	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {

@@ -248,7 +248,7 @@ func (c *Config) setDbParams() error {
 	}
 
 	if c.DbConnMaxLifetime == "" {
-		c.dbParams.ConnMaxLifetime = defaultDbConnMaxLifetime
+		c.dbParams.ConnMaxLifetime = defaultDbConnMaxLifetime * time.Minute
 	} else {
 		i, err := strconv.Atoi(c.DbConnMaxLifetime)
 		if err != nil {
@@ -258,7 +258,7 @@ func (c *Config) setDbParams() error {
 	}
 
 	if c.DbConnMaxIdleTime == "" {
-		c.dbParams.ConnMaxIdleTime = defaultDbConnMaxIdleTime
+		c.dbParams.ConnMaxIdleTime = defaultDbConnMaxIdleTime * time.Minute
 	} else {
 		i, err := strconv.Atoi(c.DbConnMaxIdleTime)
 		if err != nil {
