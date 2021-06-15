@@ -207,6 +207,13 @@ type dbConfig struct {
 }
 
 func initDB() (*DatabaseManager, error) {
+	testDbParams := &DatabaseParams{
+		MaxOpenConns:    10,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: 2,
+		ConnMaxIdleTime: 1,
+	}
+
 	fileHandle, err := os.Open("config.json")
 	if err != nil {
 		return nil, err
@@ -219,7 +226,7 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewSqlDatabaseInfo(c.PostgresDSN, testTableName)
+	return NewSqlDatabaseInfo(c.PostgresDSN, testTableName, testDbParams)
 }
 
 func cleanUp(t *testing.T, dm *DatabaseManager) {

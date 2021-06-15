@@ -57,26 +57,39 @@ type DatabaseManager struct {
 	tableName string
 }
 
+type DatabaseParams struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
+}
+
 // Ensure Database implements the ContextManager interface
 var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabaseParams) (*DatabaseManager, error) {
+	log.Infof("preparing postgres usage")
+
+	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
+	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
+	log.Debugf("ConnMaxLifetime: %d", dbParams.ConnMaxLifetime)
+	log.Debugf("ConnMaxIdleTime: %d", dbParams.ConnMaxIdleTime)
+
 	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
-	pg.SetMaxOpenConns(10)
-	pg.SetMaxIdleConns(10)
-	pg.SetConnMaxLifetime(time.Minute)
+	pg.SetMaxOpenConns(dbParams.MaxOpenConns)
+	pg.SetMaxIdleConns(dbParams.MaxIdleConns)
+	pg.SetConnMaxLifetime(dbParams.ConnMaxLifetime)
+	pg.SetConnMaxIdleTime(dbParams.ConnMaxIdleTime)
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
 
-	log.Print("preparing postgres usage")
-
-	dbManager := &DatabaseManager{
+	dm := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelSerializable,
 			ReadOnly:  false,
@@ -85,11 +98,21 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 		tableName: tableName,
 	}
 
-	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
+	if _, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
 		return nil, err
 	}
 
-	return dbManager, nil
+	//log.Debugf("    MaxOpenConnections %4d", dm.db.Stats().MaxOpenConnections)
+	//log.Debugf("    OpenConnections    %4d", dm.db.Stats().OpenConnections)
+	//log.Debugf("    InUse              %4d", dm.db.Stats().InUse)
+	//log.Debugf("    Idle               %4d", dm.db.Stats().Idle)
+	//log.Debugf("    WaitCount          %4d", dm.db.Stats().WaitCount)
+	//log.Debugf("    WaitDuration       %5s", dm.db.Stats().WaitDuration.String())
+	//log.Debugf("    MaxIdleClosed      %4d", dm.db.Stats().MaxIdleClosed)
+	//log.Debugf("    MaxIdleTimeClosed  %4d", dm.db.Stats().MaxIdleTimeClosed)
+	//log.Debugf("    MaxLifetimeClosed  %4d", dm.db.Stats().MaxLifetimeClosed)
+
+	return dm, nil
 }
 
 func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
