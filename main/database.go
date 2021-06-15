@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 	"time"
 	// postgres driver is imported for side effects
@@ -244,4 +245,13 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	}
 
 	return nil
+}
+
+func isConnectionNotAvailable(err error) bool {
+	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
+		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
+		time.Sleep(100 * time.Millisecond)
+		return true
+	}
+	return false
 }

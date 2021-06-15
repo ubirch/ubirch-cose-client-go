@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	SkidLen = 8
+	SkidLen           = 8
+	maxDbConnAttempts = 10
 )
 
 var (
@@ -102,33 +103,58 @@ func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
 	return p.ctxManager.CloseTransaction(tx, commit)
 }
 
-func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
-	return p.ctxManager.ExistsPrivateKey(uid)
+func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) (exists bool, err error) {
+	for i := 0; i < maxDbConnAttempts; i++ {
+		exists, err = p.ctxManager.ExistsPrivateKey(uid)
+		if isConnectionNotAvailable(err) {
+			continue
+		}
+		break
+	}
+	return exists, err
 }
 
-func (p *Protocol) StoreNewIdentity(tx interface{}, i Identity) error {
-	err := p.checkIdentityAttributesNotNil(&i)
+func (p *Protocol) StoreNewIdentity(tx interface{}, identity Identity) error {
+	err := p.checkIdentityAttributesNotNil(&identity)
 	if err != nil {
 		return err
 	}
 
 	// encrypt private key
-	i.PrivateKey, err = p.keyEncrypter.Encrypt(i.PrivateKey)
+	identity.PrivateKey, err = p.keyEncrypter.Encrypt(identity.PrivateKey)
 	if err != nil {
 		return err
 	}
 
 	// store public key raw bytes
-	i.PublicKey, err = p.PublicKeyPEMToBytes(i.PublicKey)
+	identity.PublicKey, err = p.PublicKeyPEMToBytes(identity.PublicKey)
 	if err != nil {
 		return err
 	}
 
-	return p.ctxManager.StoreNewIdentity(tx, i)
+	for i := 0; i < maxDbConnAttempts; i++ {
+		err = p.ctxManager.StoreNewIdentity(tx, identity)
+		if isConnectionNotAvailable(err) {
+			continue
+		}
+		break
+	}
+	return err
 }
 
 func (p *Protocol) GetIdentity(uid uuid.UUID) (*Identity, error) {
-	identityFromStorage, err := p.ctxManager.GetIdentity(uid)
+	var (
+		identityFromStorage *Identity
+		err                 error
+	)
+
+	for i := 0; i < maxDbConnAttempts; i++ {
+		identityFromStorage, err = p.ctxManager.GetIdentity(uid)
+		if isConnectionNotAvailable(err) {
+			continue
+		}
+		break
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -176,12 +202,20 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 	return nil
 }
 
-func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID, error) {
+func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
 	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
 	if err != nil {
 		return uuid.Nil, err
 	}
-	return p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
+
+	for i := 0; i < maxDbConnAttempts; i++ {
+		uid, err = p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
+		if isConnectionNotAvailable(err) {
+			continue
+		}
+		break
+	}
+	return uid, err
 }
 
 func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
