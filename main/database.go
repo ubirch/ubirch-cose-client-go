@@ -121,7 +121,7 @@ func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
 	if err != nil {
-		if err == sql.ErrNoRows || len(privateKey) == 0 {
+		if err == sql.ErrNoRows {
 			return false, nil
 		} else {
 			return false, err
