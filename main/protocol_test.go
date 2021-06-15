@@ -95,18 +95,6 @@ func (m *mockCtxMngr) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 	panic("implement me")
 }
 
-func (m *mockCtxMngr) GetPrivateKey(uid uuid.UUID) (privKey []byte, err error) {
-	panic("implement me")
-}
-
-func (m *mockCtxMngr) GetPublicKey(uid uuid.UUID) (pubKey []byte, err error) {
-	panic("implement me")
-}
-
-func (m *mockCtxMngr) GetAuthToken(uid uuid.UUID) (string, error) {
-	panic("implement me")
-}
-
 func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
 	panic("implement me")
 }

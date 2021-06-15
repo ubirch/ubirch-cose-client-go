@@ -84,7 +84,7 @@ func (s *COSEService) directUUID() http.HandlerFunc {
 }
 
 func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid uuid.UUID) {
-	authToken, err := s.GetAuthToken(uid)
+	identity, err := s.GetIdentity(uid)
 	if err == ErrNotExist {
 		h.Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
 		return
@@ -94,7 +94,7 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	err = checkAuth(r, authToken)
+	err = checkAuth(r, identity.AuthToken)
 	if err != nil {
 		Error(uid, w, err, http.StatusUnauthorized)
 		return
@@ -109,7 +109,7 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 	}
 
 	timer := prometheus.NewTimer(p.SignatureCreationDuration)
-	resp := s.Sign(msg)
+	resp := s.Sign(msg, identity.PrivateKey)
 	timer.ObserveDuration()
 
 	sendResponse(w, resp)

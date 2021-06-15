@@ -27,9 +27,6 @@ type ContextManager interface {
 
 	ExistsPrivateKey(uid uuid.UUID) (bool, error)
 
-	GetPrivateKey(uid uuid.UUID) (privKey []byte, err error)
-	GetPublicKey(uid uuid.UUID) (pubKey []byte, err error)
-	GetAuthToken(uid uuid.UUID) (string, error)
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 }
 
