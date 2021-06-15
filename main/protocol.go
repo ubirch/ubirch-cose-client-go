@@ -128,6 +128,35 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, i Identity) error {
 	return p.ctxManager.StoreNewIdentity(tx, i)
 }
 
+func (p *Protocol) GetIdentity(uid uuid.UUID) (*Identity, error) {
+	identityFromStorage, err := p.ctxManager.GetIdentity(uid)
+	if err != nil {
+		return nil, err
+	}
+
+	i := &Identity{
+		Uid:       identityFromStorage.Uid,
+		AuthToken: identityFromStorage.AuthToken,
+	}
+
+	i.PrivateKey, err = p.keyEncrypter.Decrypt(identityFromStorage.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	i.PublicKey, err = p.PublicKeyBytesToPEM(identityFromStorage.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.checkIdentityAttributes(i)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
+}
+
 //func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
 //	exists, err := p.ExistsPrivateKey(uid)
 //	if err != nil {
@@ -186,6 +215,10 @@ func (p *Protocol) GetAuthToken(uid uuid.UUID) (string, error) {
 }
 
 func (p *Protocol) checkIdentityAttributes(i *Identity) error {
+	if i.Uid == uuid.Nil {
+		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
+	}
+
 	if len(i.PrivateKey) == 0 {
 		return fmt.Errorf("empty private key")
 	}

@@ -195,6 +195,22 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 	return uid, nil
 }
 
+func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (*Identity, error) {
+	var id Identity
+
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotExist
+		}
+		return nil, err
+	}
+
+	return &id, nil
+}
+
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
 	return dm.db.BeginTx(ctx, dm.options)
 }

@@ -23,6 +23,7 @@ type ContextManager interface {
 	CloseTransaction(transactionCtx interface{}, commit bool) error
 
 	StoreNewIdentity(tx interface{}, id Identity) error
+	GetIdentity(uid uuid.UUID) (*Identity, error)
 
 	ExistsPrivateKey(uid uuid.UUID) (bool, error)
 
