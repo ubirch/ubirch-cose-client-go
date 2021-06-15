@@ -22,7 +22,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kelseyhightower/envconfig"
@@ -49,6 +51,11 @@ const (
 
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
+
+	defaultDbMaxOpenConns    = 10
+	defaultDbMaxIdleConns    = 10
+	defaultDbConnMaxLifetime = 10
+	defaultDbConnMaxIdleTime = 1
 )
 
 type Config struct {
@@ -57,6 +64,10 @@ type Config struct {
 	RegisterAuth            string               `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
 	Env                     string               `json:"env"`                                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	PostgresDSN             string               `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
+	DbMaxOpenConns          string               `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                  // maximum number of open connections to the database
+	DbMaxIdleConns          string               `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                  // maximum number of connections in the idle connection pool
+	DbConnMaxLifetime       string               `json:"dbConnMaxLifetime" envconfig:"DB_CONN_MAX_LIFETIME"`            // maximum amount of time in minutes a connection may be reused
+	DbConnMaxIdleTime       string               `json:"dbConnMaxIdleTime" envconfig:"DB_CONN_MAX_IDLE_TIME"`           // maximum amount of time in minutes a connection may be idle
 	TCP_addr                string               `json:"TCP_addr"`                                                      // the TCP address for the server to listen on, in the form "host:port"
 	TLS                     bool                 `json:"TLS"`                                                           // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile            string               `json:"TLSCertFile"`                                                   // filename of TLS certificate file name, defaults to "cert.pem"
@@ -74,6 +85,7 @@ type Config struct {
 	ServerTLSCertFingerprints map[string][32]byte
 	configDir                 string // directory where config and protocol ctx are stored
 	secretBytes               []byte // the decoded key store secret
+	dbParams                  DatabaseParams
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -118,7 +130,7 @@ func (c *Config) Load(configDir string, filename string) error {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
-	return nil
+	return c.setDbParams()
 }
 
 // loadEnv reads the configuration from environment variables
@@ -212,6 +224,50 @@ func (c *Config) setDefaultURLs() {
 	if c.IdentityService == "" {
 		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
 	}
+}
+
+func (c *Config) setDbParams() error {
+	if c.DbMaxOpenConns == "" {
+		c.dbParams.MaxOpenConns = defaultDbMaxOpenConns
+	} else {
+		i, err := strconv.Atoi(c.DbMaxOpenConns)
+		if err != nil {
+			return fmt.Errorf("failed to set DB parameter MaxOpenConns: %v", err)
+		}
+		c.dbParams.MaxOpenConns = i
+	}
+
+	if c.DbMaxIdleConns == "" {
+		c.dbParams.MaxIdleConns = defaultDbMaxIdleConns
+	} else {
+		i, err := strconv.Atoi(c.DbMaxIdleConns)
+		if err != nil {
+			return fmt.Errorf("failed to set DB parameter MaxIdleConns: %v", err)
+		}
+		c.dbParams.MaxIdleConns = i
+	}
+
+	if c.DbConnMaxLifetime == "" {
+		c.dbParams.ConnMaxLifetime = defaultDbConnMaxLifetime
+	} else {
+		i, err := strconv.Atoi(c.DbConnMaxLifetime)
+		if err != nil {
+			return fmt.Errorf("failed to set DB parameter ConnMaxLifetime: %v", err)
+		}
+		c.dbParams.ConnMaxLifetime = time.Duration(i) * time.Minute
+	}
+
+	if c.DbConnMaxIdleTime == "" {
+		c.dbParams.ConnMaxIdleTime = defaultDbConnMaxIdleTime
+	} else {
+		i, err := strconv.Atoi(c.DbConnMaxIdleTime)
+		if err != nil {
+			return fmt.Errorf("failed to set DB parameter ConnMaxIdleTime: %v", err)
+		}
+		c.dbParams.ConnMaxIdleTime = time.Duration(i) * time.Minute
+	}
+
+	return nil
 }
 
 // loadIdentitiesFile loads identities from the identities JSON file.

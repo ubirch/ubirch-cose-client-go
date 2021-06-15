@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	urlpkg "net/url"
 )
@@ -72,8 +71,6 @@ type Certificate struct {
 type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
 
 func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, error) {
-	log.Debugf("requesting public key certificate list")
-
 	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key certificate list failed: %v", err)

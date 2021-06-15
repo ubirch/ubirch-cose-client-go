@@ -25,22 +25,16 @@ type ContextManager interface {
 	StoreNewIdentity(tx interface{}, id Identity) error
 
 	ExistsPrivateKey(uid uuid.UUID) (bool, error)
+
 	GetPrivateKey(uid uuid.UUID) (privKey []byte, err error)
-	//SetPrivateKey(tx interface{}, uid uuid.UUID, privKey []byte) error
-
-	ExistsPublicKey(uid uuid.UUID) (bool, error)
 	GetPublicKey(uid uuid.UUID) (pubKey []byte, err error)
-	//SetPublicKey(tx interface{}, uid uuid.UUID, pubKey []byte) error
-
 	GetAuthToken(uid uuid.UUID) (string, error)
-
-	ExistsUuidForPublicKey(pubKey []byte) (bool, error)
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 }
 
 func GetCtxManager(c *Config) (ContextManager, error) {
 	if c.PostgresDSN != "" {
-		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
+		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName, &c.dbParams)
 	} else {
 		return nil, fmt.Errorf("file-based context management is not supported in the current version")
 	}

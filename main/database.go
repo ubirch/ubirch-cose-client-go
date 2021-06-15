@@ -57,40 +57,11 @@ type DatabaseManager struct {
 	tableName string
 }
 
-func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
-	var uid uuid.UUID
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetUuidForPublicKey(pubKey)
-		}
-		return uuid.Nil, err
-	}
-
-	return uid, nil
-}
-
-func (dm *DatabaseManager) ExistsUuidForPublicKey(pubKey []byte) (bool, error) {
-	var uid uuid.UUID
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.ExistsUuidForPublicKey(pubKey)
-		}
-		if err == sql.ErrNoRows {
-			return false, nil
-		} else {
-			return false, err
-		}
-	} else {
-		return true, nil
-	}
+type DatabaseParams struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 // Ensure Database implements the ContextManager interface
@@ -98,34 +69,50 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabaseParams) (*DatabaseManager, error) {
+	log.Infof("preparing postgres usage")
+
+	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
+	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
+	log.Debugf("ConnMaxLifetime: %d", dbParams.ConnMaxLifetime)
+	log.Debugf("ConnMaxIdleTime: %d", dbParams.ConnMaxIdleTime)
+
 	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
-	pg.SetMaxOpenConns(25)
-	pg.SetMaxIdleConns(25)
-	pg.SetConnMaxLifetime(2 * time.Second)
+	pg.SetMaxOpenConns(dbParams.MaxOpenConns)
+	pg.SetMaxIdleConns(dbParams.MaxIdleConns)
+	pg.SetConnMaxLifetime(dbParams.ConnMaxLifetime)
+	pg.SetConnMaxIdleTime(dbParams.ConnMaxIdleTime)
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
 
-	log.Print("preparing postgres usage")
-
-	dbManager := &DatabaseManager{
+	dm := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelReadCommitted,
+			Isolation: sql.LevelSerializable,
 			ReadOnly:  false,
 		},
 		db:        pg,
 		tableName: tableName,
 	}
 
-	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
+	if _, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
 		return nil, err
 	}
 
-	return dbManager, nil
+	//log.Debugf("    MaxOpenConnections %4d", dm.db.Stats().MaxOpenConnections)
+	//log.Debugf("    OpenConnections    %4d", dm.db.Stats().OpenConnections)
+	//log.Debugf("    InUse              %4d", dm.db.Stats().InUse)
+	//log.Debugf("    Idle               %4d", dm.db.Stats().Idle)
+	//log.Debugf("    WaitCount          %4d", dm.db.Stats().WaitCount)
+	//log.Debugf("    WaitDuration       %5s", dm.db.Stats().WaitDuration.String())
+	//log.Debugf("    MaxIdleClosed      %4d", dm.db.Stats().MaxIdleClosed)
+	//log.Debugf("    MaxIdleTimeClosed  %4d", dm.db.Stats().MaxIdleTimeClosed)
+	//log.Debugf("    MaxLifetimeClosed  %4d", dm.db.Stats().MaxLifetimeClosed)
+
+	return dm, nil
 }
 
 func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
@@ -148,26 +135,6 @@ func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 	}
 }
 
-func (dm *DatabaseManager) ExistsPublicKey(uid uuid.UUID) (bool, error) {
-	var publicKey []byte
-
-	query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&publicKey)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.ExistsPublicKey(uid)
-		}
-		if err == sql.ErrNoRows || len(publicKey) == 0 {
-			return false, nil
-		} else {
-			return false, err
-		}
-	} else {
-		return true, nil
-	}
-}
-
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	var privateKey []byte
 
@@ -177,6 +144,9 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetPrivateKey(uid)
+		}
+		if err == sql.ErrNoRows {
+			return nil, ErrNotExist
 		}
 		return nil, err
 	}
@@ -194,6 +164,9 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetPublicKey(uid)
 		}
+		if err == sql.ErrNoRows {
+			return nil, ErrNotExist
+		}
 		return nil, err
 	}
 
@@ -210,10 +183,32 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetAuthToken(uid)
 		}
+		if err == sql.ErrNoRows {
+			return "", ErrNotExist
+		}
 		return "", err
 	}
 
 	return authToken, nil
+}
+
+func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
+	var uid uuid.UUID
+
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
+	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.GetUuidForPublicKey(pubKey)
+		}
+		if err == sql.ErrNoRows {
+			return uuid.Nil, ErrNotExist
+		}
+		return uuid.Nil, err
+	}
+
+	return uid, nil
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
@@ -239,28 +234,6 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	// make sure identity does not exist yet
-	var uid string
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
-
-	err := tx.QueryRow(query, identity.Uid.String()).Scan(&uid)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StoreNewIdentity(tx, identity)
-		}
-		if err == sql.ErrNoRows {
-			// there were no rows, but otherwise no error occurred
-			return dm.storeIdentity(tx, identity)
-		} else {
-			return err
-		}
-	} else {
-		return ErrExists
-	}
-}
-
-func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity Identity) error {
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
 		dm.tableName)
@@ -268,7 +241,7 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity Identity) error {
 	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
-			return dm.storeIdentity(tx, identity)
+			return dm.StoreNewIdentity(tx, identity)
 		}
 		return err
 	}

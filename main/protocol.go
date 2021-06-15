@@ -154,10 +154,6 @@ func (p *Protocol) GetPrivateKey(uid uuid.UUID) (privateKeyPem []byte, err error
 	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
 }
 
-func (p *Protocol) ExistsPublicKey(uid uuid.UUID) (bool, error) {
-	return p.ctxManager.ExistsPublicKey(uid)
-}
-
 //func (p *Protocol) SetPublicKey(uid uuid.UUID, publicKeyPEM []byte) error {
 //	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
 //	if err != nil {
@@ -183,7 +179,7 @@ func (p *Protocol) GetAuthToken(uid uuid.UUID) (string, error) {
 	}
 
 	if len(authToken) == 0 {
-		return "", ErrNotExist
+		return "", fmt.Errorf("empty auth token")
 	}
 
 	return authToken, nil
@@ -203,14 +199,6 @@ func (p *Protocol) checkIdentityAttributes(i *Identity) error {
 	}
 
 	return nil
-}
-
-func (p *Protocol) ExistsUuidForPublicKey(publicKeyPEM []byte) (bool, error) {
-	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
-	if err != nil {
-		return false, err
-	}
-	return p.ctxManager.ExistsUuidForPublicKey(publicKeyBytes)
 }
 
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID, error) {
@@ -289,22 +277,14 @@ func (p *Protocol) loadSKIDs() {
 		}
 
 		// look up matching UUID for public key
-		exists, err := p.ExistsUuidForPublicKey(pubKeyPEM)
+		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
 		if err != nil {
-			log.Errorf("%s: %v", kid, err)
-			continue
-		}
-		if !exists {
-			//log.Debugf("%s: public key not found", kid)
+			if err != ErrNotExist {
+				log.Errorf("%s: %v", kid, err)
+			}
 			continue
 		}
 		//log.Debugf("%s: public key certificate match", kid)
-
-		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
-		if err != nil {
-			log.Errorf("%s: %v", kid, err)
-			continue
-		}
 
 		if len(cert.Kid) != SkidLen {
 			log.Errorf("invalid KID length: expected %d, got %d", SkidLen, len(kid))
