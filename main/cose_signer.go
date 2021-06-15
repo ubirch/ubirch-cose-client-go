@@ -21,7 +21,6 @@ import (
 	"net/http"
 
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
-	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -93,7 +92,7 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 	}, nil
 }
 
-func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
+func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte) HTTPResponse {
 	log.Infof("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	skid, err := c.GetSKID(msg.ID)
@@ -102,7 +101,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 		return errorResponse(http.StatusBadRequest, err.Error())
 	}
 
-	cose, err := c.createSignedCOSE(msg.ID, msg.Hash, skid, msg.Payload)
+	cose, err := c.createSignedCOSE(msg.Hash, privateKeyPEM, skid, msg.Payload)
 	if err != nil {
 		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -116,8 +115,8 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 	}
 }
 
-func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
-	signature, err := c.getSignature(uid, hash)
+func (c *CoseSigner) createSignedCOSE(hash Sha256Sum, privateKeyPEM, kid, payload []byte) ([]byte, error) {
+	signature, err := c.SignHash(privateKeyPEM, hash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -128,15 +127,6 @@ func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, kid, payloa
 	}
 
 	return coseBytes, nil
-}
-
-// getSignature creates ECDSA P-256 signature and returns the bytes
-func (c *CoseSigner) getSignature(uid uuid.UUID, hash Sha256Sum) (signatureBytes []byte, err error) {
-	privateKeyPEM, err := c.GetPrivateKey(uid)
-	if err != nil {
-		return nil, err
-	}
-	return c.SignHash(privateKeyPEM, hash[:])
 }
 
 // getCOSE creates a COSE Single Signer Data Object (COSE_Sign1)

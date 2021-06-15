@@ -57,12 +57,7 @@ func TestCoseSign(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	signature, err := coseSigner.SignHash(privateKeyPEM, hash[:])
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	coseBytes, err := coseSigner.getCOSE(uid[:], payloadCBOR, signature)
+	coseBytes, err := coseSigner.createSignedCOSE(hash, privateKeyPEM, uid[:], payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}

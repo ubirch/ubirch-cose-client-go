@@ -121,7 +121,7 @@ func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
 	if err != nil {
-		if err == sql.ErrNoRows || len(privateKey) == 0 {
+		if err == sql.ErrNoRows {
 			return false, nil
 		} else {
 			return false, err
@@ -193,6 +193,22 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 	}
 
 	return uid, nil
+}
+
+func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (*Identity, error) {
+	var id Identity
+
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotExist
+		}
+		return nil, err
+	}
+
+	return &id, nil
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {

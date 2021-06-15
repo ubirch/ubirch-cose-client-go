@@ -107,8 +107,7 @@ func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 }
 
 func (p *Protocol) StoreNewIdentity(tx interface{}, i Identity) error {
-	// check validity of identity attributes
-	err := p.checkIdentityAttributes(&i)
+	err := p.checkIdentityAttributesNotNil(&i)
 	if err != nil {
 		return err
 	}
@@ -128,64 +127,40 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, i Identity) error {
 	return p.ctxManager.StoreNewIdentity(tx, i)
 }
 
-//func (p *Protocol) SetPrivateKey(uid uuid.UUID, privateKeyPem []byte) error {
-//	exists, err := p.ExistsPrivateKey(uid)
-//	if err != nil {
-//		return err
-//	}
-//	if exists {
-//		return ErrExists
-//	}
-//
-//	encryptedPrivateKey, err := p.keyEncrypter.Encrypt(privateKeyPem)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return p.ctxManager.SetPrivateKey(nil, uid, encryptedPrivateKey)
-//}
-
-func (p *Protocol) GetPrivateKey(uid uuid.UUID) (privateKeyPem []byte, err error) {
-	encryptedPrivateKey, err := p.ctxManager.GetPrivateKey(uid)
+func (p *Protocol) GetIdentity(uid uuid.UUID) (*Identity, error) {
+	identityFromStorage, err := p.ctxManager.GetIdentity(uid)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
-}
+	i := &Identity{
+		Uid:       identityFromStorage.Uid,
+		AuthToken: identityFromStorage.AuthToken,
+	}
 
-//func (p *Protocol) SetPublicKey(uid uuid.UUID, publicKeyPEM []byte) error {
-//	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return p.ctxManager.SetPublicKey(nil, uid, publicKeyBytes)
-//}
-
-func (p *Protocol) GetPublicKey(uid uuid.UUID) (publicKeyPEM []byte, err error) {
-	publicKeyBytes, err := p.ctxManager.GetPublicKey(uid)
+	i.PrivateKey, err = p.keyEncrypter.Decrypt(identityFromStorage.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.PublicKeyBytesToPEM(publicKeyBytes)
-}
-
-func (p *Protocol) GetAuthToken(uid uuid.UUID) (string, error) {
-	authToken, err := p.ctxManager.GetAuthToken(uid)
+	i.PublicKey, err = p.PublicKeyBytesToPEM(identityFromStorage.PublicKey)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	if len(authToken) == 0 {
-		return "", fmt.Errorf("empty auth token")
+	err = p.checkIdentityAttributesNotNil(i)
+	if err != nil {
+		return nil, err
 	}
 
-	return authToken, nil
+	return i, nil
 }
 
-func (p *Protocol) checkIdentityAttributes(i *Identity) error {
+func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
+	if i.Uid == uuid.Nil {
+		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
+	}
+
 	if len(i.PrivateKey) == 0 {
 		return fmt.Errorf("empty private key")
 	}
@@ -207,14 +182,6 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 	return p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
-}
-
-func (p *Protocol) ExistsSKID(uid uuid.UUID) bool {
-	p.skidStoreMutex.RLock()
-	_, exists := p.skidStore[uid]
-	p.skidStoreMutex.RUnlock()
-
-	return exists
 }
 
 func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
