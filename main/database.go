@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 	"time"
 	// postgres driver is imported for side effects
@@ -122,9 +121,6 @@ func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.ExistsPrivateKey(uid)
-		}
 		if err == sql.ErrNoRows || len(privateKey) == 0 {
 			return false, nil
 		} else {
@@ -142,9 +138,6 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetPrivateKey(uid)
-		}
 		if err == sql.ErrNoRows {
 			return nil, ErrNotExist
 		}
@@ -161,9 +154,6 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&publicKey)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetPublicKey(uid)
-		}
 		if err == sql.ErrNoRows {
 			return nil, ErrNotExist
 		}
@@ -180,9 +170,6 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&authToken)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetAuthToken(uid)
-		}
 		if err == sql.ErrNoRows {
 			return "", ErrNotExist
 		}
@@ -199,9 +186,6 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 
 	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetUuidForPublicKey(pubKey)
-		}
 		if err == sql.ErrNoRows {
 			return uuid.Nil, ErrNotExist
 		}
@@ -240,20 +224,8 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 
 	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StoreNewIdentity(tx, identity)
-		}
 		return err
 	}
 
 	return nil
-}
-
-func (dm *DatabaseManager) isConnectionAvailable(err error) bool {
-	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
-		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
-		time.Sleep(100 * time.Millisecond)
-		return true
-	}
-	return false
 }
