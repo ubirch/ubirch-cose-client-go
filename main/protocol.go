@@ -179,7 +179,7 @@ func (p *Protocol) GetAuthToken(uid uuid.UUID) (string, error) {
 	}
 
 	if len(authToken) == 0 {
-		return "", ErrNotExist
+		return "", fmt.Errorf("empty auth token")
 	}
 
 	return authToken, nil
