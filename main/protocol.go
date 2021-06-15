@@ -106,7 +106,7 @@ func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
 func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) (exists bool, err error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
 		exists, err = p.ctxManager.ExistsPrivateKey(uid)
-		if isConnectionNotAvailable(err) {
+		if err != nil && isConnectionNotAvailable(err) {
 			continue
 		}
 		break
@@ -134,7 +134,7 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, identity Identity) error {
 
 	for i := 0; i < maxDbConnAttempts; i++ {
 		err = p.ctxManager.StoreNewIdentity(tx, identity)
-		if isConnectionNotAvailable(err) {
+		if err != nil && isConnectionNotAvailable(err) {
 			continue
 		}
 		break
@@ -150,7 +150,7 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (*Identity, error) {
 
 	for i := 0; i < maxDbConnAttempts; i++ {
 		identityFromStorage, err = p.ctxManager.GetIdentity(uid)
-		if isConnectionNotAvailable(err) {
+		if err != nil && isConnectionNotAvailable(err) {
 			continue
 		}
 		break
@@ -210,7 +210,7 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 
 	for i := 0; i < maxDbConnAttempts; i++ {
 		uid, err = p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
-		if isConnectionNotAvailable(err) {
+		if err != nil && isConnectionNotAvailable(err) {
 			continue
 		}
 		break
