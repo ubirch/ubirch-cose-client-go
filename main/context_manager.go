@@ -27,7 +27,7 @@ type ContextManager interface {
 
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 
-	Close() error
+	Close()
 }
 
 func GetCtxManager(c *Config) (ContextManager, error) {

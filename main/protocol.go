@@ -101,8 +101,8 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 	return p, nil
 }
 
-func (p *Protocol) Close() error {
-	return p.ctxManager.Close()
+func (p *Protocol) Close() {
+	p.ctxManager.Close()
 }
 
 func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {

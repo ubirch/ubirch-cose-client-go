@@ -55,6 +55,7 @@ type DatabaseManager struct {
 	options   *sql.TxOptions
 	db        *sql.DB
 	tableName string
+	listener  *pq.Listener
 }
 
 type DatabaseParams struct {
@@ -115,8 +116,15 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 	return dm, nil
 }
 
-func (dm *DatabaseManager) Close() error {
-	return dm.db.Close()
+func (dm *DatabaseManager) Close() {
+	err := dm.listener.Close()
+	if err != nil {
+		log.Errorf("failed to close db listener connection: %v", err)
+	}
+	err = dm.db.Close()
+	if err != nil {
+		log.Errorf("failed to close database: %v", err)
+	}
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
