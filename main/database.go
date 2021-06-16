@@ -137,6 +137,10 @@ func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit b
 	}
 
 	if commit {
+		_, err := tx.Exec("NOTIFY " + pq.QuoteIdentifier(dm.updateChannelName))
+		if err != nil {
+			log.Errorf("unable to send database update notification: %v", err)
+		}
 		return tx.Commit()
 	} else {
 		return tx.Rollback()
