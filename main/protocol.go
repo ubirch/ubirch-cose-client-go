@@ -216,15 +216,14 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 
 func (p *Protocol) Exists(uid uuid.UUID) (exists bool, err error) {
 	_, err = p.GetIdentity(uid)
-	if err != nil && err != ErrNotExist {
+	if err == ErrNotExist {
+		return false, nil
+	}
+	if err != nil {
 		return false, err
 	}
-	if err == nil {
-		// identity was found => exists
-		return true, nil
-	}
-	// err == ErrNotExist => identity does not exist
-	return false, nil
+
+	return true, nil
 }
 
 func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
