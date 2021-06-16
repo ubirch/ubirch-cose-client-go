@@ -255,20 +255,20 @@ func storeIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	idFromDb, err := ctxMngr.GetIdentity(id.Uid)
+	idFromCtx, err := ctxMngr.GetIdentity(id.Uid)
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(idFromDb.PrivateKey, id.PrivateKey) {
+	if !bytes.Equal(idFromCtx.PrivateKey, id.PrivateKey) {
 		return fmt.Errorf("GetIdentity returned unexpected PrivateKey value")
 	}
-	if !bytes.Equal(idFromDb.PublicKey, id.PublicKey) {
+	if !bytes.Equal(idFromCtx.PublicKey, id.PublicKey) {
 		return fmt.Errorf("GetIdentity returned unexpected PublicKey value")
 	}
-	if idFromDb.AuthToken != id.AuthToken {
+	if idFromCtx.AuthToken != id.AuthToken {
 		return fmt.Errorf("GetIdentity returned unexpected AuthToken value")
 	}
-	if !bytes.Equal(idFromDb.Uid[:], id.Uid[:]) {
+	if !bytes.Equal(idFromCtx.Uid[:], id.Uid[:]) {
 		return fmt.Errorf("GetIdentity returned unexpected Uid value")
 	}
 
