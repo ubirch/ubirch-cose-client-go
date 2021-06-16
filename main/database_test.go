@@ -204,10 +204,7 @@ func cleanUp(t *testing.T, dm *DatabaseManager) {
 		t.Error(err)
 	}
 
-	err = dm.Close()
-	if err != nil {
-		t.Error(err)
-	}
+	dm.Close()
 }
 
 func generateRandomIdentity() *Identity {
