@@ -115,6 +115,10 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 	return dm, nil
 }
 
+func (dm *DatabaseManager) Close() error {
+	return dm.db.Close()
+}
+
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
 	return dm.db.BeginTx(ctx, dm.options)
 }

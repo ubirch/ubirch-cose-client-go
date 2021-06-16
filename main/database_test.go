@@ -204,7 +204,7 @@ func cleanUp(t *testing.T, dm *DatabaseManager) {
 		t.Error(err)
 	}
 
-	err = dm.db.Close()
+	err = dm.Close()
 	if err != nil {
 		t.Error(err)
 	}

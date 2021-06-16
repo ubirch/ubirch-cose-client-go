@@ -101,6 +101,10 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 	return p, nil
 }
 
+func (p *Protocol) Close() error {
+	return p.ctxManager.Close()
+}
+
 func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
 		transactionCtx, err = p.ctxManager.StartTransaction(ctx)
