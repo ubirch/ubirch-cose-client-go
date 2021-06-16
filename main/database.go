@@ -52,10 +52,11 @@ func CreateTable(tableType int, tableName string) string {
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options   *sql.TxOptions
-	db        *sql.DB
-	tableName string
-	listener  *pq.Listener
+	options           *sql.TxOptions
+	db                *sql.DB
+	tableName         string
+	listener          *pq.Listener
+	updateChannelName string
 }
 
 type DatabaseParams struct {
@@ -73,11 +74,6 @@ var _ ContextManager = (*DatabaseManager)(nil)
 func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabaseParams) (*DatabaseManager, error) {
 	log.Infof("preparing postgres usage")
 
-	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
-	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
-	log.Debugf("ConnMaxLifetime: %s", dbParams.ConnMaxLifetime.String())
-	log.Debugf("ConnMaxIdleTime: %s", dbParams.ConnMaxIdleTime.String())
-
 	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
@@ -90,6 +86,11 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 		return nil, err
 	}
 
+	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
+	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
+	log.Debugf("ConnMaxLifetime: %s", dbParams.ConnMaxLifetime.String())
+	log.Debugf("ConnMaxIdleTime: %s", dbParams.ConnMaxIdleTime.String())
+
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelSerializable,
@@ -99,19 +100,17 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 		tableName: tableName,
 	}
 
-	if _, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
+	_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
+	if err != nil {
 		return nil, err
 	}
 
-	//log.Debugf("    MaxOpenConnections %4d", dm.db.Stats().MaxOpenConnections)
-	//log.Debugf("    OpenConnections    %4d", dm.db.Stats().OpenConnections)
-	//log.Debugf("    InUse              %4d", dm.db.Stats().InUse)
-	//log.Debugf("    Idle               %4d", dm.db.Stats().Idle)
-	//log.Debugf("    WaitCount          %4d", dm.db.Stats().WaitCount)
-	//log.Debugf("    WaitDuration       %5s", dm.db.Stats().WaitDuration.String())
-	//log.Debugf("    MaxIdleClosed      %4d", dm.db.Stats().MaxIdleClosed)
-	//log.Debugf("    MaxIdleTimeClosed  %4d", dm.db.Stats().MaxIdleTimeClosed)
-	//log.Debugf("    MaxLifetimeClosed  %4d", dm.db.Stats().MaxLifetimeClosed)
+	dm.updateChannelName = "update"
+
+	dm.listener, err = initListener(dataSourceName, dm.updateChannelName)
+	if err != nil {
+		return nil, err
+	}
 
 	return dm, nil
 }
