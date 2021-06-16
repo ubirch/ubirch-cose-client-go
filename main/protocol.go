@@ -32,7 +32,7 @@ import (
 
 const (
 	SkidLen           = 8
-	maxDbConnAttempts = 10
+	maxDbConnAttempts = 5
 )
 
 var (
@@ -96,22 +96,20 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 }
 
 func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return p.ctxManager.StartTransaction(ctx)
-}
-
-func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
-	return p.ctxManager.CloseTransaction(tx, commit)
-}
-
-func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) (exists bool, err error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
-		exists, err = p.ctxManager.ExistsPrivateKey(uid)
+		transactionCtx, err = p.ctxManager.StartTransaction(ctx)
 		if err != nil && isConnectionNotAvailable(err) {
+			log.Debugf("StartTransaction connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
 			continue
 		}
 		break
 	}
-	return exists, err
+
+	return transactionCtx, err
+}
+
+func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
+	return p.ctxManager.CloseTransaction(tx, commit)
 }
 
 func (p *Protocol) StoreNewIdentity(tx interface{}, identity Identity) error {
@@ -132,14 +130,7 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, identity Identity) error {
 		return err
 	}
 
-	for i := 0; i < maxDbConnAttempts; i++ {
-		err = p.ctxManager.StoreNewIdentity(tx, identity)
-		if err != nil && isConnectionNotAvailable(err) {
-			continue
-		}
-		break
-	}
-	return err
+	return p.ctxManager.StoreNewIdentity(tx, identity)
 }
 
 func (p *Protocol) GetIdentity(uid uuid.UUID) (*Identity, error) {
@@ -151,6 +142,7 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (*Identity, error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
 		identityFromStorage, err = p.ctxManager.GetIdentity(uid)
 		if err != nil && isConnectionNotAvailable(err) {
+			log.Debugf("GetIdentity connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
 			continue
 		}
 		break
@@ -182,6 +174,18 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (*Identity, error) {
 	return i, nil
 }
 
+func (p *Protocol) ExistsPrivateKey(uid uuid.UUID) (exists bool, err error) {
+	for i := 0; i < maxDbConnAttempts; i++ {
+		exists, err = p.ctxManager.ExistsPrivateKey(uid)
+		if err != nil && isConnectionNotAvailable(err) {
+			log.Debugf("ExistsPrivateKey connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+			continue
+		}
+		break
+	}
+	return exists, err
+}
+
 func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
@@ -211,6 +215,7 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 	for i := 0; i < maxDbConnAttempts; i++ {
 		uid, err = p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
 		if err != nil && isConnectionNotAvailable(err) {
+			log.Debugf("GetUuidForPublicKey connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
 			continue
 		}
 		break

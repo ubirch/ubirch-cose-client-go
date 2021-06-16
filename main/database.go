@@ -250,7 +250,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 func isConnectionNotAvailable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		return true
 	}
 	return false
