@@ -56,7 +56,8 @@ type Protocol struct {
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
 
-	identityCache *sync.Map
+	identityCache *sync.Map // {<uid>: <*identity>}
+	uidCache      *sync.Map // {<pub>: <uid>}
 
 	skidStore           map[uuid.UUID][]byte
 	skidStoreMutex      *sync.RWMutex
@@ -81,6 +82,7 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 		keyEncrypter:   enc,
 
 		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
 
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -203,6 +205,27 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 		return uuid.Nil, err
 	}
 
+	publicKeyBytesBase64 := base64.StdEncoding.EncodeToString(publicKeyBytes)
+
+	_uid, found := p.uidCache.Load(publicKeyBytesBase64)
+
+	if found {
+		uid, found = _uid.(uuid.UUID)
+	}
+
+	if !found {
+		uid, err = p.fetchUuidForPublicKeyFromStorage(publicKeyBytes)
+		if err != nil {
+			return uuid.Nil, err
+		}
+
+		p.uidCache.Store(publicKeyBytesBase64, uid)
+	}
+
+	return uid, nil
+}
+
+func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid uuid.UUID, err error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
 		uid, err = p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
 		if err != nil && isConnectionNotAvailable(err) {

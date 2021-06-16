@@ -28,6 +28,7 @@ func TestProtocol(t *testing.T) {
 		keyEncrypter: enc,
 
 		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
 	}
 
 	privKeyPEM, err := p.GenerateKey()
@@ -119,6 +120,7 @@ func TestProtocolLoad(t *testing.T) {
 		keyEncrypter: enc,
 
 		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
 	}
 
 	// generate identities
