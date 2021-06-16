@@ -34,29 +34,6 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetIdentity did not return ErrNotExist")
 	}
 
-	exists, err := dm.ExistsPrivateKey(testIdentity.Uid)
-	if err != nil {
-		t.Error(err)
-	}
-	if exists {
-		t.Error("ExistsPrivateKey returned TRUE")
-	}
-
-	_, err = dm.GetPrivateKey(testIdentity.Uid)
-	if err != ErrNotExist {
-		t.Error("GetPrivateKey did not return ErrNotExist")
-	}
-
-	_, err = dm.GetPublicKey(testIdentity.Uid)
-	if err != ErrNotExist {
-		t.Error("GetPublicKey did not return ErrNotExist")
-	}
-
-	_, err = dm.GetAuthToken(testIdentity.Uid)
-	if err != ErrNotExist {
-		t.Error("GetAuthToken did not return ErrNotExist")
-	}
-
 	_, err = dm.GetUuidForPublicKey(testIdentity.PublicKey)
 	if err != ErrNotExist {
 		t.Error("GetUuidForPublicKey did not return ErrNotExist")
@@ -82,47 +59,6 @@ func TestDatabaseManager(t *testing.T) {
 	}
 
 	// check exists
-	exists, err = dm.ExistsPrivateKey(testIdentity.Uid)
-	if err != nil {
-		t.Error(err)
-	}
-	if !exists {
-		t.Error("ExistsPrivateKey returned FALSE")
-	}
-
-	// get attributes
-	priv, err := dm.GetPrivateKey(testIdentity.Uid)
-	if err != nil {
-		t.Error(err)
-	}
-	if !bytes.Equal(priv, testIdentity.PrivateKey) {
-		t.Error("GetPrivateKey returned unexpected value")
-	}
-
-	pub, err := dm.GetPublicKey(testIdentity.Uid)
-	if err != nil {
-		t.Error(err)
-	}
-	if !bytes.Equal(pub, testIdentity.PublicKey) {
-		t.Error("GetPublicKey returned unexpected value")
-	}
-
-	auth, err := dm.GetAuthToken(testIdentity.Uid)
-	if err != nil {
-		t.Error(err)
-	}
-	if auth != testIdentity.AuthToken {
-		t.Error("GetAuthToken returned unexpected value")
-	}
-
-	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKey)
-	if err != nil {
-		t.Error(err)
-	}
-	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
-		t.Error("GetUuidForPublicKey returned unexpected value")
-	}
-
 	idFromDb, err := dm.GetIdentity(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
@@ -138,6 +74,14 @@ func TestDatabaseManager(t *testing.T) {
 	}
 	if !bytes.Equal(idFromDb.Uid[:], testIdentity.Uid[:]) {
 		t.Error("GetIdentity returned unexpected Uid value")
+	}
+
+	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKey)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
+		t.Error("GetUuidForPublicKey returned unexpected value")
 	}
 }
 
@@ -311,22 +255,6 @@ func storeIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	exists, err := ctxMngr.ExistsPrivateKey(id.Uid)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("ExistsPrivateKey returned FALSE")
-	}
-
-	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKey)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(uid[:], id.Uid[:]) {
-		return fmt.Errorf("GetUuidForPublicKey returned unexpected value: %s, expected: %s", uid, id.Uid)
-	}
-
 	idFromDb, err := ctxMngr.GetIdentity(id.Uid)
 	if err != nil {
 		return err
@@ -342,6 +270,14 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 	}
 	if !bytes.Equal(idFromDb.Uid[:], id.Uid[:]) {
 		return fmt.Errorf("GetIdentity returned unexpected Uid value")
+	}
+
+	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKey)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(uid[:], id.Uid[:]) {
+		return fmt.Errorf("GetUuidForPublicKey returned unexpected value: %s, expected: %s", uid, id.Uid)
 	}
 
 	return nil

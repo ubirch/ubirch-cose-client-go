@@ -25,8 +25,6 @@ type ContextManager interface {
 	StoreNewIdentity(tx interface{}, id Identity) error
 	GetIdentity(uid uuid.UUID) (*Identity, error)
 
-	ExistsPrivateKey(uid uuid.UUID) (bool, error)
-
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 }
 

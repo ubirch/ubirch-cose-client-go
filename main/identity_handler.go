@@ -45,7 +45,7 @@ func (i *IdentityHandler) initIdentities(identities []*Identity) error {
 	log.Debugf("initializing %d identities...", len(identities))
 	for _, id := range identities {
 		// check if identity is already initialized
-		exists, err := i.protocol.ExistsPrivateKey(id.Uid)
+		exists, err := i.protocol.Exists(id.Uid)
 		if err != nil {
 			return fmt.Errorf("can not check existing context for %s: %s", id.Uid, err)
 		}

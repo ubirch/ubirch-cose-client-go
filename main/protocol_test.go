@@ -26,6 +26,8 @@ func TestProtocol(t *testing.T) {
 		Crypto:       crypto,
 		ctxManager:   &mockCtxMngr{},
 		keyEncrypter: enc,
+
+		identityCache: &sync.Map{},
 	}
 
 	privKeyPEM, err := p.GenerateKey()
@@ -45,9 +47,32 @@ func TestProtocol(t *testing.T) {
 		AuthToken:  "password1234",
 	}
 
+	// check not exists
+	_, err = p.GetIdentity(testIdentity.Uid)
+	if err != ErrNotExist {
+		t.Error("GetIdentity did not return ErrNotExist")
+	}
+
+	exists, err := p.Exists(testIdentity.Uid)
+	if err != nil {
+		t.Error(err)
+	}
+	if exists {
+		t.Error("Exists returned TRUE")
+	}
+
 	err = p.StoreNewIdentity(nil, testIdentity)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// check exists
+	exists, err = p.Exists(testIdentity.Uid)
+	if err != nil {
+		t.Error(err)
+	}
+	if !exists {
+		t.Error("Exists returned FALSE")
 	}
 
 	storedIdentity, err := p.GetIdentity(testIdentity.Uid)
@@ -92,6 +117,8 @@ func TestProtocolLoad(t *testing.T) {
 		Crypto:       crypto,
 		ctxManager:   dm,
 		keyEncrypter: enc,
+
+		identityCache: &sync.Map{},
 	}
 
 	// generate identities
@@ -149,6 +176,9 @@ func (m *mockCtxMngr) StoreNewIdentity(tx interface{}, id Identity) error {
 }
 
 func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (*Identity, error) {
+	if m.id.Uid == uuid.Nil {
+		return nil, ErrNotExist
+	}
 	return &m.id, nil
 }
 
