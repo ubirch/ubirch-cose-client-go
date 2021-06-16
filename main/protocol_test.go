@@ -27,8 +27,11 @@ func TestProtocol(t *testing.T) {
 		ctxManager:   &mockCtxMngr{},
 		keyEncrypter: enc,
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		identityCache:      map[uuid.UUID]*Identity{},
+		identityCacheMutex: &sync.RWMutex{},
+
+		uidCache:      map[string]uuid.UUID{},
+		uidCacheMutex: &sync.RWMutex{},
 	}
 
 	privKeyPEM, err := p.GenerateKey()
@@ -119,13 +122,16 @@ func TestProtocolLoad(t *testing.T) {
 		ctxManager:   dm,
 		keyEncrypter: enc,
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		identityCache:      map[uuid.UUID]*Identity{},
+		identityCacheMutex: &sync.RWMutex{},
+
+		uidCache:      map[string]uuid.UUID{},
+		uidCacheMutex: &sync.RWMutex{},
 	}
 
 	// generate identities
 	var testIdentities []*Identity
-	for i := 0; i < testLoad/10; i++ {
+	for i := 0; i < testLoad; i++ {
 		testId := generateRandomIdentity()
 
 		testId.PrivateKey, err = p.GenerateKey()

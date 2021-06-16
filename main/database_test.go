@@ -16,7 +16,7 @@ import (
 
 const (
 	testTableName = "test_cose_identity"
-	testLoad      = 10000
+	testLoad      = 1000
 )
 
 func TestDatabaseManager(t *testing.T) {

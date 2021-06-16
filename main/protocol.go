@@ -104,11 +104,29 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 		}
 	}()
 
+	// frequently clear caches
+	go func() {
+		for range time.Tick(time.Hour) {
+			p.clearCaches()
+		}
+	}()
+
 	return p, nil
 }
 
 func (p *Protocol) Close() {
 	p.ctxManager.Close()
+}
+
+func (p *Protocol) clearCaches() {
+	p.identityCacheMutex.Lock()
+	defer p.identityCacheMutex.Unlock()
+
+	p.uidCacheMutex.Lock()
+	defer p.uidCacheMutex.Unlock()
+
+	p.identityCache = make(map[uuid.UUID]*Identity)
+	p.uidCache = make(map[string]uuid.UUID)
 }
 
 func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
