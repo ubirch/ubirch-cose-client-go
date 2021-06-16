@@ -199,3 +199,7 @@ func (m *mockCtxMngr) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
 func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
 	panic("implement me")
 }
+
+func (m *mockCtxMngr) Close() {
+	panic("implement me")
+}

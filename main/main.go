@@ -130,12 +130,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer func() {
-		err = ctxManager.Close()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
+	defer ctxManager.Close()
 
 	client := &ExtendedClient{}
 	client.KeyServiceURL = conf.KeyService
