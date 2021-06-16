@@ -259,6 +259,11 @@ func cleanUp(t *testing.T, dm *DatabaseManager) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	err = dm.db.Close()
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func generateRandomIdentity() *Identity {
@@ -287,15 +292,20 @@ func storeIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 
 	tx, err := ctxMngr.StartTransaction(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("StartTransaction: %v", err)
 	}
 
 	err = ctxMngr.StoreNewIdentity(tx, *id)
 	if err != nil {
-		return err
+		return fmt.Errorf("StoreNewIdentity: %v", err)
 	}
 
-	return ctxMngr.CloseTransaction(tx, Commit)
+	err = ctxMngr.CloseTransaction(tx, Commit)
+	if err != nil {
+		return fmt.Errorf("CloseTransaction: %v", err)
+	}
+
+	return nil
 }
 
 func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
