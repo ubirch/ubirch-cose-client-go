@@ -56,8 +56,11 @@ type Protocol struct {
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
 
-	identityCache *sync.Map // {<uid>: <*identity>}
-	uidCache      *sync.Map // {<pub>: <uid>}
+	identityCache      map[uuid.UUID]*Identity
+	identityCacheMutex *sync.RWMutex
+
+	uidCache      map[string]uuid.UUID // {<pub>: <uid>}
+	uidCacheMutex *sync.RWMutex
 
 	skidStore           map[uuid.UUID][]byte
 	skidStoreMutex      *sync.RWMutex
@@ -81,8 +84,11 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 		ctxManager:     ctxManager,
 		keyEncrypter:   enc,
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		identityCache:      map[uuid.UUID]*Identity{},
+		identityCacheMutex: &sync.RWMutex{},
+
+		uidCache:      map[string]uuid.UUID{},
+		uidCacheMutex: &sync.RWMutex{},
 
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -143,23 +149,33 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, identity Identity) error {
 	return p.ctxManager.StoreNewIdentity(tx, identity)
 }
 
-func (p *Protocol) GetIdentity(uid uuid.UUID) (id *Identity, err error) {
-	_id, found := p.identityCache.Load(uid)
-
-	if found {
-		id, found = _id.(*Identity)
-	}
-
+func (p *Protocol) GetIdentity(uid uuid.UUID) (*Identity, error) {
+	id, found := p.loadIdentityFromCache(uid)
 	if !found {
+		var err error
 		id, err = p.fetchIdentityFromStorage(uid)
 		if err != nil {
 			return nil, err
 		}
 
-		p.identityCache.Store(uid, id)
+		p.storeIdentityInCache(uid, id)
 	}
 
 	return id, nil
+}
+
+func (p *Protocol) loadIdentityFromCache(uid uuid.UUID) (*Identity, bool) {
+	p.identityCacheMutex.RLock()
+	id, exists := p.identityCache[uid]
+	p.identityCacheMutex.RUnlock()
+
+	return id, exists
+}
+
+func (p *Protocol) storeIdentityInCache(uid uuid.UUID, id *Identity) {
+	p.identityCacheMutex.Lock()
+	p.identityCache[uid] = id
+	p.identityCacheMutex.Unlock()
 }
 
 func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (*Identity, error) {
@@ -203,7 +219,7 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (*Identity, error) {
 	return i, nil
 }
 
-func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
+func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID, error) {
 	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
 	if err != nil {
 		return uuid.Nil, err
@@ -211,22 +227,31 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 
 	publicKeyBytesBase64 := base64.StdEncoding.EncodeToString(publicKeyBytes)
 
-	_uid, found := p.uidCache.Load(publicKeyBytesBase64)
-
-	if found {
-		uid, found = _uid.(uuid.UUID)
-	}
-
+	uid, found := p.loadUuidForPublicKeyFromCache(publicKeyBytesBase64)
 	if !found {
 		uid, err = p.fetchUuidForPublicKeyFromStorage(publicKeyBytes)
 		if err != nil {
 			return uuid.Nil, err
 		}
 
-		p.uidCache.Store(publicKeyBytesBase64, uid)
+		p.storeUuidForPublicKeyInCache(publicKeyBytesBase64, uid)
 	}
 
 	return uid, nil
+}
+
+func (p *Protocol) loadUuidForPublicKeyFromCache(pub string) (uuid.UUID, bool) {
+	p.uidCacheMutex.RLock()
+	uid, exists := p.uidCache[pub]
+	p.uidCacheMutex.RUnlock()
+
+	return uid, exists
+}
+
+func (p *Protocol) storeUuidForPublicKeyInCache(pub string, uid uuid.UUID) {
+	p.uidCacheMutex.Lock()
+	p.uidCache[pub] = uid
+	p.uidCacheMutex.Unlock()
 }
 
 func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid uuid.UUID, err error) {
