@@ -73,11 +73,11 @@ func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 	for i, id := range *identities {
 		log.Infof("%4d: %s", i+1, id.Uid)
 
-		exists, err := dm.ExistsPrivateKey(id.Uid)
-		if err != nil {
+		_, err = dm.GetIdentity(id.Uid)
+		if err != nil && err != ErrNotExist {
 			return err
 		}
-		if exists {
+		if err == nil {
 			log.Warnf("%s: identity already exists in database", id.Uid)
 		}
 

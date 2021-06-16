@@ -72,11 +72,6 @@ var _ ContextManager = (*DatabaseManager)(nil)
 func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabaseParams) (*DatabaseManager, error) {
 	log.Infof("preparing postgres usage")
 
-	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
-	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
-	log.Debugf("ConnMaxLifetime: %s", dbParams.ConnMaxLifetime.String())
-	log.Debugf("ConnMaxIdleTime: %s", dbParams.ConnMaxIdleTime.String())
-
 	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
@@ -89,6 +84,11 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 		return nil, err
 	}
 
+	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
+	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
+	log.Debugf("ConnMaxLifetime: %s", dbParams.ConnMaxLifetime.String())
+	log.Debugf("ConnMaxIdleTime: %s", dbParams.ConnMaxIdleTime.String())
+
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelSerializable,
@@ -98,118 +98,19 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 		tableName: tableName,
 	}
 
-	if _, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
+	_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
+	if err != nil {
 		return nil, err
 	}
-
-	//log.Debugf("    MaxOpenConnections %4d", dm.db.Stats().MaxOpenConnections)
-	//log.Debugf("    OpenConnections    %4d", dm.db.Stats().OpenConnections)
-	//log.Debugf("    InUse              %4d", dm.db.Stats().InUse)
-	//log.Debugf("    Idle               %4d", dm.db.Stats().Idle)
-	//log.Debugf("    WaitCount          %4d", dm.db.Stats().WaitCount)
-	//log.Debugf("    WaitDuration       %5s", dm.db.Stats().WaitDuration.String())
-	//log.Debugf("    MaxIdleClosed      %4d", dm.db.Stats().MaxIdleClosed)
-	//log.Debugf("    MaxIdleTimeClosed  %4d", dm.db.Stats().MaxIdleTimeClosed)
-	//log.Debugf("    MaxLifetimeClosed  %4d", dm.db.Stats().MaxLifetimeClosed)
 
 	return dm, nil
 }
 
-func (dm *DatabaseManager) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
-	var privateKey []byte
-
-	query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
+func (dm *DatabaseManager) Close() {
+	err := dm.db.Close()
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		} else {
-			return false, err
-		}
-	} else {
-		return true, nil
+		log.Errorf("failed to close database: %v", err)
 	}
-}
-
-func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	var privateKey []byte
-
-	query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotExist
-		}
-		return nil, err
-	}
-
-	return privateKey, nil
-}
-
-func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
-	var publicKey []byte
-
-	query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&publicKey)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotExist
-		}
-		return nil, err
-	}
-
-	return publicKey, nil
-}
-
-func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
-	var authToken string
-
-	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&authToken)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", ErrNotExist
-		}
-		return "", err
-	}
-
-	return authToken, nil
-}
-
-func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
-	var uid uuid.UUID
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return uuid.Nil, ErrNotExist
-		}
-		return uuid.Nil, err
-	}
-
-	return uid, nil
-}
-
-func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (*Identity, error) {
-	var id Identity
-
-	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotExist
-		}
-		return nil, err
-	}
-
-	return &id, nil
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
@@ -245,6 +146,38 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	}
 
 	return nil
+}
+
+func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (*Identity, error) {
+	var id Identity
+
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotExist
+		}
+		return nil, err
+	}
+
+	return &id, nil
+}
+
+func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
+	var uid uuid.UUID
+
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE public_key = $1", dm.tableName)
+
+	err := dm.db.QueryRow(query, pubKey).Scan(&uid)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return uuid.Nil, ErrNotExist
+		}
+		return uuid.Nil, err
+	}
+
+	return uid, nil
 }
 
 func isConnectionNotAvailable(err error) bool {

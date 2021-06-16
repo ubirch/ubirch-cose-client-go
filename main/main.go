@@ -130,6 +130,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer ctxManager.Close()
 
 	client := &ExtendedClient{}
 	client.KeyServiceURL = conf.KeyService
@@ -161,7 +162,7 @@ func main() {
 
 	// set up endpoint for identity registration
 	creator := handlers.NewIdentityCreator(conf.RegisterAuth)
-	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, idHandler.protocol.ExistsPrivateKey))
+	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, idHandler.protocol.Exists))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
