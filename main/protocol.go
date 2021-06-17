@@ -122,25 +122,25 @@ func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
 	return p.ctxManager.CloseTransaction(tx, commit)
 }
 
-func (p *Protocol) StoreNewIdentity(tx interface{}, identity Identity) error {
-	err := p.checkIdentityAttributesNotNil(&identity)
+func (p *Protocol) StoreNewIdentity(tx interface{}, id Identity) error {
+	err := p.checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
 	}
 
 	// encrypt private key
-	identity.PrivateKey, err = p.keyEncrypter.Encrypt(identity.PrivateKey)
+	id.PrivateKey, err = p.keyEncrypter.Encrypt(id.PrivateKey)
 	if err != nil {
 		return err
 	}
 
 	// store public key raw bytes
-	identity.PublicKey, err = p.PublicKeyPEMToBytes(identity.PublicKey)
+	id.PublicKey, err = p.PublicKeyPEMToBytes(id.PublicKey)
 	if err != nil {
 		return err
 	}
 
-	return p.ctxManager.StoreNewIdentity(tx, identity)
+	return p.ctxManager.StoreNewIdentity(tx, id)
 }
 
 func (p *Protocol) GetIdentity(uid uuid.UUID) (id *Identity, err error) {
@@ -162,14 +162,9 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id *Identity, err error) {
 	return id, nil
 }
 
-func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (*Identity, error) {
-	var (
-		identityFromStorage *Identity
-		err                 error
-	)
-
+func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id *Identity, err error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
-		identityFromStorage, err = p.ctxManager.GetIdentity(uid)
+		id, err = p.ctxManager.GetIdentity(uid)
 		if err != nil && isConnectionNotAvailable(err) {
 			log.Debugf("GetIdentity connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
 			continue
@@ -180,27 +175,22 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (*Identity, error) {
 		return nil, err
 	}
 
-	i := &Identity{
-		Uid:       identityFromStorage.Uid,
-		AuthToken: identityFromStorage.AuthToken,
-	}
-
-	i.PrivateKey, err = p.keyEncrypter.Decrypt(identityFromStorage.PrivateKey)
+	id.PrivateKey, err = p.keyEncrypter.Decrypt(id.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	i.PublicKey, err = p.PublicKeyBytesToPEM(identityFromStorage.PublicKey)
+	id.PublicKey, err = p.PublicKeyBytesToPEM(id.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 
-	err = p.checkIdentityAttributesNotNil(i)
+	err = p.checkIdentityAttributesNotNil(id)
 	if err != nil {
 		return nil, err
 	}
 
-	return i, nil
+	return id, nil
 }
 
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
