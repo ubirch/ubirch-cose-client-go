@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -40,20 +39,7 @@ func TestDatabaseManager(t *testing.T) {
 	}
 
 	// store identity
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := dm.StartTransaction(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = dm.StoreNewIdentity(tx, *testIdentity)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = dm.CloseTransaction(tx, Commit)
+	err = dm.StoreNewIdentity(*testIdentity)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,32 +80,14 @@ func TestStoreExisting(t *testing.T) {
 
 	testIdentity := generateRandomIdentity()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// store identity
-	tx, err := dm.StartTransaction(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = dm.StoreNewIdentity(tx, *testIdentity)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = dm.CloseTransaction(tx, Commit)
+	err = dm.StoreNewIdentity(*testIdentity)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// store same identity again
-	tx2, err := dm.StartTransaction(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = dm.StoreNewIdentity(tx2, *testIdentity)
+	err = dm.StoreNewIdentity(*testIdentity)
 	if err == nil {
 		t.Fatal("existing identity was overwritten")
 	}
@@ -228,25 +196,7 @@ func generateRandomIdentity() *Identity {
 func storeIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := ctxMngr.StartTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf("StartTransaction: %v", err)
-	}
-
-	err = ctxMngr.StoreNewIdentity(tx, *id)
-	if err != nil {
-		return fmt.Errorf("StoreNewIdentity: %v", err)
-	}
-
-	err = ctxMngr.CloseTransaction(tx, Commit)
-	if err != nil {
-		return fmt.Errorf("CloseTransaction: %v", err)
-	}
-
-	return nil
+	return ctxMngr.StoreNewIdentity(*id)
 }
 
 func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {

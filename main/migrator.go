@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 )
@@ -65,7 +66,7 @@ func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := dm.StartTransaction(ctx)
+	tx, err := dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
 		return err
 	}
@@ -93,11 +94,24 @@ func migrateIdentities(dm *DatabaseManager, identities *[]*Identity) error {
 			return fmt.Errorf("%s: empty auth token", id.Uid)
 		}
 
-		err = dm.StoreNewIdentity(tx, *id)
+		err = storeNewIdentity(dm.tableName, tx, *id)
 		if err != nil {
 			return err
 		}
 	}
 
-	return dm.CloseTransaction(tx, Commit)
+	return tx.Commit()
+}
+
+func storeNewIdentity(tableName string, tx *sql.Tx, identity Identity) error {
+	query := fmt.Sprintf(
+		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
+		tableName)
+
+	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

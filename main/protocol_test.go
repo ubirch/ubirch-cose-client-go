@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -62,7 +61,7 @@ func TestProtocol(t *testing.T) {
 		t.Error("Exists returned TRUE")
 	}
 
-	err = p.StoreNewIdentity(nil, testIdentity)
+	err = p.StoreNewIdentity(testIdentity)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +171,7 @@ type mockCtxMngr struct {
 
 var _ ContextManager = (*mockCtxMngr)(nil)
 
-func (m *mockCtxMngr) StoreNewIdentity(tx interface{}, id Identity) error {
+func (m *mockCtxMngr) StoreNewIdentity(id Identity) error {
 	m.id = id
 	return nil
 }
@@ -182,18 +181,6 @@ func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (*Identity, error) {
 		return nil, ErrNotExist
 	}
 	return &m.id, nil
-}
-
-func (m *mockCtxMngr) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	panic("implement me")
-}
-
-func (m *mockCtxMngr) CloseTransaction(transactionCtx interface{}, commit bool) error {
-	panic("implement me")
-}
-
-func (m *mockCtxMngr) ExistsPrivateKey(uid uuid.UUID) (bool, error) {
-	panic("implement me")
 }
 
 func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {

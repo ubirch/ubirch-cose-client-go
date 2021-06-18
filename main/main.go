@@ -132,13 +132,11 @@ func main() {
 	}
 	defer ctxManager.Close()
 
-	client := &ExtendedClient{}
-	client.KeyServiceURL = conf.KeyService
-	client.IdentityServiceURL = conf.IdentityService
-	//todo client.SigningServiceURL = conf.SigningService
-	client.CertificateServerURL = conf.CertificateServer
-	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
-	client.ServerTLSCertFingerprints = conf.ServerTLSCertFingerprints
+	client := &Client{
+		CertificateServerURL:       conf.CertificateServer,
+		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
+		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
+	}
 
 	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client, conf.ReloadCertsEveryMinute)
 	if err != nil {

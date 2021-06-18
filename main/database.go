@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"github.com/google/uuid"
@@ -113,34 +112,12 @@ func (dm *DatabaseManager) Close() {
 	}
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return dm.db.BeginTx(ctx, dm.options)
-}
-
-func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	if commit {
-		return tx.Commit()
-	} else {
-		return tx.Rollback()
-	}
-}
-
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity Identity) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
+func (dm *DatabaseManager) StoreNewIdentity(identity Identity) error {
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
 		dm.tableName)
 
-	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
+	_, err := dm.db.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
 	if err != nil {
 		return err
 	}

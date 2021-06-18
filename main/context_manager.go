@@ -1,16 +1,10 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
-)
-
-const (
-	Commit   = true
-	Rollback = false
 )
 
 var (
@@ -19,10 +13,7 @@ var (
 )
 
 type ContextManager interface {
-	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	CloseTransaction(transactionCtx interface{}, commit bool) error
-
-	StoreNewIdentity(tx interface{}, id Identity) error
+	StoreNewIdentity(id Identity) error
 	GetIdentity(uid uuid.UUID) (*Identity, error)
 
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)

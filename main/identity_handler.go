@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 ubirch GmbH
+// Copyright (c) 2021 ubirch GmbH
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -55,11 +54,6 @@ func (i *IdentityHandler) initIdentities(identities []*Identity) error {
 			continue
 		}
 
-		// make sure identity has an auth token
-		if len(id.AuthToken) == 0 {
-			return fmt.Errorf("missing auth token for identity %s", id.Uid)
-		}
-
 		_, err = i.initIdentity(id.Uid, id.AuthToken)
 		if err != nil {
 			return err
@@ -90,26 +84,7 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		AuthToken:  auth,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := i.protocol.StartTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	err = i.protocol.StoreNewIdentity(tx, newIdentity)
-	if err != nil {
-		return nil, err
-	}
-
-	// register public key at the ubirch backend
-	csr, err = i.registerPublicKey(privKeyPEM, uid)
-	if err != nil {
-		return nil, err
-	}
-
-	err = i.protocol.CloseTransaction(tx, Commit)
+	err = i.protocol.StoreNewIdentity(newIdentity)
 	if err != nil {
 		return nil, err
 	}
@@ -118,34 +93,4 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	auditlogger.AuditLog("create", "device", infos)
 
 	return csr, nil
-}
-
-func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {
-	keyRegistration, err := i.protocol.GetSignedKeyRegistration(privKeyPEM, uid)
-	if err != nil {
-		return nil, fmt.Errorf("error creating public key certificate: %v", err)
-	}
-	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
-
-	csr, err = i.protocol.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
-	if err != nil {
-		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
-	}
-	log.Debugf("%s: CSR [der]: %x", uid, csr)
-
-	err = i.protocol.SubmitKeyRegistration(uid, keyRegistration, "")
-	if err != nil {
-		return nil, fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
-	}
-
-	go i.submitCSROrLogError(uid, csr)
-
-	return csr, nil
-}
-
-func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
-	err := i.protocol.SubmitCSR(uid, csr)
-	if err != nil {
-		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
-	}
 }

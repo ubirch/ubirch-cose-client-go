@@ -21,11 +21,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"io/ioutil"
 	"net/http"
-	"path"
 	"strings"
 	"time"
 
@@ -33,24 +30,10 @@ import (
 	urlpkg "net/url"
 )
 
-type ExtendedClient struct {
-	clients.Client
-	SigningServiceURL          string
+type Client struct {
 	CertificateServerURL       string
 	CertificateServerPubKeyURL string
 	ServerTLSCertFingerprints  map[string][32]byte
-}
-
-func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	endpoint := path.Join(c.SigningServiceURL, uid.String(), "hash")
-	return clients.Post(endpoint, upp, UCCHeader(auth))
-}
-
-func UCCHeader(auth string) map[string]string {
-	return map[string]string{
-		"x-auth-token": auth,
-		"content-type": "application/octet-stream",
-	}
 }
 
 type trustList struct {
@@ -70,7 +53,7 @@ type Certificate struct {
 
 type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
 
-func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, error) {
+func (c *Client) RequestCertificateList(verify Verify) ([]Certificate, error) {
 	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key certificate list failed: %v", err)
@@ -111,7 +94,7 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 	return newTrustList.Certificates, nil
 }
 
-func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
+func (c *Client) RequestCertificateListPublicKey() ([]byte, error) {
 	resp, err := c.getWithCertPinning(c.CertificateServerPubKeyURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key for certificate list verification failed: %v", err)
@@ -120,7 +103,7 @@ func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
 	return resp, nil
 }
 
-func (c *ExtendedClient) getWithCertPinning(url string) ([]byte, error) {
+func (c *Client) getWithCertPinning(url string) ([]byte, error) {
 	// get TLS certificate fingerprint for host
 	u, err := urlpkg.Parse(url)
 	if err != nil {

@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -52,7 +51,7 @@ func setInterval(reloadEveryMinute bool) {
 
 type Protocol struct {
 	ubirch.Crypto
-	*ExtendedClient
+	*Client
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
 
@@ -67,7 +66,7 @@ type Protocol struct {
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClient, reloadCertsEveryMinute bool) (*Protocol, error) {
+func NewProtocol(ctxManager ContextManager, secret []byte, client *Client, reloadCertsEveryMinute bool) (*Protocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
 	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
@@ -76,10 +75,10 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 	}
 
 	p := &Protocol{
-		Crypto:         crypto,
-		ExtendedClient: client,
-		ctxManager:     ctxManager,
-		keyEncrypter:   enc,
+		Crypto:       crypto,
+		Client:       client,
+		ctxManager:   ctxManager,
+		keyEncrypter: enc,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -105,24 +104,7 @@ func (p *Protocol) Close() {
 	p.ctxManager.Close()
 }
 
-func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	for i := 0; i < maxDbConnAttempts; i++ {
-		transactionCtx, err = p.ctxManager.StartTransaction(ctx)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("StartTransaction connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
-			continue
-		}
-		break
-	}
-
-	return transactionCtx, err
-}
-
-func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
-	return p.ctxManager.CloseTransaction(tx, commit)
-}
-
-func (p *Protocol) StoreNewIdentity(tx interface{}, id Identity) error {
+func (p *Protocol) StoreNewIdentity(id Identity) error {
 	err := p.checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
@@ -140,7 +122,15 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, id Identity) error {
 		return err
 	}
 
-	return p.ctxManager.StoreNewIdentity(tx, id)
+	for i := 0; i < maxDbConnAttempts; i++ {
+		err = p.ctxManager.StoreNewIdentity(id)
+		if err != nil && isConnectionNotAvailable(err) {
+			log.Debugf("StoreNewIdentity connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+			continue
+		}
+		break
+	}
+	return err
 }
 
 func (p *Protocol) GetIdentity(uid uuid.UUID) (id *Identity, err error) {
