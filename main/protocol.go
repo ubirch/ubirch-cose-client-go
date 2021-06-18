@@ -275,6 +275,12 @@ func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
 	return skid, nil
 }
 
+func (p *Protocol) setSkidStore(newSkidStore map[uuid.UUID][]byte) {
+	p.skidStoreMutex.Lock()
+	p.skidStore = newSkidStore
+	p.skidStoreMutex.Unlock()
+}
+
 func (p *Protocol) loadSKIDs() {
 	certs, err := p.RequestCertificateList(p.Verify)
 	if err != nil {
@@ -300,10 +306,7 @@ func (p *Protocol) loadSKIDs() {
 		p.certLoadFailCounter = 0
 	}
 
-	// clear the SKID lookup
-	p.skidStoreMutex.Lock()
-	defer p.skidStoreMutex.Unlock()
-	p.skidStore = make(map[uuid.UUID][]byte)
+	tempSkidStore := map[uuid.UUID][]byte{}
 
 	// go through certificate list and match known public keys
 	for _, cert := range certs {
@@ -337,10 +340,11 @@ func (p *Protocol) loadSKIDs() {
 			continue
 		}
 
-		// store KID
-		p.skidStore[uid] = cert.Kid
+		tempSkidStore[uid] = cert.Kid
 	}
 
-	skids, _ := json.Marshal(p.skidStore)
-	log.Infof("loaded %d matching certificates from server: %s", len(p.skidStore), skids)
+	p.setSkidStore(tempSkidStore)
+
+	skids, _ := json.Marshal(tempSkidStore)
+	log.Infof("loaded %d matching certificates from server: %s", len(tempSkidStore), skids)
 }
