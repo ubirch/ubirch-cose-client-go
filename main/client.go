@@ -16,12 +16,16 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -51,9 +55,7 @@ type Certificate struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
-type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
-
-func (c *Client) RequestCertificateList(verify Verify) ([]Certificate, error) {
+func (c *Client) RequestCertificateList() ([]Certificate, error) {
 	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key certificate list failed: %v", err)
@@ -77,7 +79,7 @@ func (c *Client) RequestCertificateList(verify Verify) ([]Certificate, error) {
 
 	certList := []byte(respContent[1])
 
-	ok, err := verify(pubKeyPEM, certList, signature)
+	ok, err := c.verifySignature(pubKeyPEM, certList, signature)
 	if err != nil {
 		return nil, fmt.Errorf("unable to verify signature for public key certificate list: %v", err)
 	}
@@ -143,26 +145,6 @@ func (c *Client) getWithCertPinning(url string) ([]byte, error) {
 	return ioutil.ReadAll(resp.Body)
 }
 
-//// VerifyPeerCertificate is called after normal certificate verification by either a TLS client or server. It receives
-//// the raw ASN.1 certificates provided by the peer and also any verified chains that normal processing found.
-//// If it returns a non-nil error, the handshake is aborted and that error results.
-////
-//// If normal verification fails then the handshake will abort before considering this callback.
-//type VerifyPeerCertificate func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
-//
-//func NewPeerCertificateVerifier(fingerprint [32]byte) VerifyPeerCertificate {
-//	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-//
-//		serverCertFingerprint := sha256.Sum256(rawCerts[0])
-//
-//		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
-//			return fmt.Errorf("pinned server TLS certificate mismatch")
-//		}
-//
-//		return nil
-//	}
-//}
-
 // VerifyConnection is called after normal certificate verification and after VerifyPeerCertificate by
 // either a TLS client or server. If it returns a non-nil error, the handshake is aborted and that error results.
 //
@@ -183,4 +165,43 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 
 		return nil
 	}
+}
+
+const (
+	nistp256RLength         = 32                                //Bytes
+	nistp256SLength         = 32                                //Bytes
+	nistp256SignatureLength = nistp256RLength + nistp256SLength //Bytes, Signature = concatenate(R,S)
+)
+
+func (c *Client) verifySignature(pubKeyPEM []byte, data []byte, signature []byte) (bool, error) {
+	if len(data) == 0 {
+		return false, fmt.Errorf("empty data cannot be verified")
+	}
+	if len(signature) != nistp256SignatureLength {
+		return false, fmt.Errorf("wrong signature length: expected: %d, got: %d", nistp256SignatureLength, len(signature))
+	}
+
+	pub, err := decodePublicKey(pubKeyPEM)
+	if err != nil {
+		return false, err
+	}
+
+	r, s := &big.Int{}, &big.Int{}
+	r.SetBytes(signature[:nistp256RLength])
+	s.SetBytes(signature[nistp256SLength:])
+
+	hash := sha256.Sum256(data)
+	return ecdsa.Verify(pub, hash[:], r, s), nil
+}
+
+func decodePublicKey(pemEncoded []byte) (*ecdsa.PublicKey, error) {
+	block, _ := pem.Decode(pemEncoded)
+	if block == nil {
+		return nil, fmt.Errorf("unable to parse PEM block")
+	}
+	genericPublicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	return genericPublicKey.(*ecdsa.PublicKey), nil
 }

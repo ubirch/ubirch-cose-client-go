@@ -15,6 +15,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -23,10 +24,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
 	log "github.com/sirupsen/logrus"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 )
 
 const (
@@ -66,19 +65,13 @@ type Protocol struct {
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(ctxManager ContextManager, secret []byte, client *Client, reloadCertsEveryMinute bool) (*Protocol, error) {
-	crypto := &ubirch.ECDSACryptoContext{}
-
-	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
-	if err != nil {
-		return nil, err
-	}
+func NewProtocol(ctxManager ContextManager, client *Client, reloadCertsEveryMinute bool) (*Protocol, error) {
+	crypto := &ubirch.ECDSAPKCS11CryptoContext{}
 
 	p := &Protocol{
-		Crypto:       crypto,
-		Client:       client,
-		ctxManager:   ctxManager,
-		keyEncrypter: enc,
+		Crypto:     crypto,
+		Client:     client,
+		ctxManager: ctxManager,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -106,18 +99,6 @@ func (p *Protocol) Close() {
 
 func (p *Protocol) StoreNewIdentity(id Identity) error {
 	err := p.checkIdentityAttributesNotNil(&id)
-	if err != nil {
-		return err
-	}
-
-	// encrypt private key
-	id.PrivateKey, err = p.keyEncrypter.Encrypt(id.PrivateKey)
-	if err != nil {
-		return err
-	}
-
-	// store public key raw bytes
-	id.PublicKey, err = p.PublicKeyPEMToBytes(id.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -165,16 +146,6 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id *Identity, err er
 		return nil, err
 	}
 
-	id.PrivateKey, err = p.keyEncrypter.Decrypt(id.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	id.PublicKey, err = p.PublicKeyBytesToPEM(id.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-
 	err = p.checkIdentityAttributesNotNil(id)
 	if err != nil {
 		return nil, err
@@ -184,26 +155,22 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id *Identity, err er
 }
 
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
-	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
-	if err != nil {
-		return uuid.Nil, err
-	}
+	sum256 := sha256.Sum256(publicKeyPEM)
+	pubKeyID := base64.StdEncoding.EncodeToString(sum256[:16])
 
-	publicKeyBytesBase64 := base64.StdEncoding.EncodeToString(publicKeyBytes)
-
-	_uid, found := p.uidCache.Load(publicKeyBytesBase64)
+	_uid, found := p.uidCache.Load(pubKeyID)
 
 	if found {
 		uid, found = _uid.(uuid.UUID)
 	}
 
 	if !found {
-		uid, err = p.fetchUuidForPublicKeyFromStorage(publicKeyBytes)
+		uid, err = p.fetchUuidForPublicKeyFromStorage(publicKeyPEM)
 		if err != nil {
 			return uuid.Nil, err
 		}
 
-		p.uidCache.Store(publicKeyBytesBase64, uid)
+		p.uidCache.Store(pubKeyID, uid)
 	}
 
 	return uid, nil
@@ -238,10 +205,6 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
 
-	if len(i.PrivateKey) == 0 {
-		return fmt.Errorf("empty private key")
-	}
-
 	if len(i.PublicKey) == 0 {
 		return fmt.Errorf("empty public key")
 	}
@@ -272,7 +235,7 @@ func (p *Protocol) setSkidStore(newSkidStore map[uuid.UUID][]byte) {
 }
 
 func (p *Protocol) loadSKIDs() {
-	certs, err := p.RequestCertificateList(p.Verify)
+	certs, err := p.RequestCertificateList()
 	if err != nil {
 		log.Error(err)
 

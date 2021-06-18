@@ -30,11 +30,7 @@ type IdentityHandler struct {
 }
 
 type Identity struct {
-	//Tenant     string    `json:"tenant"`
-	//Category   string    `json:"category"`
-	//Poc        string    `json:"poc"` // can be empty
 	Uid        uuid.UUID `json:"uuid"`
-	PrivateKey []byte    `json:"privKey"`
 	PublicKey  []byte    `json:"pubKey"`
 	AuthToken  string    `json:"token"`
 }
@@ -79,7 +75,6 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 
 	newIdentity := Identity{
 		Uid:        uid,
-		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
 		AuthToken:  auth,
 	}

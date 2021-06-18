@@ -5,12 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"math/rand"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -48,9 +49,6 @@ func TestDatabaseManager(t *testing.T) {
 	idFromDb, err := dm.GetIdentity(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
-	}
-	if !bytes.Equal(idFromDb.PrivateKey, testIdentity.PrivateKey) {
-		t.Error("GetIdentity returned unexpected PrivateKey value")
 	}
 	if !bytes.Equal(idFromDb.PublicKey, testIdentity.PublicKey) {
 		t.Error("GetIdentity returned unexpected PublicKey value")
@@ -187,7 +185,6 @@ func generateRandomIdentity() *Identity {
 
 	return &Identity{
 		Uid:        uuid.New(),
-		PrivateKey: priv,
 		PublicKey:  pub,
 		AuthToken:  base64.StdEncoding.EncodeToString(auth),
 	}
@@ -205,9 +202,6 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 	idFromCtx, err := ctxMngr.GetIdentity(id.Uid)
 	if err != nil {
 		return err
-	}
-	if !bytes.Equal(idFromCtx.PrivateKey, id.PrivateKey) {
-		return fmt.Errorf("GetIdentity returned unexpected PrivateKey value")
 	}
 	if !bytes.Equal(idFromCtx.PublicKey, id.PublicKey) {
 		return fmt.Errorf("GetIdentity returned unexpected PublicKey value")

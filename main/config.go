@@ -17,13 +17,11 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,16 +31,10 @@ import (
 )
 
 const (
-	secretLength = 32
-
-	PROD_STAGE = "prod"
-
-	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
-	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
-	//defaultSigningServiceURL = "http://localhost:8080"
+	ProdStage = "prod"
 
 	identitiesFileName = "identities.json"
-	TLSCertsFileName   = "%s_ubirch_tls_certs.json"
+	tlsCertsFileName   = "%s_ubirch_tls_certs.json"
 
 	defaultCSRCountry      = "DE"
 	defaultCSROrganization = "ubirch GmbH"
@@ -59,42 +51,37 @@ const (
 )
 
 type Config struct {
-	Tokens                  map[uuid.UUID]string `json:"tokens"`
-	SecretBase64            string               `json:"secret32" envconfig:"SECRET32"`                                 // 32 byte secret used to encrypt the key store (mandatory)
-	RegisterAuth            string               `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
-	Env                     string               `json:"env"`                                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	PostgresDSN             string               `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
-	DbMaxOpenConns          string               `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                  // maximum number of open connections to the database
-	DbMaxIdleConns          string               `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                  // maximum number of connections in the idle connection pool
-	DbConnMaxLifetime       string               `json:"dbConnMaxLifetime" envconfig:"DB_CONN_MAX_LIFETIME"`            // maximum amount of time in minutes a connection may be reused
-	DbConnMaxIdleTime       string               `json:"dbConnMaxIdleTime" envconfig:"DB_CONN_MAX_IDLE_TIME"`           // maximum amount of time in minutes a connection may be idle
-	TCP_addr                string               `json:"TCP_addr"`                                                      // the TCP address for the server to listen on, in the form "host:port"
-	TLS                     bool                 `json:"TLS"`                                                           // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile            string               `json:"TLSCertFile"`                                                   // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile             string               `json:"TLSKeyFile"`                                                    // filename of TLS key file name, defaults to "key.pem"
-	CSR_Country             string               `json:"CSR_country"`                                                   // subject country for public key Certificate Signing Requests
-	CSR_Organization        string               `json:"CSR_organization"`                                              // subject organization for public key Certificate Signing Requests
-	Debug                   bool                 `json:"debug"`                                                         // enable extended debug output, defaults to 'false'
-	LogTextFormat           bool                 `json:"logTextFormat"`                                                 // log in text format for better human readability, default format is JSON
-	CertificateServer       string               `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
-	CertificateServerPubKey string               `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
-	ReloadCertsEveryMinute  bool                 `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
-	KeyService              string               // key service URL
-	IdentityService         string               // identity service URL
-	//SigningService   string               // signing service URL
+	Tokens                    map[uuid.UUID]string `json:"tokens"`
+	RegisterAuth              string               `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
+	Env                       string               `json:"env"`                                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	PostgresDSN               string               `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
+	DbMaxOpenConns            string               `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                  // maximum number of open connections to the database
+	DbMaxIdleConns            string               `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                  // maximum number of connections in the idle connection pool
+	DbConnMaxLifetime         string               `json:"dbConnMaxLifetime" envconfig:"DB_CONN_MAX_LIFETIME"`            // maximum amount of time in minutes a connection may be reused
+	DbConnMaxIdleTime         string               `json:"dbConnMaxIdleTime" envconfig:"DB_CONN_MAX_IDLE_TIME"`           // maximum amount of time in minutes a connection may be idle
+	TCP_addr                  string               `json:"TCP_addr"`                                                      // the TCP address for the server to listen on, in the form "host:port"
+	TLS                       bool                 `json:"TLS"`                                                           // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile              string               `json:"TLSCertFile"`                                                   // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile               string               `json:"TLSKeyFile"`                                                    // filename of TLS key file name, defaults to "key.pem"
+	CSR_Country               string               `json:"CSR_country"`                                                   // subject country for public key Certificate Signing Requests
+	CSR_Organization          string               `json:"CSR_organization"`                                              // subject organization for public key Certificate Signing Requests
+	Debug                     bool                 `json:"debug"`                                                         // enable extended debug output, defaults to 'false'
+	LogTextFormat             bool                 `json:"logTextFormat"`                                                 // log in text format for better human readability, default format is JSON
+	CertificateServer         string               `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
+	CertificateServerPubKey   string               `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
+	ReloadCertsEveryMinute    bool                 `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
 	ServerTLSCertFingerprints map[string][32]byte
 	configDir                 string // directory where config and protocol ctx are stored
-	secretBytes               []byte // the decoded key store secret
 	dbParams                  DatabaseParams
 }
 
-func (c *Config) Load(configDir string, filename string) error {
+func (c *Config) Load(configDir, filename string) error {
 	c.configDir = configDir
 
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
-	if os.Getenv("UBIRCH_SECRET32") != "" {
+	if os.Getenv("UBIRCH_REGISTERAUTH") != "" {
 		err = c.loadEnv()
 	} else {
 		err = c.loadFile(filename)
@@ -111,25 +98,18 @@ func (c *Config) Load(configDir string, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
-	c.secretBytes, err = base64.StdEncoding.DecodeString(c.SecretBase64)
-	if err != nil {
-		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
-	}
-
 	err = c.checkMandatory()
 	if err != nil {
 		return err
 	}
-
-	c.setDefaultCSR()
-	c.setDefaultTLS()
-	c.setDefaultURLs()
 
 	err = c.loadServerTLSCertificates()
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
+	c.setDefaultCSR()
+	c.setDefaultTLS()
 	return c.setDbParams()
 }
 
@@ -154,20 +134,20 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if len(c.secretBytes) != secretLength {
-		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
-	}
-
 	if len(c.RegisterAuth) == 0 {
 		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
 	}
 
-	if c.CertificateServer == "" {
+	if len(c.CertificateServer) == 0 {
 		return fmt.Errorf("missing 'certificateServer' in configuration")
 	}
 
-	if c.CertificateServerPubKey == "" {
+	if len(c.CertificateServerPubKey) == 0 {
 		return fmt.Errorf("missing 'certificateServerPubKey' in configuration")
+	}
+
+	if len(c.Env) == 0 {
+		c.Env = ProdStage
 	}
 
 	return nil
@@ -205,24 +185,6 @@ func (c *Config) setDefaultTLS() {
 		}
 		c.TLS_KeyFile = filepath.Join(c.configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
-	}
-}
-
-func (c *Config) setDefaultURLs() {
-	if c.Env == "" {
-		c.Env = PROD_STAGE
-	}
-
-	log.Infof("UBIRCH backend environment: %s", c.Env)
-
-	if c.KeyService == "" {
-		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
-	} else {
-		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
-	}
-
-	if c.IdentityService == "" {
-		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
 	}
 }
 
@@ -271,6 +233,7 @@ func (c *Config) setDbParams() error {
 }
 
 // loadIdentitiesFile loads identities from the identities JSON file.
+// Returns without error if file does not exist.
 func (c *Config) loadIdentitiesFile(identities *[]*Identity) error {
 	identitiesFile := filepath.Join(c.configDir, identitiesFileName)
 
@@ -341,7 +304,7 @@ func (c *Config) loadTokens(identities *[]*Identity) error {
 }
 
 func (c *Config) loadServerTLSCertificates() error {
-	serverTLSCertFile := filepath.Join(c.configDir, fmt.Sprintf(TLSCertsFileName, c.Env))
+	serverTLSCertFile := filepath.Join(c.configDir, fmt.Sprintf(tlsCertsFileName, c.Env))
 
 	fileHandle, err := os.Open(serverTLSCertFile)
 	if err != nil {
@@ -364,14 +327,13 @@ func (c *Config) loadServerTLSCertificates() error {
 	c.ServerTLSCertFingerprints = make(map[string][32]byte)
 
 	for host, cert := range serverTLSCertBuffer {
-		// sanity check
-		_, err := x509.ParseCertificate(cert)
+		x509cert, err := x509.ParseCertificate(cert)
 		if err != nil {
-			log.Errorf("parsing certificate for host %s failed: %v, expected certificate format: base64 encoded ASN.1 DER", host, err)
+			log.Errorf("parsing x.509 certificate for host %s failed: %v, expected certificate format: base64 encoded ASN.1 DER", host, err)
 			continue
 		}
 
-		fingerprint := sha256.Sum256(cert)
+		fingerprint := sha256.Sum256(x509cert.RawSubjectPublicKeyInfo)
 		c.ServerTLSCertFingerprints[host] = fingerprint
 	}
 

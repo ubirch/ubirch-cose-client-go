@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 ubirch GmbH
+// Copyright (c) 2021 ubirch GmbH
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,19 +17,17 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+
 	log "github.com/sirupsen/logrus"
-	"time"
-	// postgres driver is imported for side effects
-	// import pq driver this way only if we dont need it here
-	// done for database/sql (pg, err := sql.Open..)
-	//_ "github.com/lib/pq"
 )
 
 const (
 	PostgreSql                  string = "postgres"
-	PostgreSqlIdentityTableName string = "cose_identity"
+	PostgreSqlIdentityTableName string = "cose_identity2" // todo
 )
 
 const (
@@ -39,8 +37,7 @@ const (
 var create = map[int]string{
 	PostgresIdentity: "CREATE TABLE IF NOT EXISTS %s(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
-		"private_key BYTEA NOT NULL, " +
-		"public_key BYTEA NOT NULL, " +
+		"public_key VARCHAR(255) NOT NULL, " +
 		"auth_token VARCHAR(255) NOT NULL);",
 }
 
@@ -114,10 +111,10 @@ func (dm *DatabaseManager) Close() {
 
 func (dm *DatabaseManager) StoreNewIdentity(identity Identity) error {
 	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
+		"INSERT INTO %s (uid, public_key, auth_token) VALUES ($1, $2, $3);",
 		dm.tableName)
 
-	_, err := dm.db.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
+	_, err := dm.db.Exec(query, &identity.Uid, &identity.PublicKey, &identity.AuthToken)
 	if err != nil {
 		return err
 	}
@@ -130,7 +127,7 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (*Identity, error) {
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
+	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PublicKey, &id.AuthToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotExist

@@ -22,8 +22,7 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
-	"github.com/ubirch/ubirch-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -87,10 +86,7 @@ func main() {
 	}
 
 	if migrate {
-		err := MigrateFileToDB(conf)
-		if err != nil {
-			log.Fatalf("migration failed: %v", err)
-		}
+		log.Error("migration of existing keys into HSM not possible")
 		os.Exit(0)
 	}
 
@@ -138,7 +134,7 @@ func main() {
 		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
 	}
 
-	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client, conf.ReloadCertsEveryMinute)
+	protocol, err := NewProtocol(ctxManager, client, conf.ReloadCertsEveryMinute)
 	if err != nil {
 		log.Fatal(err)
 	}

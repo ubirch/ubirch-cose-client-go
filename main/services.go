@@ -109,7 +109,7 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 	}
 
 	timer := prometheus.NewTimer(p.SignatureCreationDuration)
-	resp := s.Sign(msg, identity.PrivateKey)
+	resp := s.Sign(msg)
 	timer.ObserveDuration()
 
 	sendResponse(w, resp)
