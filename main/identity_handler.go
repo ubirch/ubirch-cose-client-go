@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/pem"
 	"fmt"
 	"net/http"
 
@@ -36,7 +37,7 @@ type Identity struct {
 	AuthToken string    `json:"token"`
 }
 
-func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, err error, code int) {
+func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csrPEM []byte, err error, code int) {
 	log.Infof("initializing identity %s", uid)
 
 	initialized, err := i.Initialized(uid)
@@ -67,6 +68,11 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, fmt.Errorf("could not convert public key if %s bytes to PEM: %v", uid, err), http.StatusInternalServerError
 	}
 
+	csr, err := i.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	if err != nil {
+		return nil, fmt.Errorf("could not generate CSR for %s: %v", uid, err), http.StatusInternalServerError
+	}
+
 	identity := Identity{
 		Uid:       uid,
 		PublicKey: pubKeyPEM,
@@ -81,5 +87,5 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)
 	auditlogger.AuditLog("create", "device", infos)
 
-	return csr, nil, http.StatusOK
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil, http.StatusOK
 }

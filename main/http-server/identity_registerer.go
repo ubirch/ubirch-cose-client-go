@@ -2,7 +2,6 @@ package http_server
 
 import (
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"net/http"
 
@@ -63,14 +62,13 @@ func (i *IdentityRegisterer) Put(initialize InitializeIdentity) http.HandlerFunc
 			return
 		}
 
-		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
-
-		w.Header().Set("Content-Type", BinType)
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(csrPEM)
-		if err != nil {
-			log.Errorf("unable to write response: %s", err)
+		resp := HTTPResponse{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {BinType}},
+			Content:    csr,
 		}
+
+		SendResponse(w, resp)
 
 		p.IdentityCreationCounter.Inc()
 	}
