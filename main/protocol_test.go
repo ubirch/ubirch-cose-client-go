@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"math/rand"
 	"sync"
@@ -16,15 +15,9 @@ func TestProtocol(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	p := &Protocol{
-		Crypto:       crypto,
-		ctxManager:   &mockCtxMngr{},
-		keyEncrypter: enc,
+		Crypto:     crypto,
+		ctxManager: &mockCtxMngr{},
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},

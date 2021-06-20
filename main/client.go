@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	urlpkg "net/url"
 )
 
@@ -117,7 +116,7 @@ func (c *Client) getWithCertPinning(url string) ([]byte, error) {
 	}
 
 	// set up TLS certificate verification
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	client.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
 			//VerifyPeerCertificate: NewPeerCertificateVerifier(tlsCertFingerprint),
@@ -137,12 +136,16 @@ func (c *Client) getWithCertPinning(url string) ([]byte, error) {
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if h.HttpFailed(resp.StatusCode) {
+	if HttpFailed(resp.StatusCode) {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
 		return nil, fmt.Errorf("response: (%s) %s", resp.Status, string(respBodyBytes))
 	}
 
 	return ioutil.ReadAll(resp.Body)
+}
+
+func HttpFailed(StatusCode int) bool {
+	return !HttpSuccess(StatusCode)
 }
 
 // VerifyConnection is called after normal certificate verification and after VerifyPeerCertificate by

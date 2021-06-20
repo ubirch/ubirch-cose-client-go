@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
 const (
@@ -92,23 +94,23 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 	}, nil
 }
 
-func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
+func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 	log.Infof("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	skid, err := c.GetSKID(msg.ID)
 	if err != nil {
 		log.Error(err)
-		return errorResponse(http.StatusBadRequest, err.Error())
+		return h.ErrorResponse(http.StatusBadRequest, err.Error())
 	}
 
 	cose, err := c.createSignedCOSE(msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
 		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return h.ErrorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
-	return HTTPResponse{
+	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
 		Content:    cose,

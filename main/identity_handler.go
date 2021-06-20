@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -30,9 +30,9 @@ type IdentityHandler struct {
 }
 
 type Identity struct {
-	Uid        uuid.UUID `json:"uuid"`
-	PublicKey  []byte    `json:"pubKey"`
-	AuthToken  string    `json:"token"`
+	Uid       uuid.UUID `json:"uuid"`
+	PublicKey []byte    `json:"pubKey"`
+	AuthToken string    `json:"token"`
 }
 
 func (i *IdentityHandler) initIdentities(identities []*Identity) error {
@@ -74,9 +74,9 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	}
 
 	newIdentity := Identity{
-		Uid:        uid,
-		PublicKey:  pubKeyPEM,
-		AuthToken:  auth,
+		Uid:       uid,
+		PublicKey: pubKeyPEM,
+		AuthToken: auth,
 	}
 
 	err = i.protocol.StoreNewIdentity(newIdentity)

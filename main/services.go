@@ -26,31 +26,18 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/ubirch/ubirch-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
-	AuthHeader = "X-Auth-Token"
-
-	UUIDKey      = "uuid"
-	CBORPath     = "/cbor"
-	HashEndpoint = "/hash"
-
-	BinType  = "application/octet-stream"
-	TextType = "text/plain"
-	JSONType = "application/json"
-	CBORType = "application/cbor"
-
 	HexEncoding = "hex"
 
 	HashLen = 32
 )
-
-var UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)
 
 type Sha256Sum [HashLen]byte
 
@@ -58,12 +45,6 @@ type HTTPRequest struct {
 	ID      uuid.UUID
 	Hash    Sha256Sum
 	Payload []byte
-}
-
-type HTTPResponse struct {
-	StatusCode int         `json:"statusCode"`
-	Header     http.Header `json:"header"`
-	Content    []byte      `json:"content"`
 }
 
 type COSEService struct {
@@ -96,7 +77,7 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 	}
 	err = checkAuth(r, identity.AuthToken)
 	if err != nil {
-		Error(uid, w, err, http.StatusUnauthorized)
+		h.Error(uid, w, err, http.StatusUnauthorized)
 		return
 	}
 
@@ -104,7 +85,7 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 
 	msg.Payload, msg.Hash, err = s.getPayloadAndHash(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusBadRequest)
+		h.Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
 
@@ -112,14 +93,18 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 	resp := s.Sign(msg)
 	timer.ObserveDuration()
 
-	sendResponse(w, resp)
+	h.SendResponse(w, resp)
 
-	if h.HttpSuccess(resp.StatusCode) {
+	if HttpSuccess(resp.StatusCode) {
 		infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 		auditlogger.AuditLog("create", "COSE", infos)
 
 		p.SignatureCreationCounter.Inc()
 	}
+}
+
+func HttpSuccess(StatusCode int) bool {
+	return StatusCode >= 200 && StatusCode < 300
 }
 
 func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
@@ -138,7 +123,7 @@ func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash S
 
 func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
 	switch ContentType(header) {
-	case JSONType:
+	case h.JSONType:
 		data, err = s.GetCBORFromJSON(data)
 		if err != nil {
 			return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
@@ -146,7 +131,7 @@ func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data 
 		log.Debugf("CBOR encoded JSON: %x", data)
 
 		fallthrough
-	case CBORType:
+	case h.CBORType:
 		toBeSigned, err := s.GetSigStructBytes(data)
 		if err != nil {
 			return nil, Sha256Sum{}, err
@@ -157,14 +142,8 @@ func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data 
 		return data, hash, err
 	default:
 		return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
-			"expected (\"%s\" | \"%s\")", CBORType, JSONType)
+			"expected (\"%s\" | \"%s\")", h.CBORType, h.JSONType)
 	}
-}
-
-// wrapper for http.Error that additionally logs the error message to std.Output
-func Error(uid uuid.UUID, w http.ResponseWriter, err error, code int) {
-	log.Warnf("%s: %v", uid, err)
-	http.Error(w, err.Error(), code)
 }
 
 // helper function to get "Content-Type" from request header
@@ -179,7 +158,7 @@ func ContentEncoding(header http.Header) string {
 
 // getUUID returns the UUID parameter from the request URL
 func getUUID(r *http.Request) (uuid.UUID, error) {
-	uuidParam := chi.URLParam(r, UUIDKey)
+	uuidParam := chi.URLParam(r, h.UUIDKey)
 	uid, err := uuid.Parse(uuidParam)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
@@ -190,7 +169,7 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 // checkAuth checks the auth token from the request header
 // Returns error if auth token is not correct
 func checkAuth(r *http.Request, correctAuthToken string) error {
-	if r.Header.Get(AuthHeader) != correctAuthToken {
+	if r.Header.Get(h.AuthHeader) != correctAuthToken {
 		return fmt.Errorf("invalid auth token")
 	}
 	return nil
@@ -205,12 +184,12 @@ func readBody(r *http.Request) ([]byte, error) {
 }
 
 func isHashRequest(r *http.Request) bool {
-	return strings.HasSuffix(r.URL.Path, HashEndpoint)
+	return strings.HasSuffix(r.URL.Path, h.HashEndpoint)
 }
 
 func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
 	switch ContentType(header) {
-	case TextType:
+	case h.TextType:
 		if ContentEncoding(header) == HexEncoding {
 			data, err = hex.DecodeString(string(data))
 			if err != nil {
@@ -223,7 +202,7 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 			}
 		}
 		fallthrough
-	case BinType:
+	case h.BinType:
 		if len(data) != HashLen {
 			return Sha256Sum{}, fmt.Errorf("invalid SHA256 hash size: "+
 				"expected %d bytes, got %d bytes", HashLen, len(data))
@@ -233,29 +212,6 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 		return hash, nil
 	default:
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
-			"expected (\"%s\" | \"%s\")", BinType, TextType)
-	}
-}
-
-// forwards response to sender
-func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
-	for k, v := range resp.Header {
-		w.Header().Set(k, v[0])
-	}
-	w.WriteHeader(resp.StatusCode)
-	_, err := w.Write(resp.Content)
-	if err != nil {
-		log.Errorf("unable to write response: %s", err)
-	}
-}
-
-func errorResponse(code int, message string) HTTPResponse {
-	if message == "" {
-		message = http.StatusText(code)
-	}
-	return HTTPResponse{
-		StatusCode: code,
-		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content:    []byte(message),
+			"expected (\"%s\" | \"%s\")", h.BinType, h.TextType)
 	}
 }

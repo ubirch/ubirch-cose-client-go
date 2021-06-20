@@ -26,8 +26,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 // handle graceful shutdown
@@ -99,8 +99,8 @@ func main() {
 	go shutdown(cancel)
 
 	// set up HTTP server
-	httpServer := handlers.HTTPServer{
-		Router:   handlers.NewRouter(),
+	httpServer := h.HTTPServer{
+		Router:   h.NewRouter(),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
@@ -155,14 +155,14 @@ func main() {
 	}
 
 	// set up endpoint for identity registration
-	creator := handlers.NewIdentityCreator(conf.RegisterAuth)
-	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, idHandler.protocol.Exists))
+	creator := h.NewIdentityRegisterer(conf.RegisterAuth)
+	httpServer.Router.Put(h.RegisterEndpoint, creator.Put(idHandler.initIdentity, idHandler.protocol.Exists))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
+	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
 	httpServer.Router.Post(directUuidEndpoint, service.directUUID())
 
-	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
+	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
 	httpServer.Router.Post(directUuidHashEndpoint, service.directUUID())
 
 	// set up endpoint for readiness checks

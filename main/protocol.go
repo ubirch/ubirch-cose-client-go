@@ -24,8 +24,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
 	log "github.com/sirupsen/logrus"
-	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 )
 
 const (
@@ -51,8 +52,7 @@ func setInterval(reloadEveryMinute bool) {
 type Protocol struct {
 	ubirch.Crypto
 	*Client
-	ctxManager   ContextManager
-	keyEncrypter *encrypters.KeyEncrypter
+	ctxManager ContextManager
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
