@@ -91,7 +91,7 @@ func (i *IdentityRegisterer) Put(storeId StoreIdentity, idExists CheckIdentityEx
 }
 
 func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
-	contentType := r.Header.Get("Content-Type")
+	contentType := ContentType(r.Header)
 	if contentType != JSONType {
 		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
 	}

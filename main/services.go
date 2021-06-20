@@ -122,7 +122,7 @@ func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash S
 }
 
 func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
-	switch ContentType(header) {
+	switch h.ContentType(header) {
 	case h.JSONType:
 		data, err = s.GetCBORFromJSON(data)
 		if err != nil {
@@ -144,16 +144,6 @@ func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data 
 		return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
 			"expected (\"%s\" | \"%s\")", h.CBORType, h.JSONType)
 	}
-}
-
-// helper function to get "Content-Type" from request header
-func ContentType(header http.Header) string {
-	return strings.ToLower(header.Get("Content-Type"))
-}
-
-// helper function to get "Content-Transfer-Encoding" from request header
-func ContentEncoding(header http.Header) string {
-	return strings.ToLower(header.Get("Content-Transfer-Encoding"))
 }
 
 // getUUID returns the UUID parameter from the request URL
@@ -188,9 +178,9 @@ func isHashRequest(r *http.Request) bool {
 }
 
 func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
-	switch ContentType(header) {
+	switch h.ContentType(header) {
 	case h.TextType:
-		if ContentEncoding(header) == HexEncoding {
+		if h.ContentEncoding(header) == HexEncoding {
 			data, err = hex.DecodeString(string(data))
 			if err != nil {
 				return Sha256Sum{}, fmt.Errorf("decoding hex encoded hash failed: %v (%s)", err, string(data))
