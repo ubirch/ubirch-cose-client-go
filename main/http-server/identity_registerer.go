@@ -26,15 +26,13 @@ type IdentityPayload struct {
 	Pwd string `json:"password"`
 }
 
-type StoreIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
-
-type CheckIdentityExists func(uid uuid.UUID) (bool, error)
+type InitializeIdentity func(uid uuid.UUID, auth string) (csr []byte, err error, code int)
 
 func NewIdentityRegisterer(auth string) IdentityRegisterer {
 	return IdentityRegisterer{auth: auth}
 }
 
-func (i *IdentityRegisterer) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
+func (i *IdentityRegisterer) Put(initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get(AuthHeader) != i.auth {
 			log.Warnf("unauthorized registration attempt")
@@ -56,24 +54,12 @@ func (i *IdentityRegisterer) Put(storeId StoreIdentity, idExists CheckIdentityEx
 			return
 		}
 
-		exists, err := idExists(uid)
-		if err != nil {
-			log.Errorf("%s: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		if exists {
-			Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
-			return
-		}
-
 		timer := prometheus.NewTimer(p.IdentityCreationDuration)
-		csr, err := storeId(uid, idPayload.Pwd)
+		csr, err, code := initialize(uid, idPayload.Pwd)
 		timer.ObserveDuration()
 		if err != nil {
-			log.Errorf("%s: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			err = fmt.Errorf("initializing identity failed: %v", err)
+			Error(uid, w, err, code)
 			return
 		}
 

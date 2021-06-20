@@ -188,13 +188,14 @@ func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid 
 	return uid, err
 }
 
-func (p *Protocol) Exists(uid uuid.UUID) (exists bool, err error) {
+func (p *Protocol) Initialized(uid uuid.UUID) (initialized bool, err error) {
 	_, err = p.GetIdentity(uid)
-	if err == ErrNotExist {
-		return false, nil
-	}
 	if err != nil {
 		return false, err
+	}
+
+	if err == ErrNotExist {
+		return false, nil
 	}
 
 	return true, nil

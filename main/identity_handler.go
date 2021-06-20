@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
@@ -24,7 +25,7 @@ import (
 )
 
 type IdentityHandler struct {
-	protocol            *Protocol
+	*Protocol
 	subjectCountry      string
 	subjectOrganization string
 }
@@ -35,57 +36,50 @@ type Identity struct {
 	AuthToken string    `json:"token"`
 }
 
-func (i *IdentityHandler) initIdentities(identities []*Identity) error {
-	// create and register keys for identities
-	log.Debugf("initializing %d identities...", len(identities))
-	for _, id := range identities {
-		// check if identity is already initialized
-		exists, err := i.protocol.Exists(id.Uid)
-		if err != nil {
-			return fmt.Errorf("can not check existing context for %s: %s", id.Uid, err)
-		}
-		if exists {
-			// already initialized
-			log.Debugf("%s already initialized (skip)", id.Uid)
-			continue
-		}
+func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, err error, code int) {
+	log.Infof("initializing identity %s", uid)
 
-		_, err = i.initIdentity(id.Uid, id.AuthToken)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, err error) {
-	log.Infof("initializing new identity %s", uid)
-
-	// generate a new new pair
-	privKeyPEM, err := i.protocol.GenerateKey()
+	initialized, err := i.Initialized(uid)
 	if err != nil {
-		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
+		return nil, fmt.Errorf("failed to check if identity %s is already initialized: %v", uid, err), http.StatusInternalServerError
 	}
 
-	pubKeyPEM, err := i.protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
+	if initialized {
+		return nil, fmt.Errorf("identity %s already registered", uid), http.StatusConflict
+	}
+
+	keyExistsInHSM, err := i.PrivateKeyExists(uid)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to check for private key of %s in HSM: %v", uid, err), http.StatusInternalServerError
 	}
 
-	newIdentity := Identity{
+	if !keyExistsInHSM {
+		return nil, fmt.Errorf("no private key found for %s in HSM", uid), http.StatusBadRequest
+	}
+
+	pubKeyBytes, err := i.GetPublicKey(uid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get public key of %s from HSM: %v", uid, err), http.StatusInternalServerError
+	}
+
+	pubKeyPEM, err := i.PublicKeyBytesToPEM(pubKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("could not convert public key if %s bytes to PEM: %v", uid, err), http.StatusInternalServerError
+	}
+
+	identity := Identity{
 		Uid:       uid,
 		PublicKey: pubKeyPEM,
 		AuthToken: auth,
 	}
 
-	err = i.protocol.StoreNewIdentity(newIdentity)
+	err = i.StoreNewIdentity(identity)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not store new identity: %v", err), http.StatusInternalServerError
 	}
 
 	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)
 	auditlogger.AuditLog("create", "device", infos)
 
-	return csr, nil
+	return csr, nil, http.StatusOK
 }
