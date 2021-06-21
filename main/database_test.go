@@ -24,7 +24,7 @@ func TestDatabaseManager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanUp(t, dm)
+	defer cleanUpDB(t, dm)
 
 	testIdentity := generateRandomIdentity()
 
@@ -74,7 +74,7 @@ func TestStoreExisting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanUp(t, dm)
+	defer cleanUpDB(t, dm)
 
 	testIdentity := generateRandomIdentity()
 
@@ -98,7 +98,7 @@ func TestDatabaseLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanUp(t, dm)
+	defer cleanUpDB(t, dm)
 
 	// generate identities
 	var testIdentities []*Identity
@@ -163,7 +163,7 @@ func initDB() (*DatabaseManager, error) {
 	return NewSqlDatabaseInfo(c.PostgresDSN, testTableName, testDbParams)
 }
 
-func cleanUp(t *testing.T, dm *DatabaseManager) {
+func cleanUpDB(t *testing.T, dm *DatabaseManager) {
 	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", testTableName)
 	_, err := dm.db.Exec(dropTableQuery)
 	if err != nil {
@@ -174,9 +174,6 @@ func cleanUp(t *testing.T, dm *DatabaseManager) {
 }
 
 func generateRandomIdentity() *Identity {
-	priv := make([]byte, 32)
-	rand.Read(priv)
-
 	pub := make([]byte, 64)
 	rand.Read(pub)
 
@@ -184,9 +181,9 @@ func generateRandomIdentity() *Identity {
 	rand.Read(auth)
 
 	return &Identity{
-		Uid:        uuid.New(),
-		PublicKey:  pub,
-		AuthToken:  base64.StdEncoding.EncodeToString(auth),
+		Uid:       uuid.New(),
+		PublicKey: pub,
+		AuthToken: base64.StdEncoding.EncodeToString(auth),
 	}
 }
 
