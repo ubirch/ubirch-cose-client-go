@@ -12,10 +12,6 @@ import (
 	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
-const (
-	RegisterEndpoint = "/register"
-)
-
 type IdentityRegisterer struct {
 	auth string
 }

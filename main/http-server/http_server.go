@@ -21,9 +21,10 @@ const (
 	WriteTimeout    = 99 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
 	IdleTimeout     = 60 * time.Second // time to wait for the next request when keep-alives are enabled
 
-	UUIDKey      = "uuid"
-	CBORPath     = "/cbor"
-	HashEndpoint = "/hash"
+	UUIDKey          = "uuid"
+	CBORPath         = "/cbor"
+	HashEndpoint     = "/hash"
+	RegisterEndpoint = "/register"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
