@@ -30,7 +30,7 @@ var (
 )
 
 func TestCoseSign(t *testing.T) {
-	p, privateKeyPEM := setupProtocol(t)
+	p := setupProtocol(t, uid)
 
 	coseSigner, err := NewCoseSigner(p)
 	if err != nil {
@@ -57,7 +57,7 @@ func TestCoseSign(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	coseBytes, err := coseSigner.createSignedCOSE(hash, privateKeyPEM, uid[:], payloadCBOR)
+	coseBytes, err := coseSigner.createSignedCOSE(uid, hash, uid[:], payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,27 +65,53 @@ func TestCoseSign(t *testing.T) {
 	t.Logf("signed COSE [CBOR]: %x", coseBytes)
 }
 
-func setupProtocol(t *testing.T) (protocol *Protocol, privKeyPEM []byte) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{}
+func setupProtocol(t *testing.T, uid uuid.UUID) (protocol *Protocol) {
+	p := &Protocol{
+		Crypto: &ubirch.ECDSACryptoContext{
+			Keystore: &mockKeystorer{},
+		},
+	}
 
-	privKeyPEM, err := cryptoCtx.PrivateKeyBytesToPEM(key)
+	err := p.GenerateKey(uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := cryptoCtx.GetPublicKeyFromPrivateKey(privKeyPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pubKeyBytes, err := cryptoCtx.PublicKeyPEMToBytes(pubKeyPEM)
+	pubKeyBytes, err := p.GetPublicKey(uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Logf("public key: %x", pubKeyBytes)
 
-	return &Protocol{
-		Crypto: cryptoCtx,
-	}, privKeyPEM
+	return p
 }
+
+type mockKeystorer struct {
+	priv []byte
+	pub  []byte
+}
+
+func (m *mockKeystorer) GetIDs() ([]uuid.UUID, error) {
+	panic("implement me")
+}
+
+func (m *mockKeystorer) GetPrivateKey(id uuid.UUID) ([]byte, error) {
+	return m.priv, nil
+}
+
+func (m *mockKeystorer) SetPrivateKey(id uuid.UUID, key []byte) error {
+	m.priv = key
+	return nil
+}
+
+func (m *mockKeystorer) GetPublicKey(id uuid.UUID) ([]byte, error) {
+	return m.pub, nil
+}
+
+func (m *mockKeystorer) SetPublicKey(id uuid.UUID, key []byte) error {
+	m.pub = key
+	return nil
+}
+
+var _ ubirch.Keystorer = (*mockKeystorer)(nil)
