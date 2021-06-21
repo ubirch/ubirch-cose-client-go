@@ -6,36 +6,34 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
 	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
-type IdentityRegisterer struct {
-	auth string
-}
+var (
+	ErrAlreadyInitialized = errors.New("identity already registered")
+	ErrUnknown            = errors.New("no private key found")
+)
 
 type IdentityPayload struct {
 	Uid string `json:"uuid"`
 	Pwd string `json:"password"`
 }
 
-type InitializeIdentity func(uid uuid.UUID, auth string) (csr []byte, err error, code int)
+type InitializeIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
 
-func NewIdentityRegisterer(auth string) IdentityRegisterer {
-	return IdentityRegisterer{auth: auth}
-}
-
-func (i *IdentityRegisterer) Put(initialize InitializeIdentity) http.HandlerFunc {
+func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(AuthHeader) != i.auth {
+		if r.Header.Get(AuthHeader) != auth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 
-		idPayload, err := IdentityFromBody(r)
+		idPayload, err := identityFromBody(r)
 		if err != nil {
 			log.Warn(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -50,11 +48,18 @@ func (i *IdentityRegisterer) Put(initialize InitializeIdentity) http.HandlerFunc
 		}
 
 		timer := prometheus.NewTimer(p.IdentityCreationDuration)
-		csr, err, code := initialize(uid, idPayload.Pwd)
+		csr, err := initialize(uid, idPayload.Pwd)
 		timer.ObserveDuration()
 		if err != nil {
-			err = fmt.Errorf("initializing identity failed: %v", err)
-			Error(uid, w, err, code)
+			errMsg := fmt.Errorf("identity registration failed: %v", err)
+			switch err {
+			case ErrAlreadyInitialized:
+				Error(uid, w, errMsg, http.StatusConflict)
+			case ErrUnknown:
+				Error(uid, w, errMsg, http.StatusNotFound)
+			default:
+				Error(uid, w, errMsg, http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -70,7 +75,7 @@ func (i *IdentityRegisterer) Put(initialize InitializeIdentity) http.HandlerFunc
 	}
 }
 
-func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
+func identityFromBody(r *http.Request) (IdentityPayload, error) {
 	contentType := ContentType(r.Header)
 	if contentType != JSONType {
 		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)

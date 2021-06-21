@@ -17,16 +17,16 @@ package main
 import (
 	"encoding/pem"
 	"fmt"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
 type IdentityHandler struct {
-	*Protocol
+	protocol            *Protocol
 	subjectCountry      string
 	subjectOrganization string
 }
@@ -37,40 +37,31 @@ type Identity struct {
 	AuthToken    string    `json:"token"`
 }
 
-func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csrPEM []byte, err error, code int) {
+func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byte, err error) {
 	log.Infof("initializing identity %s", uid)
 
-	initialized, err := i.Initialized(uid)
+	initialized, err := i.protocol.isInitialized(uid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check if identity %s is already initialized: %v", uid, err), http.StatusInternalServerError
+		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
 	}
 
 	if initialized {
-		return nil, fmt.Errorf("identity %s already registered", uid), http.StatusConflict
+		return nil, h.ErrAlreadyInitialized
 	}
 
-	keyExistsInHSM, err := i.PrivateKeyExists(uid)
+	csrPEM, err = i.GetCSR(uid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check for private key of %s in HSM: %v", uid, err), http.StatusInternalServerError
+		return nil, err
 	}
 
-	if !keyExistsInHSM {
-		return nil, fmt.Errorf("no private key found for %s in HSM", uid), http.StatusBadRequest
-	}
-
-	pubKeyBytes, err := i.GetPublicKey(uid)
+	pubKeyBytes, err := i.protocol.GetPublicKey(uid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get public key of %s from HSM: %v", uid, err), http.StatusInternalServerError
+		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
-	pubKeyPEM, err := i.PublicKeyBytesToPEM(pubKeyBytes)
+	pubKeyPEM, err := i.protocol.PublicKeyBytesToPEM(pubKeyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("could not convert public key if %s bytes to PEM: %v", uid, err), http.StatusInternalServerError
-	}
-
-	csr, err := i.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
-	if err != nil {
-		return nil, fmt.Errorf("could not generate CSR for %s: %v", uid, err), http.StatusInternalServerError
+		return nil, fmt.Errorf("could not convert public key bytes to PEM: %v", err)
 	}
 
 	identity := Identity{
@@ -79,13 +70,50 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 		AuthToken:    auth,
 	}
 
-	err = i.StoreNewIdentity(identity)
+	err = i.protocol.StoreNewIdentity(identity)
 	if err != nil {
-		return nil, fmt.Errorf("could not store new identity: %v", err), http.StatusInternalServerError
+		return nil, fmt.Errorf("could not store new identity: %v", err)
 	}
 
 	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)
 	auditlogger.AuditLog("create", "device", infos)
 
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil, http.StatusOK
+	return csrPEM, nil
 }
+
+func (i *IdentityHandler) GetCSR(uid uuid.UUID) (csrPEM []byte, err error) {
+	keyExists, err := i.protocol.PrivateKeyExists(uid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
+	}
+	if !keyExists {
+		return nil, h.ErrUnknown
+	}
+
+	csr, err := i.protocol.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	if err != nil {
+		return nil, fmt.Errorf("could not generate CSR: %v", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil
+}
+
+//func (i *IdentityHandler) GetCSRAndUpdatePublicKey(uid uuid.UUID) (csrPEM []byte, err error) {
+//	csrPEM, err = i.GetCSR(uid)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	pubKeyBytes, err := i.protocol.GetPublicKey(uid)
+//	if err != nil {
+//		return nil, fmt.Errorf("could not get public key: %v", err)
+//	}
+//
+//	pubKeyPEM, err := i.protocol.PublicKeyBytesToPEM(pubKeyBytes)
+//	if err != nil {
+//		return nil, fmt.Errorf("could not convert public key bytes to PEM: %v", err)
+//	}
+//
+//	// todo update public key in database
+//
+//	return csrPEM, nil
+//}

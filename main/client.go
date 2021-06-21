@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	urlpkg "net/url"
 )
 
@@ -136,16 +137,12 @@ func (c *Client) getWithCertPinning(url string) ([]byte, error) {
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if HttpFailed(resp.StatusCode) {
+	if h.HttpFailed(resp.StatusCode) {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
 		return nil, fmt.Errorf("response: (%s) %s", resp.Status, string(respBodyBytes))
 	}
 
 	return ioutil.ReadAll(resp.Body)
-}
-
-func HttpFailed(StatusCode int) bool {
-	return !HttpSuccess(StatusCode)
 }
 
 // VerifyConnection is called after normal certificate verification and after VerifyPeerCertificate by

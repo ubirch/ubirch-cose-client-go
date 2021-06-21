@@ -19,11 +19,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"strings"
 
-	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
@@ -53,9 +50,9 @@ type COSEService struct {
 
 func (s *COSEService) directUUID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		uid, err := getUUID(r)
+		uid, err := h.GetUUID(r)
 		if err != nil {
-			log.Warn(err)
+			log.Warnf("COSEService: %v", err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -75,7 +72,7 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	err = checkAuth(r, identity.AuthToken)
+	err = h.CheckAuth(r, identity.AuthToken)
 	if err != nil {
 		h.Error(uid, w, err, http.StatusUnauthorized)
 		return
@@ -95,7 +92,7 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 
 	h.SendResponse(w, resp)
 
-	if HttpSuccess(resp.StatusCode) {
+	if h.HttpSuccess(resp.StatusCode) {
 		infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 		auditlogger.AuditLog("create", "COSE", infos)
 
@@ -103,49 +100,18 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 	}
 }
 
-// getUUID returns the UUID parameter from the request URL
-func getUUID(r *http.Request) (uuid.UUID, error) {
-	uuidParam := chi.URLParam(r, h.UUIDKey)
-	uid, err := uuid.Parse(uuidParam)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
-	}
-	return uid, nil
-}
-
-// checkAuth checks the auth token from the request header
-// Returns error if auth token is not correct
-func checkAuth(r *http.Request, correctAuthToken string) error {
-	if r.Header.Get(h.AuthHeader) != correctAuthToken {
-		return fmt.Errorf("invalid auth token")
-	}
-	return nil
-}
-
 func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
-	rBody, err := readBody(r)
+	rBody, err := h.ReadBody(r)
 	if err != nil {
 		return nil, Sha256Sum{}, err
 	}
 
-	if isHashRequest(r) { // request contains hash
+	if h.IsHashRequest(r) { // request contains hash
 		hash, err = getHashFromHashRequest(r.Header, rBody)
 		return rBody, hash, err
 	} else { // request contains original data
 		return s.getPayloadAndHashFromDataRequest(r.Header, rBody)
 	}
-}
-
-func readBody(r *http.Request) ([]byte, error) {
-	rBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read request body: %v", err)
-	}
-	return rBody, nil
-}
-
-func isHashRequest(r *http.Request) bool {
-	return strings.HasSuffix(r.URL.Path, h.HashEndpoint)
 }
 
 func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
@@ -200,8 +166,4 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
 			"expected (\"%s\" | \"%s\")", h.BinType, h.TextType)
 	}
-}
-
-func HttpSuccess(StatusCode int) bool {
-	return StatusCode >= 200 && StatusCode < 300
 }

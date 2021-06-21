@@ -126,7 +126,7 @@ func main() {
 	}
 
 	idHandler := &IdentityHandler{
-		Protocol:            protocol,
+		protocol:            protocol,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
@@ -141,8 +141,11 @@ func main() {
 	}
 
 	// set up endpoint for identity registration
-	registerer := h.NewIdentityRegisterer(conf.RegisterAuth)
-	httpServer.Router.Put(h.RegisterEndpoint, registerer.Put(idHandler.initIdentity))
+	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
+
+	// set up endpoint for CSRs
+	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
+	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(idHandler.GetCSR))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor

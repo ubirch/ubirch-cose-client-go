@@ -25,6 +25,7 @@ const (
 	CBORPath         = "/cbor"
 	HashEndpoint     = "/hash"
 	RegisterEndpoint = "/register"
+	CSREndpoint      = "/csr"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
