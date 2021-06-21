@@ -54,24 +54,15 @@ func main() {
 	const (
 		serviceName = "cose-client"
 		configFile  = "config.json"
-		MigrateArg  = "--migrate"
 	)
 
 	var (
 		configDir string
-		migrate   bool
 		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {
-		for i, arg := range os.Args[1:] {
-			log.Infof("arg #%d: %s", i+1, arg)
-			if arg == MigrateArg {
-				migrate = true
-			} else {
-				configDir = arg
-			}
-		}
+		configDir = os.Args[1]
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
@@ -83,11 +74,6 @@ func main() {
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
-	}
-
-	if migrate {
-		log.Error("migration of existing keys into HSM not possible")
-		os.Exit(0)
 	}
 
 	// create a waitgroup that contains all asynchronous operations

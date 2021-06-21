@@ -103,8 +103,23 @@ func (s *COSEService) handleRequest(w http.ResponseWriter, r *http.Request, uid 
 	}
 }
 
-func HttpSuccess(StatusCode int) bool {
-	return StatusCode >= 200 && StatusCode < 300
+// getUUID returns the UUID parameter from the request URL
+func getUUID(r *http.Request) (uuid.UUID, error) {
+	uuidParam := chi.URLParam(r, h.UUIDKey)
+	uid, err := uuid.Parse(uuidParam)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
+	}
+	return uid, nil
+}
+
+// checkAuth checks the auth token from the request header
+// Returns error if auth token is not correct
+func checkAuth(r *http.Request, correctAuthToken string) error {
+	if r.Header.Get(h.AuthHeader) != correctAuthToken {
+		return fmt.Errorf("invalid auth token")
+	}
+	return nil
 }
 
 func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
@@ -119,6 +134,18 @@ func (s *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash S
 	} else { // request contains original data
 		return s.getPayloadAndHashFromDataRequest(r.Header, rBody)
 	}
+}
+
+func readBody(r *http.Request) ([]byte, error) {
+	rBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read request body: %v", err)
+	}
+	return rBody, nil
+}
+
+func isHashRequest(r *http.Request) bool {
+	return strings.HasSuffix(r.URL.Path, h.HashEndpoint)
 }
 
 func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
@@ -144,37 +171,6 @@ func (s *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data 
 		return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
 			"expected (\"%s\" | \"%s\")", h.CBORType, h.JSONType)
 	}
-}
-
-// getUUID returns the UUID parameter from the request URL
-func getUUID(r *http.Request) (uuid.UUID, error) {
-	uuidParam := chi.URLParam(r, h.UUIDKey)
-	uid, err := uuid.Parse(uuidParam)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
-	}
-	return uid, nil
-}
-
-// checkAuth checks the auth token from the request header
-// Returns error if auth token is not correct
-func checkAuth(r *http.Request, correctAuthToken string) error {
-	if r.Header.Get(h.AuthHeader) != correctAuthToken {
-		return fmt.Errorf("invalid auth token")
-	}
-	return nil
-}
-
-func readBody(r *http.Request) ([]byte, error) {
-	rBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read request body: %v", err)
-	}
-	return rBody, nil
-}
-
-func isHashRequest(r *http.Request) bool {
-	return strings.HasSuffix(r.URL.Path, h.HashEndpoint)
 }
 
 func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
@@ -204,4 +200,8 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
 			"expected (\"%s\" | \"%s\")", h.BinType, h.TextType)
 	}
+}
+
+func HttpSuccess(StatusCode int) bool {
+	return StatusCode >= 200 && StatusCode < 300
 }
