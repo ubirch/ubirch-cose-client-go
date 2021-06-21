@@ -32,9 +32,9 @@ type IdentityHandler struct {
 }
 
 type Identity struct {
-	Uid       uuid.UUID `json:"uuid"`
-	PublicKey []byte    `json:"pubKey"`
-	AuthToken string    `json:"token"`
+	Uid          uuid.UUID `json:"uuid"`
+	PublicKeyPEM []byte    `json:"pubKey"`
+	AuthToken    string    `json:"token"`
 }
 
 func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csrPEM []byte, err error, code int) {
@@ -74,9 +74,9 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 	}
 
 	identity := Identity{
-		Uid:       uid,
-		PublicKey: pubKeyPEM,
-		AuthToken: auth,
+		Uid:          uid,
+		PublicKeyPEM: pubKeyPEM,
+		AuthToken:    auth,
 	}
 
 	err = i.StoreNewIdentity(identity)

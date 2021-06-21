@@ -34,7 +34,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetIdentity did not return ErrNotExist")
 	}
 
-	_, err = dm.GetUuidForPublicKey(testIdentity.PublicKey)
+	_, err = dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
 	if err != ErrNotExist {
 		t.Error("GetUuidForPublicKey did not return ErrNotExist")
 	}
@@ -50,8 +50,8 @@ func TestDatabaseManager(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if !bytes.Equal(idFromDb.PublicKey, testIdentity.PublicKey) {
-		t.Error("GetIdentity returned unexpected PublicKey value")
+	if !bytes.Equal(idFromDb.PublicKeyPEM, testIdentity.PublicKeyPEM) {
+		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
 	}
 	if idFromDb.AuthToken != testIdentity.AuthToken {
 		t.Error("GetIdentity returned unexpected AuthToken value")
@@ -60,7 +60,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetIdentity returned unexpected Uid value")
 	}
 
-	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKey)
+	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
 	if err != nil {
 		t.Error(err)
 	}
@@ -181,9 +181,9 @@ func generateRandomIdentity() *Identity {
 	rand.Read(auth)
 
 	return &Identity{
-		Uid:       uuid.New(),
-		PublicKey: pub,
-		AuthToken: base64.StdEncoding.EncodeToString(auth),
+		Uid:          uuid.New(),
+		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
+		AuthToken:    base64.StdEncoding.EncodeToString(auth),
 	}
 }
 
@@ -200,8 +200,8 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(idFromCtx.PublicKey, id.PublicKey) {
-		return fmt.Errorf("GetIdentity returned unexpected PublicKey value")
+	if !bytes.Equal(idFromCtx.PublicKeyPEM, id.PublicKeyPEM) {
+		return fmt.Errorf("GetIdentity returned unexpected PublicKeyPEM value")
 	}
 	if idFromCtx.AuthToken != id.AuthToken {
 		return fmt.Errorf("GetIdentity returned unexpected AuthToken value")
@@ -210,7 +210,7 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 		return fmt.Errorf("GetIdentity returned unexpected Uid value")
 	}
 
-	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKey)
+	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKeyPEM)
 	if err != nil {
 		return err
 	}

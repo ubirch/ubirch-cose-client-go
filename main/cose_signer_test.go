@@ -86,32 +86,3 @@ func setupProtocol(t *testing.T, uid uuid.UUID) (protocol *Protocol) {
 
 	return p
 }
-
-type mockKeystorer struct {
-	priv []byte
-	pub  []byte
-}
-
-func (m *mockKeystorer) GetIDs() ([]uuid.UUID, error) {
-	panic("implement me")
-}
-
-func (m *mockKeystorer) GetPrivateKey(id uuid.UUID) ([]byte, error) {
-	return m.priv, nil
-}
-
-func (m *mockKeystorer) SetPrivateKey(id uuid.UUID, key []byte) error {
-	m.priv = key
-	return nil
-}
-
-func (m *mockKeystorer) GetPublicKey(id uuid.UUID) ([]byte, error) {
-	return m.pub, nil
-}
-
-func (m *mockKeystorer) SetPublicKey(id uuid.UUID, key []byte) error {
-	m.pub = key
-	return nil
-}
-
-var _ ubirch.Keystorer = (*mockKeystorer)(nil)

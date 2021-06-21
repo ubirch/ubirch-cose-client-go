@@ -114,7 +114,7 @@ func (dm *DatabaseManager) StoreNewIdentity(identity Identity) error {
 		"INSERT INTO %s (uid, public_key, auth_token) VALUES ($1, $2, $3);",
 		dm.tableName)
 
-	_, err := dm.db.Exec(query, &identity.Uid, &identity.PublicKey, &identity.AuthToken)
+	_, err := dm.db.Exec(query, &identity.Uid, &identity.PublicKeyPEM, &identity.AuthToken)
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (*Identity, error) {
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PublicKey, &id.AuthToken)
+	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PublicKeyPEM, &id.AuthToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotExist

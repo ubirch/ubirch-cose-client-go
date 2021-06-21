@@ -190,12 +190,11 @@ func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid 
 
 func (p *Protocol) Initialized(uid uuid.UUID) (initialized bool, err error) {
 	_, err = p.GetIdentity(uid)
-	if err != nil {
-		return false, err
-	}
-
 	if err == ErrNotExist {
 		return false, nil
+	}
+	if err != nil {
+		return false, err
 	}
 
 	return true, nil
@@ -206,7 +205,7 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
 
-	if len(i.PublicKey) == 0 {
+	if len(i.PublicKeyPEM) == 0 {
 		return fmt.Errorf("empty public key")
 	}
 

@@ -2,42 +2,45 @@ package main
 
 import (
 	"bytes"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-	"math/rand"
 	"sync"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 func TestProtocol(t *testing.T) {
-	crypto := &ubirch.ECDSACryptoContext{}
-
-	secret := make([]byte, 32)
-	rand.Read(secret)
+	testUid := uuid.New()
 
 	p := &Protocol{
-		Crypto:     crypto,
+		Crypto: &ubirch.ECDSACryptoContext{
+			Keystore: &mockKeystorer{},
+		},
 		ctxManager: &mockCtxMngr{},
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
 	}
 
-	privKeyPEM, err := p.GenerateKey()
+	err := p.GenerateKey(uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyBytes, err := p.GetPublicKey(uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := p.PublicKeyBytesToPEM(pubKeyBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	testIdentity := Identity{
-		Uid:        uid,
-		PrivateKey: privKeyPEM,
-		PublicKey:  pubKeyPEM,
-		AuthToken:  "password1234",
+		Uid:          testUid,
+		PublicKeyPEM: pubKeyPEM,
+		AuthToken:    "password1234",
 	}
 
 	// check not exists
@@ -46,12 +49,12 @@ func TestProtocol(t *testing.T) {
 		t.Error("GetIdentity did not return ErrNotExist")
 	}
 
-	exists, err := p.Exists(testIdentity.Uid)
+	exists, err := p.Initialized(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
 	}
 	if exists {
-		t.Error("Exists returned TRUE")
+		t.Error("Initialized returned TRUE")
 	}
 
 	err = p.StoreNewIdentity(testIdentity)
@@ -60,12 +63,12 @@ func TestProtocol(t *testing.T) {
 	}
 
 	// check exists
-	exists, err = p.Exists(testIdentity.Uid)
+	exists, err = p.Initialized(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
 	}
 	if !exists {
-		t.Error("Exists returned FALSE")
+		t.Error("Initialized returned FALSE")
 	}
 
 	storedIdentity, err := p.GetIdentity(testIdentity.Uid)
@@ -73,17 +76,22 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(storedIdentity.PrivateKey, testIdentity.PrivateKey) {
-		t.Error("GetIdentity returned unexpected PrivateKey value")
-	}
-	if !bytes.Equal(storedIdentity.PublicKey, testIdentity.PublicKey) {
-		t.Error("GetIdentity returned unexpected PublicKey value")
+	if !bytes.Equal(storedIdentity.PublicKeyPEM, testIdentity.PublicKeyPEM) {
+		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
 	}
 	if storedIdentity.AuthToken != testIdentity.AuthToken {
 		t.Error("GetIdentity returned unexpected AuthToken value")
 	}
 	if !bytes.Equal(storedIdentity.Uid[:], testIdentity.Uid[:]) {
 		t.Error("GetIdentity returned unexpected Uid value")
+	}
+
+	storedUid, err := p.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(storedUid[:], testIdentity.Uid[:]) {
+		t.Errorf("GetUuidForPublicKey returned unexpected value: %s, expected: %s", storedUid[:], testIdentity.Uid[:])
 	}
 }
 
@@ -94,22 +102,10 @@ func TestProtocolLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanUp(t, dm)
-
-	crypto := &ubirch.ECDSACryptoContext{}
-
-	secret := make([]byte, 32)
-	rand.Read(secret)
-
-	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer cleanUpDB(t, dm)
 
 	p := &Protocol{
-		Crypto:       crypto,
-		ctxManager:   dm,
-		keyEncrypter: enc,
+		ctxManager: dm,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -119,16 +115,6 @@ func TestProtocolLoad(t *testing.T) {
 	var testIdentities []*Identity
 	for i := 0; i < testLoad/10; i++ {
 		testId := generateRandomIdentity()
-
-		testId.PrivateKey, err = p.GenerateKey()
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		testId.PublicKey, err = p.GetPublicKeyFromPrivateKey(testId.PrivateKey)
-		if err != nil {
-			t.Fatal(err)
-		}
 
 		testIdentities = append(testIdentities, testId)
 	}
@@ -177,9 +163,36 @@ func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (*Identity, error) {
 }
 
 func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
+	return m.id.Uid, nil
+}
+
+func (m *mockCtxMngr) Close() {}
+
+type mockKeystorer struct {
+	priv []byte
+	pub  []byte
+}
+
+var _ ubirch.Keystorer = (*mockKeystorer)(nil)
+
+func (m *mockKeystorer) GetIDs() ([]uuid.UUID, error) {
 	panic("implement me")
 }
 
-func (m *mockCtxMngr) Close() {
-	panic("implement me")
+func (m *mockKeystorer) GetPrivateKey(id uuid.UUID) ([]byte, error) {
+	return m.priv, nil
+}
+
+func (m *mockKeystorer) SetPrivateKey(id uuid.UUID, key []byte) error {
+	m.priv = key
+	return nil
+}
+
+func (m *mockKeystorer) GetPublicKey(id uuid.UUID) ([]byte, error) {
+	return m.pub, nil
+}
+
+func (m *mockKeystorer) SetPublicKey(id uuid.UUID, key []byte) error {
+	m.pub = key
+	return nil
 }
