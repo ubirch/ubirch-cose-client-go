@@ -21,10 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/miekg/pkcs11"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
@@ -34,21 +32,6 @@ const (
 	SkidLen           = 8
 	maxDbConnAttempts = 5
 )
-
-var (
-	certLoadInterval     time.Duration
-	maxCertLoadFailCount int
-)
-
-func setInterval(reloadEveryMinute bool) {
-	if reloadEveryMinute {
-		certLoadInterval = time.Minute
-		maxCertLoadFailCount = 60
-	} else {
-		certLoadInterval = time.Hour
-		maxCertLoadFailCount = 3
-	}
-}
 
 type Protocol struct {
 	ubirch.Crypto
@@ -66,19 +49,8 @@ type Protocol struct {
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(ctxManager ContextManager, client *Client, reloadCertsEveryMinute bool) (*Protocol, error) {
-	crypto, err := ubirch.NewECDSAPKCS11CryptoContext(
-		pkcs11.New("libcs_pkcs11_R3.so"),
-		"TestSlotPin",
-		0,
-		true,
-		2,
-		50*time.Millisecond)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize ECDSA PKCS#11 crypto context (HSM): %v", err)
-	}
-
-	p := &Protocol{
+func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, client *Client) *Protocol {
+	return &Protocol{
 		Crypto:     crypto,
 		Client:     client,
 		ctxManager: ctxManager,
@@ -88,27 +60,6 @@ func NewProtocol(ctxManager ContextManager, client *Client, reloadCertsEveryMinu
 
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
-	}
-
-	// load public key certificate list from server and check for new certificates frequently
-	go func() {
-		setInterval(reloadCertsEveryMinute)
-
-		p.loadSKIDs()
-		for range time.Tick(certLoadInterval) {
-			p.loadSKIDs()
-		}
-	}()
-
-	return p, nil
-}
-
-func (p *Protocol) Close() {
-	p.ctxManager.Close()
-
-	err := p.Crypto.Close()
-	if err != nil {
-		log.Errorf("failed to close crypto context: %v", err)
 	}
 }
 
@@ -202,6 +153,8 @@ func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid 
 	}
 	return uid, err
 }
+
+func (p *Protocol) Close() {}
 
 func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
 	_, err = p.GetIdentity(uid)

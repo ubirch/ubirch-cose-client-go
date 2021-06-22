@@ -21,8 +21,11 @@ import (
 	"os/signal"
 	"path"
 	"syscall"
+	"time"
 
+	"github.com/miekg/pkcs11"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -108,6 +111,23 @@ func main() {
 	httpServer.Router.Get("/healtz", h.Health(serverID))
 
 	// initialize COSE service
+	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(
+		pkcs11.New(conf.PKCS11Module),
+		conf.PKCS11ModulePin,
+		conf.PKCS11ModuleSlotNr,
+		true,
+		2,
+		50*time.Millisecond)
+	if err != nil {
+		log.Fatalf("failed to initialize ECDSA PKCS#11 crypto context (HSM): %v", err)
+	}
+	defer func() {
+		err := cryptoCtx.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+
 	ctxManager, err := GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
@@ -117,13 +137,14 @@ func main() {
 	client := &Client{
 		CertificateServerURL:       conf.CertificateServer,
 		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
-		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
+		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
 	}
 
-	protocol, err := NewProtocol(ctxManager, client, conf.ReloadCertsEveryMinute)
-	if err != nil {
-		log.Fatal(err)
-	}
+	protocol := NewProtocol(cryptoCtx, ctxManager, client)
+	defer protocol.Close()
+
+	// load public key certificate list from server and check for new certificates frequently
+	go startLoadScheduler(protocol.loadSKIDs, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
 		protocol:            protocol,

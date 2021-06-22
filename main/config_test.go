@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const expectedConfig = `{"registerAuth":"","env":"","postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"ServerTLSCertFingerprints":null}`
+const expectedConfig = `{"registerAuth":"","env":"","pkcs11Module":"","pkcs11ModulePin":"","pkcs11ModuleSlotNr":0,"postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false}`
 
 func TestConfig(t *testing.T) {
 	configBytes := []byte(expectedConfig)

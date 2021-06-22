@@ -50,7 +50,10 @@ const (
 
 type Config struct {
 	RegisterAuth              string `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
-	Env                       string `json:"env"`                                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	Env                       string `json:"env" envconfig:"ENV"`                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	PKCS11Module              string `json:"pkcs11Module" envconfig:"PKCS11_MODULE"`                        //
+	PKCS11ModulePin           string `json:"pkcs11ModulePin" envconfig:"PKCS11_MODULE_PIN"`                 //
+	PKCS11ModuleSlotNr        int    `json:"pkcs11ModuleSlotNr" envconfig:"PKCS11_MODULE_SLOT_NR"`          //
 	PostgresDSN               string `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
 	DbMaxOpenConns            string `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                  // maximum number of open connections to the database
 	DbMaxIdleConns            string `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                  // maximum number of connections in the idle connection pool
@@ -67,7 +70,7 @@ type Config struct {
 	CertificateServer         string `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
 	CertificateServerPubKey   string `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
-	ServerTLSCertFingerprints map[string][32]byte
+	serverTLSCertFingerprints map[string][32]byte
 	configDir                 string // directory where config and protocol ctx are stored
 	dbParams                  DatabaseParams
 }
@@ -250,7 +253,7 @@ func (c *Config) loadServerTLSCertificates() error {
 	}
 	log.Infof("found %d entries in file %s", len(serverTLSCertBuffer), serverTLSCertFile)
 
-	c.ServerTLSCertFingerprints = make(map[string][32]byte)
+	c.serverTLSCertFingerprints = make(map[string][32]byte)
 
 	for host, cert := range serverTLSCertBuffer {
 		x509cert, err := x509.ParseCertificate(cert)
@@ -260,7 +263,7 @@ func (c *Config) loadServerTLSCertificates() error {
 		}
 
 		fingerprint := sha256.Sum256(x509cert.RawSubjectPublicKeyInfo)
-		c.ServerTLSCertFingerprints[host] = fingerprint
+		c.serverTLSCertFingerprints[host] = fingerprint
 	}
 
 	return nil
