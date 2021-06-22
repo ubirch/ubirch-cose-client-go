@@ -1,0 +1,20 @@
+{
+  "registerAuth": "S3GyUaoZ8CuElP8NM/NzSTPdO3ABREIsJT1Hie8esb8=",
+  "env": "dev",
+  "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
+  "dbMaxOpenConns": "50",
+  "dbMaxIdleConns": "40",
+  "dbConnMaxLifetime": "20",
+  "DbConnMaxIdleTime": "10",
+  "TCP_addr": ":1234",
+  "TLS": true,
+  "TLSCertFile": "certs/cert.pem",
+  "TLSKeyFile": "certs/key.pem",
+  "CSR_country": "AA",
+  "CSR_organization": "test org",
+  "debug": true,
+  "logTextFormat": true,
+  "certificateServer": "https://www.example.cert.server.com",
+  "certificateServerPubKey": "https://www.example.cert.server.com/pubkey.pem",
+  "reloadCertsEveryMinute": true
+}
