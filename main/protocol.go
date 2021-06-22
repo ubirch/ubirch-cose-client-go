@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/miekg/pkcs11"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
@@ -66,7 +67,16 @@ type Protocol struct {
 var _ ContextManager = (*Protocol)(nil)
 
 func NewProtocol(ctxManager ContextManager, client *Client, reloadCertsEveryMinute bool) (*Protocol, error) {
-	crypto := &ubirch.ECDSAPKCS11CryptoContext{}
+	crypto, err := ubirch.NewECDSAPKCS11CryptoContext(
+		pkcs11.New("libcs_pkcs11_R3.so"),
+		"TestSlotPin",
+		0,
+		true,
+		2,
+		50*time.Millisecond)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize ECDSA PKCS#11 crypto context (HSM): %v", err)
+	}
 
 	p := &Protocol{
 		Crypto:     crypto,
@@ -95,6 +105,11 @@ func NewProtocol(ctxManager ContextManager, client *Client, reloadCertsEveryMinu
 
 func (p *Protocol) Close() {
 	p.ctxManager.Close()
+
+	err := p.Crypto.Close()
+	if err != nil {
+		log.Errorf("failed to close crypto context: %v", err)
+	}
 }
 
 func (p *Protocol) StoreNewIdentity(id Identity) error {
