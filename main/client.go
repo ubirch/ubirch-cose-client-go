@@ -120,7 +120,6 @@ func (c *Client) getWithCertPinning(url string) ([]byte, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	client.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
-			//VerifyPeerCertificate: NewPeerCertificateVerifier(tlsCertFingerprint),
 			VerifyConnection: NewConnectionVerifier(tlsCertFingerprint),
 		},
 	}
@@ -157,7 +156,7 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 
 		// PeerCertificates are the parsed certificates sent by the peer, in the order in which they were sent.
 		// The first element is the leaf certificate that the connection is verified against.
-		serverCertFingerprint := sha256.Sum256(connectionState.PeerCertificates[0].Raw)
+		serverCertFingerprint := sha256.Sum256(connectionState.PeerCertificates[0].RawSubjectPublicKeyInfo)
 
 		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
 			return fmt.Errorf("pinned server TLS certificate mismatch")
