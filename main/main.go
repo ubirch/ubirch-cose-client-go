@@ -134,13 +134,14 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol)
+	coseSigner, err := NewCoseSigner(protocol.SignHash, protocol.GetSKID)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	service := &COSEService{
-		CoseSigner: coseSigner,
+		CoseSigner:  coseSigner,
+		GetIdentity: protocol.GetIdentity,
 	}
 
 	// set up endpoint for identity registration

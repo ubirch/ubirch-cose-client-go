@@ -68,6 +68,7 @@ type HTTPResponse struct {
 
 type COSEService struct {
 	*CoseSigner
+	GetIdentity func(uid uuid.UUID) (*Identity, error)
 }
 
 func (s *COSEService) directUUID() http.HandlerFunc {
