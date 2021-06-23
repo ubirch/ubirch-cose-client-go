@@ -9,11 +9,8 @@ require (
 	github.com/google/uuid v1.2.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v1.10.1
-	github.com/miekg/pkcs11 v1.0.3
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
-	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210428143952-0a0718362749
+	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210623153834-12deb566a195
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
-
-replace github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210428143952-0a0718362749 => ../../ubirch-protocol-go/ubirch

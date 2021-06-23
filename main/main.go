@@ -23,7 +23,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/miekg/pkcs11"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
@@ -112,7 +111,7 @@ func main() {
 
 	// initialize COSE service
 	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(
-		pkcs11.New(conf.PKCS11Module),
+		conf.PKCS11Module,
 		conf.PKCS11ModulePin,
 		conf.PKCS11ModuleSlotNr,
 		true,
