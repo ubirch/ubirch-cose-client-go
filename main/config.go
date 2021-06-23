@@ -289,14 +289,13 @@ func (c *Config) loadServerTLSCertificates() error {
 	c.serverTLSCertFingerprints = make(map[string][32]byte)
 
 	for host, cert := range serverTLSCertBuffer {
-		// sanity check
-		_, err := x509.ParseCertificate(cert)
+		x509cert, err := x509.ParseCertificate(cert)
 		if err != nil {
-			log.Errorf("parsing certificate for host %s failed: %v, expected certificate format: base64 encoded ASN.1 DER", host, err)
+			log.Errorf("parsing x.509 certificate for host %s failed: %v, expected certificate format: base64 encoded ASN.1 DER", host, err)
 			continue
 		}
 
-		fingerprint := sha256.Sum256(cert)
+		fingerprint := sha256.Sum256(x509cert.RawSubjectPublicKeyInfo)
 		c.serverTLSCertFingerprints[host] = fingerprint
 	}
 

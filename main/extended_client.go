@@ -21,11 +21,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"io/ioutil"
 	"net/http"
-	"path"
 	"strings"
 	"time"
 
@@ -35,26 +33,12 @@ import (
 
 type ExtendedClient struct {
 	clients.Client
-	SigningServiceURL          string
 	CertificateServerURL       string
 	CertificateServerPubKeyURL string
 	ServerTLSCertFingerprints  map[string][32]byte
 }
 
-func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	endpoint := path.Join(c.SigningServiceURL, uid.String(), "hash")
-	return clients.Post(endpoint, upp, UCCHeader(auth))
-}
-
-func UCCHeader(auth string) map[string]string {
-	return map[string]string{
-		"x-auth-token": auth,
-		"content-type": "application/octet-stream",
-	}
-}
-
 type trustList struct {
-	//SignatureHEX string         `json:"signature"`
 	Certificates []Certificate `json:"certificates"`
 }
 
@@ -135,7 +119,6 @@ func (c *ExtendedClient) getWithCertPinning(url string) ([]byte, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
-			//VerifyPeerCertificate: NewPeerCertificateVerifier(tlsCertFingerprint),
 			VerifyConnection: NewConnectionVerifier(tlsCertFingerprint),
 		},
 	}
@@ -160,26 +143,6 @@ func (c *ExtendedClient) getWithCertPinning(url string) ([]byte, error) {
 	return ioutil.ReadAll(resp.Body)
 }
 
-//// VerifyPeerCertificate is called after normal certificate verification by either a TLS client or server. It receives
-//// the raw ASN.1 certificates provided by the peer and also any verified chains that normal processing found.
-//// If it returns a non-nil error, the handshake is aborted and that error results.
-////
-//// If normal verification fails then the handshake will abort before considering this callback.
-//type VerifyPeerCertificate func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
-//
-//func NewPeerCertificateVerifier(fingerprint [32]byte) VerifyPeerCertificate {
-//	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-//
-//		serverCertFingerprint := sha256.Sum256(rawCerts[0])
-//
-//		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
-//			return fmt.Errorf("pinned server TLS certificate mismatch")
-//		}
-//
-//		return nil
-//	}
-//}
-
 // VerifyConnection is called after normal certificate verification and after VerifyPeerCertificate by
 // either a TLS client or server. If it returns a non-nil error, the handshake is aborted and that error results.
 //
@@ -192,7 +155,7 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 
 		// PeerCertificates are the parsed certificates sent by the peer, in the order in which they were sent.
 		// The first element is the leaf certificate that the connection is verified against.
-		serverCertFingerprint := sha256.Sum256(connectionState.PeerCertificates[0].Raw)
+		serverCertFingerprint := sha256.Sum256(connectionState.PeerCertificates[0].RawSubjectPublicKeyInfo)
 
 		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
 			return fmt.Errorf("pinned server TLS certificate mismatch")
