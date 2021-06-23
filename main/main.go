@@ -129,9 +129,12 @@ func main() {
 	}
 
 	idHandler := &IdentityHandler{
-		protocol:            protocol,
-		subjectCountry:      conf.CSR_Country,
-		subjectOrganization: conf.CSR_Organization,
+		crypto:                protocol.Crypto,
+		ctxManager:            protocol.ctxManager,
+		SubmitKeyRegistration: protocol.SubmitKeyRegistration,
+		SubmitCSR:             protocol.SubmitCSR,
+		subjectCountry:        conf.CSR_Country,
+		subjectOrganization:   conf.CSR_Organization,
 	}
 
 	coseSigner, err := NewCoseSigner(protocol.SignHash, protocol.GetSKID)
@@ -146,7 +149,7 @@ func main() {
 
 	// set up endpoint for identity registration
 	creator := handlers.NewIdentityCreator(conf.RegisterAuth)
-	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, idHandler.protocol.Exists))
+	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, protocol.Exists))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor

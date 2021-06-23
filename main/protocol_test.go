@@ -185,11 +185,11 @@ func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (*Identity, error) {
 }
 
 func (m *mockCtxMngr) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	panic("implement me")
+	return nil, nil
 }
 
 func (m *mockCtxMngr) CloseTransaction(transactionCtx interface{}, commit bool) error {
-	panic("implement me")
+	return nil
 }
 
 func (m *mockCtxMngr) ExistsPrivateKey(uid uuid.UUID) (bool, error) {

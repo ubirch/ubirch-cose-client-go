@@ -20,65 +20,40 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
 
+type SubmitKeyRegistration func(uid uuid.UUID, cert []byte, auth string) error
+type SubmitCSR func(uid uuid.UUID, csr []byte) error
+
 type IdentityHandler struct {
-	protocol            *Protocol
+	crypto     ubirch.Crypto
+	ctxManager ContextManager
+	SubmitKeyRegistration
+	SubmitCSR
 	subjectCountry      string
 	subjectOrganization string
 }
 
 type Identity struct {
-	//Tenant     string    `json:"tenant"`
-	//Category   string    `json:"category"`
-	//Poc        string    `json:"poc"` // can be empty
 	Uid        uuid.UUID `json:"uuid"`
 	PrivateKey []byte    `json:"privKey"`
 	PublicKey  []byte    `json:"pubKey"`
 	AuthToken  string    `json:"token"`
 }
 
-func (i *IdentityHandler) initIdentities(identities []*Identity) error {
-	// create and register keys for identities
-	log.Debugf("initializing %d identities...", len(identities))
-	for _, id := range identities {
-		// check if identity is already initialized
-		exists, err := i.protocol.Exists(id.Uid)
-		if err != nil {
-			return fmt.Errorf("can not check existing context for %s: %s", id.Uid, err)
-		}
-		if exists {
-			// already initialized
-			log.Debugf("%s already initialized (skip)", id.Uid)
-			continue
-		}
-
-		// make sure identity has an auth token
-		if len(id.AuthToken) == 0 {
-			return fmt.Errorf("missing auth token for identity %s", id.Uid)
-		}
-
-		_, err = i.initIdentity(id.Uid, id.AuthToken)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, err error) {
 	log.Infof("initializing new identity %s", uid)
 
 	// generate a new new pair
-	privKeyPEM, err := i.protocol.GenerateKey()
+	privKeyPEM, err := i.crypto.GenerateKey()
 	if err != nil {
 		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
 
-	pubKeyPEM, err := i.protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := i.crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		return nil, err
 	}
@@ -93,12 +68,12 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := i.protocol.StartTransaction(ctx)
+	tx, err := i.ctxManager.StartTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.protocol.StoreNewIdentity(tx, newIdentity)
+	err = i.ctxManager.StoreNewIdentity(tx, newIdentity)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +84,7 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, err
 	}
 
-	err = i.protocol.CloseTransaction(tx, Commit)
+	err = i.ctxManager.CloseTransaction(tx, Commit)
 	if err != nil {
 		return nil, err
 	}
@@ -121,19 +96,19 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {
-	keyRegistration, err := i.protocol.GetSignedKeyRegistration(privKeyPEM, uid)
+	keyRegistration, err := i.crypto.GetSignedKeyRegistration(privKeyPEM, uid)
 	if err != nil {
 		return nil, fmt.Errorf("error creating public key certificate: %v", err)
 	}
 	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
 
-	csr, err = i.protocol.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
+	csr, err = i.crypto.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.protocol.SubmitKeyRegistration(uid, keyRegistration, "")
+	err = i.SubmitKeyRegistration(uid, keyRegistration, "")
 	if err != nil {
 		return nil, fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
@@ -144,7 +119,7 @@ func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (c
 }
 
 func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
-	err := i.protocol.SubmitCSR(uid, csr)
+	err := i.SubmitCSR(uid, csr)
 	if err != nil {
 		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
 	}
