@@ -46,6 +46,8 @@ const (
 	defaultDbMaxIdleConns    = 10
 	defaultDbConnMaxLifetime = 10
 	defaultDbConnMaxIdleTime = 1
+
+	defaultPKCS11Module = "libcs_pkcs11_R3.so"
 )
 
 type Config struct {
@@ -108,6 +110,7 @@ func (c *Config) Load(configDir, filename string) error {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
+	c.setDefaultHSM()
 	c.setDefaultCSR()
 	c.setDefaultTLS()
 	return c.setDbParams()
@@ -146,11 +149,21 @@ func (c *Config) checkMandatory() error {
 		return fmt.Errorf("missing 'certificateServerPubKey' in configuration")
 	}
 
+	if len(c.PKCS11ModulePin) == 0 {
+		return fmt.Errorf("missing 'pkcs11ModulePin / UBIRCH_PKCS11_MODULE_PIN' in configuration")
+	}
+
 	if len(c.Env) == 0 {
 		c.Env = ProdStage
 	}
 
 	return nil
+}
+
+func (c *Config) setDefaultHSM() {
+	if len(c.PKCS11Module) == 0 {
+		c.PKCS11Module = defaultPKCS11Module
+	}
 }
 
 func (c *Config) setDefaultCSR() {
