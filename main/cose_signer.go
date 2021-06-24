@@ -243,6 +243,10 @@ func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error
 // the [Signing and Verification Process](https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
 // and returns the ToBeSigned value.
 func (c *CoseSigner) GetSigStructBytes(payload []byte) ([]byte, error) {
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+
 	sigStruct := &Sig_structure{
 		Context:         COSE_Sign1_Context,
 		ProtectedHeader: c.protectedHeader,
