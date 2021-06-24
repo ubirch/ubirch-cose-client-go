@@ -25,8 +25,8 @@ import (
 )
 
 var (
-	uid    = uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
-	key, _ = base64.StdEncoding.DecodeString("YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM=")
+	testUuid   = uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
+	testKey, _ = base64.StdEncoding.DecodeString("YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM=")
 
 	payloadJSON = "{\"test\": \"hello\"}"
 )
@@ -59,7 +59,7 @@ func TestCoseSigner(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	coseBytes, err := coseSigner.createSignedCOSE(hash, privateKeyPEM, uid[:], payloadCBOR)
+	coseBytes, err := coseSigner.createSignedCOSE(hash, privateKeyPEM, testUuid[:], payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestCoseSign(t *testing.T) {
 	}
 
 	msg := HTTPRequest{
-		ID:      uid,
+		ID:      testUuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
 	}
@@ -101,7 +101,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 	}
 
 	msg := HTTPRequest{
-		ID:      uid,
+		ID:      testUuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
 	}
@@ -126,7 +126,7 @@ func TestCoseSignBadKey(t *testing.T) {
 	}
 
 	msg := HTTPRequest{
-		ID:      uid,
+		ID:      testUuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
 	}
@@ -149,7 +149,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 	}
 
 	msg := HTTPRequest{
-		ID:      uid,
+		ID:      testUuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
 	}
@@ -182,7 +182,7 @@ func TestCoseBadGetCBORFromJSON(t *testing.T) {
 func setupCryptoCtx(t *testing.T) (cryptoCtx ubirch.Crypto, privKeyPEM []byte) {
 	cryptoCtx = &ubirch.ECDSACryptoContext{}
 
-	privKeyPEM, err := cryptoCtx.PrivateKeyBytesToPEM(key)
+	privKeyPEM, err := cryptoCtx.PrivateKeyBytesToPEM(testKey)
 	if err != nil {
 		t.Fatal(err)
 	}

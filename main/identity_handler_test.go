@@ -17,7 +17,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		subjectOrganization:   "test GmbH",
 	}
 
-	_, err := idHandler.initIdentity(uid, "password123")
+	_, err := idHandler.initIdentity(testUuid, testAuth)
 	if err != nil {
 		t.Error(err)
 	}
@@ -33,7 +33,7 @@ func TestIdentityHandler_initIdentityBad(t *testing.T) {
 		subjectOrganization:   "test GmbH",
 	}
 
-	_, err := idHandler.initIdentity(uid, "password123")
+	_, err := idHandler.initIdentity(testUuid, testAuth)
 	if err == nil {
 		t.Error("no error returned")
 	}

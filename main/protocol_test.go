@@ -42,10 +42,10 @@ func TestProtocol(t *testing.T) {
 	}
 
 	testIdentity := Identity{
-		Uid:        uid,
+		Uid:        testUuid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
-		AuthToken:  "password1234",
+		AuthToken:  testAuth,
 	}
 
 	// check not exists
