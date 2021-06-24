@@ -178,7 +178,7 @@ func (m *mockCtxMngr) StoreNewIdentity(tx interface{}, id Identity) error {
 }
 
 func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (*Identity, error) {
-	if m.id.Uid == uuid.Nil {
+	if m.id.Uid == uuid.Nil || m.id.Uid != uid {
 		return nil, ErrNotExist
 	}
 	return &m.id, nil
