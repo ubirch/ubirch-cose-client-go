@@ -34,7 +34,7 @@ var (
 func TestCoseSigner(t *testing.T) {
 	c, privateKeyPEM := setupCryptoCtx(t)
 
-	coseSigner, err := NewCoseSigner(c.SignHash, pseudoGetSKID)
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestCoseSigner(t *testing.T) {
 func TestCoseSign(t *testing.T) {
 	c, privateKeyPEM := setupCryptoCtx(t)
 
-	coseSigner, err := NewCoseSigner(c.SignHash, pseudoGetSKID)
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestCoseSign(t *testing.T) {
 func TestCoseSignBadSkid(t *testing.T) {
 	c, privateKeyPEM := setupCryptoCtx(t)
 
-	coseSigner, err := NewCoseSigner(c.SignHash, pseudoGetSKIDReturnsErr)
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKIDReturnsErr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 func TestCoseSignBadKey(t *testing.T) {
 	c, _ := setupCryptoCtx(t)
 
-	coseSigner, err := NewCoseSigner(c.SignHash, pseudoGetSKID)
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestCoseSignBadKey(t *testing.T) {
 }
 
 func TestCoseSignBadSignature(t *testing.T) {
-	coseSigner, err := NewCoseSigner(pseudoSignReturnsNilSignature, pseudoGetSKID)
+	coseSigner, err := NewCoseSigner(mockSignReturnsNilSignature, mockGetSKID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 func TestCoseBadGetCBORFromJSON(t *testing.T) {
 	c, _ := setupCryptoCtx(t)
 
-	coseSigner, err := NewCoseSigner(c.SignHash, pseudoGetSKIDReturnsErr)
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKIDReturnsErr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,14 +202,18 @@ func setupCryptoCtx(t *testing.T) (cryptoCtx ubirch.Crypto, privKeyPEM []byte) {
 	return cryptoCtx, privKeyPEM
 }
 
-func pseudoGetSKID(uid uuid.UUID) ([]byte, error) {
+func mockGetSKID(uuid.UUID) ([]byte, error) {
 	return base64.StdEncoding.DecodeString("6ZaL9M6NcG0=")
 }
 
-func pseudoGetSKIDReturnsErr(uid uuid.UUID) ([]byte, error) {
+func mockGetSKIDReturnsErr(uuid.UUID) ([]byte, error) {
 	return nil, fmt.Errorf("test error")
 }
 
-func pseudoSignReturnsNilSignature(privKeyPEM []byte, hash []byte) ([]byte, error) {
+func mockSign([]byte, []byte) ([]byte, error) {
+	return make([]byte, 64), nil
+}
+
+func mockSignReturnsNilSignature([]byte, []byte) ([]byte, error) {
 	return nil, nil
 }
