@@ -8,8 +8,11 @@
 *.exe
 *.exe~
 *.dll
-*.so
 *.dylib
+
+*.so
+# .. except for the one for the HSM
+!hsm/*.so
 
 # Test binary, built with `go test -c`
 *.test
