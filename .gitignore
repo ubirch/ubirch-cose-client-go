@@ -27,6 +27,6 @@
 
 build/
 *.bck
-*.json
+config.json
 
 /venv/

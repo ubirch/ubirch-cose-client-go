@@ -1,0 +1,6 @@
+{
+  "secret32": "4qo9HvXPFX3DWJQAa0ljHbGx+hnsyTF0rFmAdDMGjXE=",
+  "registerAuth": "S3GyUaoZ8CuElP8NM/NzSTPdO3ABREIsJT1Hie8esb8=",
+  "certificateServer": "https://www.example.cert.server.com",
+  "certificateServerPubKey": "https://www.example.cert.server.com/pubkey.pem"
+}
