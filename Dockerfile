@@ -19,11 +19,11 @@ RUN useradd \
 USER cose-client
 COPY --from=builder app/main/main /opt/cose-client
 
-# Add ultimaco library
-ENV LD_LIBRARY_PATH=/usr/local/lib/ultimaco/
-COPY hsm/libcs_pkcs11_R3.so /usr/local/lib/ultimaco/
+# Add utimaco library
+ENV LD_LIBRARY_PATH=/usr/local/lib/utimaco/
+COPY hsm/libcs_pkcs11_R3.so /usr/local/lib/utimaco/
 # Example configuration
-COPY hsm/cs_pkcs11_R3.cfg /etc/ultimaco/
+COPY hsm/cs_pkcs11_R3.cfg /etc/utimaco/
 
 ENTRYPOINT ["/opt/cose-client"]
 CMD ["/data"]
