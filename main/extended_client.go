@@ -21,18 +21,22 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
+
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	urlpkg "net/url"
 )
 
+type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
+
 type ExtendedClient struct {
 	clients.Client
+	verify                     Verify
 	CertificateServerURL       string
 	CertificateServerPubKeyURL string
 	ServerTLSCertFingerprints  map[string][32]byte
@@ -52,9 +56,7 @@ type Certificate struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
-type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
-
-func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, error) {
+func (c *ExtendedClient) RequestCertificateList() ([]Certificate, error) {
 	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key certificate list failed: %v", err)
@@ -78,7 +80,7 @@ func (c *ExtendedClient) RequestCertificateList(verify Verify) ([]Certificate, e
 
 	certList := []byte(respContent[1])
 
-	ok, err := verify(pubKeyPEM, certList, signature)
+	ok, err := c.verify(pubKeyPEM, certList, signature)
 	if err != nil {
 		return nil, fmt.Errorf("unable to verify signature for public key certificate list: %v", err)
 	}

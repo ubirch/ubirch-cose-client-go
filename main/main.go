@@ -115,29 +115,32 @@ func main() {
 	}
 	defer ctxManager.Close()
 
+	protocol, err := NewProtocol(ctxManager, conf.secretBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer protocol.Close()
+
 	client := &ExtendedClient{}
 	client.KeyServiceURL = conf.KeyService
 	client.IdentityServiceURL = conf.IdentityService
-	//todo client.SigningServiceURL = conf.SigningService
+	client.verify = protocol.Verify
 	client.CertificateServerURL = conf.CertificateServer
 	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
 	client.ServerTLSCertFingerprints = conf.serverTLSCertFingerprints
 
-	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client, conf.ReloadCertsEveryMinute)
-	if err != nil {
-		log.Fatal(err)
-	}
+	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
 		crypto:                protocol.Crypto,
 		ctxManager:            protocol.ctxManager,
-		SubmitKeyRegistration: protocol.SubmitKeyRegistration,
-		SubmitCSR:             protocol.SubmitCSR,
+		SubmitKeyRegistration: client.SubmitKeyRegistration,
+		SubmitCSR:             client.SubmitCSR,
 		subjectCountry:        conf.CSR_Country,
 		subjectOrganization:   conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol.SignHash, protocol.GetSKID)
+	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)
 	if err != nil {
 		log.Fatal(err)
 	}

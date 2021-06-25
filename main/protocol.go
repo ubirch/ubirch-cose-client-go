@@ -16,12 +16,9 @@ package main
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
@@ -35,39 +32,19 @@ const (
 	maxDbConnAttempts = 5
 )
 
-var (
-	certLoadInterval     time.Duration
-	maxCertLoadFailCount int
-)
-
-func setInterval(reloadEveryMinute bool) {
-	if reloadEveryMinute {
-		certLoadInterval = time.Minute
-		maxCertLoadFailCount = 60
-	} else {
-		certLoadInterval = time.Hour
-		maxCertLoadFailCount = 3
-	}
-}
-
 type Protocol struct {
 	ubirch.Crypto
-	*ExtendedClient
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
-
-	skidStore           map[uuid.UUID][]byte
-	skidStoreMutex      *sync.RWMutex
-	certLoadFailCounter int
 }
 
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClient, reloadCertsEveryMinute bool) (*Protocol, error) {
+func NewProtocol(ctxManager ContextManager, secret []byte) (*Protocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
 	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
@@ -76,33 +53,15 @@ func NewProtocol(ctxManager ContextManager, secret []byte, client *ExtendedClien
 	}
 
 	p := &Protocol{
-		Crypto:         crypto,
-		ExtendedClient: client,
-		ctxManager:     ctxManager,
-		keyEncrypter:   enc,
+		Crypto:       crypto,
+		ctxManager:   ctxManager,
+		keyEncrypter: enc,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
-
-		skidStore:      map[uuid.UUID][]byte{},
-		skidStoreMutex: &sync.RWMutex{},
 	}
 
-	// load public key certificate list from server and check for new certificates frequently
-	go func() {
-		setInterval(reloadCertsEveryMinute)
-
-		p.loadSKIDs()
-		for range time.Tick(certLoadInterval) {
-			p.loadSKIDs()
-		}
-	}()
-
 	return p, nil
-}
-
-func (p *Protocol) Close() {
-	p.ctxManager.Close()
 }
 
 func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
@@ -263,88 +222,4 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 	return nil
 }
 
-func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
-	p.skidStoreMutex.RLock()
-	skid, exists := p.skidStore[uid]
-	p.skidStoreMutex.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("SKID unknown for identity %s (missing X.509 public key certificate)", uid)
-	}
-
-	return skid, nil
-}
-
-func (p *Protocol) setSkidStore(newSkidStore map[uuid.UUID][]byte) {
-	p.skidStoreMutex.Lock()
-	p.skidStore = newSkidStore
-	p.skidStoreMutex.Unlock()
-}
-
-func (p *Protocol) loadSKIDs() {
-	certs, err := p.RequestCertificateList(p.Verify)
-	if err != nil {
-		log.Error(err)
-
-		p.certLoadFailCounter++
-		log.Debugf("loading certificate list failed %d times,"+
-			" clearing local KID lookup after %d failed attempts",
-			p.certLoadFailCounter, maxCertLoadFailCount)
-
-		// if we have not yet reached the maximum amount of failed attempts to load the certificate list,
-		// return and try again later
-		if p.certLoadFailCounter != maxCertLoadFailCount {
-			return
-		}
-
-		// if we have reached the maximum amount of failed attempts to load the certificate list,
-		// clear the SKID lookup
-		log.Warnf("clearing local KID lookup after %d failed attempts to load public key certificate list",
-			p.certLoadFailCounter)
-	} else {
-		// reset fail counter if certs were loaded successfully
-		p.certLoadFailCounter = 0
-	}
-
-	tempSkidStore := map[uuid.UUID][]byte{}
-
-	// go through certificate list and match known public keys
-	for _, cert := range certs {
-		kid := base64.StdEncoding.EncodeToString(cert.Kid)
-
-		// get public key from certificate
-		certificate, err := x509.ParseCertificate(cert.RawData)
-		if err != nil {
-			log.Errorf("%s: %v", kid, err)
-			continue
-		}
-
-		pubKeyPEM, err := p.Crypto.EncodePublicKey(certificate.PublicKey)
-		if err != nil {
-			//log.Debugf("%s: unable to encode public key: %v", kid, err)
-			continue
-		}
-
-		// look up matching UUID for public key
-		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
-		if err != nil {
-			if err != ErrNotExist {
-				log.Errorf("%s: %v", kid, err)
-			}
-			continue
-		}
-		//log.Debugf("%s: public key certificate match", kid)
-
-		if len(cert.Kid) != SkidLen {
-			log.Errorf("invalid KID length: expected %d, got %d", SkidLen, len(kid))
-			continue
-		}
-
-		tempSkidStore[uid] = cert.Kid
-	}
-
-	p.setSkidStore(tempSkidStore)
-
-	skids, _ := json.Marshal(tempSkidStore)
-	log.Infof("loaded %d matching certificates from server: %s", len(tempSkidStore), skids)
-}
+func (p *Protocol) Close() {}
