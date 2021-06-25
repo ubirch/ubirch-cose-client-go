@@ -82,7 +82,7 @@ func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
 }
 
 func (p *Protocol) StoreNewIdentity(tx interface{}, id Identity) error {
-	err := p.checkIdentityAttributesNotNil(&id)
+	err := p.checkIdentityAttributesNotNil(id)
 	if err != nil {
 		return err
 	}
@@ -102,17 +102,17 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, id Identity) error {
 	return p.ctxManager.StoreNewIdentity(tx, id)
 }
 
-func (p *Protocol) GetIdentity(uid uuid.UUID) (id *Identity, err error) {
+func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
 	_id, found := p.identityCache.Load(uid)
 
 	if found {
-		id, found = _id.(*Identity)
+		id, found = _id.(Identity)
 	}
 
 	if !found {
 		id, err = p.fetchIdentityFromStorage(uid)
 		if err != nil {
-			return nil, err
+			return id, err
 		}
 
 		p.identityCache.Store(uid, id)
@@ -121,7 +121,7 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id *Identity, err error) {
 	return id, nil
 }
 
-func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id *Identity, err error) {
+func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
 		id, err = p.ctxManager.GetIdentity(uid)
 		if err != nil && isConnectionNotAvailable(err) {
@@ -131,22 +131,22 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id *Identity, err er
 		break
 	}
 	if err != nil {
-		return nil, err
+		return id, err
 	}
 
 	id.PrivateKey, err = p.keyEncrypter.Decrypt(id.PrivateKey)
 	if err != nil {
-		return nil, err
+		return id, err
 	}
 
 	id.PublicKey, err = p.PublicKeyBytesToPEM(id.PublicKey)
 	if err != nil {
-		return nil, err
+		return id, err
 	}
 
 	err = p.checkIdentityAttributesNotNil(id)
 	if err != nil {
-		return nil, err
+		return id, err
 	}
 
 	return id, nil
@@ -202,7 +202,7 @@ func (p *Protocol) Exists(uid uuid.UUID) (exists bool, err error) {
 	return true, nil
 }
 
-func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
+func (p *Protocol) checkIdentityAttributesNotNil(i Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}

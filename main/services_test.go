@@ -523,6 +523,6 @@ func mockGetUUIDFromURL(*http.Request) (uuid.UUID, error) {
 	return testUuid, nil
 }
 
-func mockGetIdentityReturnsErr(uid uuid.UUID) (*Identity, error) {
-	return nil, fmt.Errorf("test error")
+func mockGetIdentityReturnsErr(uid uuid.UUID) (Identity, error) {
+	return Identity{}, fmt.Errorf("test error")
 }
