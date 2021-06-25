@@ -17,6 +17,7 @@ func TestProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 
 	privKeyPEM, err := p.GenerateKey()
 	if err != nil {
@@ -112,6 +113,7 @@ func TestProtocolLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 
 	// generate identities
 	var testIdentities []*Identity
@@ -174,6 +176,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 
 	privKeyPEM, err := p.GenerateKey()
 	if err != nil {
@@ -206,6 +209,7 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 
 	privKeyPEM, err := p.GenerateKey()
 	if err != nil {
@@ -238,6 +242,7 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 
 	privKeyPEM, err := p.GenerateKey()
 	if err != nil {
@@ -270,6 +275,7 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 
 	privKeyPEM, err := p.GenerateKey()
 	if err != nil {
@@ -297,6 +303,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 
 	privKeyPEM, err := p.GenerateKey()
 	if err != nil {
@@ -324,6 +331,7 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 
 	privKeyPEM, err := p.GenerateKey()
 	if err != nil {
@@ -345,6 +353,69 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	err = p.StoreNewIdentity(nil, i)
 	if err == nil {
 		t.Error("StoreNewIdentity did not return error for invalid auth token")
+	}
+}
+
+func TestProtocol_Cache(t *testing.T) {
+	wg := &sync.WaitGroup{}
+
+	secret := make([]byte, 32)
+	rand.Read(secret)
+
+	p, err := NewProtocol(&mockCtxMngr{}, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	privKeyPEM, err := p.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testIdentity := Identity{
+		Uid:        testUuid,
+		PrivateKey: privKeyPEM,
+		PublicKey:  pubKeyPEM,
+		AuthToken:  testAuth,
+	}
+
+	err = p.StoreNewIdentity(nil, testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// repeatedly check same identity to test cache
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			err := checkIdentity(p, &testIdentity, wg)
+			if err != nil {
+				t.Errorf("%s: %v", testIdentity.Uid, err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
+	secret := make([]byte, 32)
+	rand.Read(secret)
+
+	p, err := NewProtocol(&mockCtxMngr{}, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	_, err = p.GetUuidForPublicKey(make([]byte, 64))
+	if err == nil {
+		t.Error("GetUuidForPublicKey did not return error for invalid public key")
 	}
 }
 
