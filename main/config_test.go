@@ -44,3 +44,11 @@ func TestConfig_Load_Min(t *testing.T) {
 		t.Errorf("unable to load configuration: %s", err)
 	}
 }
+
+func TestConfig_Load_FileNotFound(t *testing.T) {
+	conf := &Config{}
+	err := conf.Load("", "no_existing_file.json")
+	if err == nil {
+		t.Errorf("Load returned no error for non-existing file")
+	}
+}
