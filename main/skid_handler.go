@@ -97,6 +97,11 @@ func (s *SkidHandler) loadSKIDs() {
 	for _, cert := range certs {
 		kid := base64.StdEncoding.EncodeToString(cert.Kid)
 
+		if len(cert.Kid) != SkidLen {
+			log.Errorf("%s: invalid KID length: %d, expected: %d", kid, len(cert.Kid), SkidLen)
+			continue
+		}
+
 		// get public key from certificate
 		certificate, err := x509.ParseCertificate(cert.RawData)
 		if err != nil {
@@ -119,11 +124,6 @@ func (s *SkidHandler) loadSKIDs() {
 			continue
 		}
 		//log.Debugf("%s: public key certificate match", kid)
-
-		if len(cert.Kid) != SkidLen {
-			log.Errorf("invalid KID length: expected %d, got %d", SkidLen, len(kid))
-			continue
-		}
 
 		tempSkidStore[uid] = cert.Kid
 	}
