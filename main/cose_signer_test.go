@@ -32,7 +32,19 @@ var (
 )
 
 func TestCoseSigner(t *testing.T) {
-	c, privateKeyPEM := setupCryptoCtx(t)
+	c, privKeyPEM := setupCryptoCtx(t)
+
+	pubKeyPEM, err := c.GetPublicKeyFromPrivateKey(privKeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyBytes, err := c.PublicKeyPEMToBytes(pubKeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("public key: %x", pubKeyBytes)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
@@ -59,7 +71,7 @@ func TestCoseSigner(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	coseBytes, err := coseSigner.createSignedCOSE(hash, privateKeyPEM, testUuid[:], payloadCBOR)
+	coseBytes, err := coseSigner.createSignedCOSE(hash, privKeyPEM, testUuid[:], payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +80,7 @@ func TestCoseSigner(t *testing.T) {
 }
 
 func TestCoseSign(t *testing.T) {
-	c, privateKeyPEM := setupCryptoCtx(t)
+	c, privKeyPEM := setupCryptoCtx(t)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
@@ -81,7 +93,7 @@ func TestCoseSign(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg, privateKeyPEM)
+	resp := coseSigner.Sign(msg, privKeyPEM)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -186,18 +198,6 @@ func setupCryptoCtx(t *testing.T) (cryptoCtx ubirch.Crypto, privKeyPEM []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	pubKeyPEM, err := cryptoCtx.GetPublicKeyFromPrivateKey(privKeyPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pubKeyBytes, err := cryptoCtx.PublicKeyPEMToBytes(pubKeyPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("public key: %x", pubKeyBytes)
 
 	return cryptoCtx, privKeyPEM
 }

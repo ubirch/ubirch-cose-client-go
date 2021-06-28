@@ -1,38 +1,23 @@
 package main
 
 import (
-	"encoding/json"
-	"os"
 	"testing"
-	"time"
 )
 
 func TestGetCtxManagerDB(t *testing.T) {
-	fileHandle, err := os.Open("config.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fileHandle.Close()
-
-	c := &dbConfig{}
-	err = json.NewDecoder(fileHandle).Decode(c)
+	dbConf, err := getDatabaseConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	conf := &Config{
-		PostgresDSN: c.PostgresDSN,
-		dbParams: DatabaseParams{
-			MaxOpenConns:    5,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: 2 * time.Minute,
-			ConnMaxIdleTime: 1 * time.Minute,
-		},
+		PostgresDSN: dbConf.PostgresDSN,
+		dbParams:    dbConf.dbParams,
 	}
 
 	ctxMngr, err := GetCtxManager(conf)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	_, ok := ctxMngr.(*DatabaseManager)

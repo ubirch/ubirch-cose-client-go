@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const expectedConfig = `{"secret32":"","registerAuth":"","env":"","postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"KeyService":"","IdentityService":""}`
@@ -35,6 +37,7 @@ func TestConfig_Load_Full(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to load configuration: %s", err)
 	}
+	log.SetLevel(log.FatalLevel) // set log level to FATAL after this test to avoid flooding the terminal
 }
 
 func TestConfig_Load_Min(t *testing.T) {

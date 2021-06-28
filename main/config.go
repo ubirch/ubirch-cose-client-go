@@ -80,7 +80,7 @@ type Config struct {
 	serverTLSCertFingerprints map[string][32]byte
 	configDir                 string // directory where config and protocol ctx are stored
 	secretBytes               []byte // the decoded key store secret
-	dbParams                  DatabaseParams
+	dbParams                  *DatabaseParams
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -222,6 +222,8 @@ func (c *Config) setDefaultURLs() {
 }
 
 func (c *Config) setDbParams() error {
+	c.dbParams = &DatabaseParams{}
+
 	if c.DbMaxOpenConns == "" {
 		c.dbParams.MaxOpenConns = defaultDbMaxOpenConns
 	} else {
