@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
+	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -62,10 +63,14 @@ type Sig_structure struct {
 	Payload         []byte
 }
 
+type SignHash func(privKeyPEM []byte, hash []byte) ([]byte, error)
+type GetSKID func(uid uuid.UUID) ([]byte, error)
+
 type CoseSigner struct {
-	*Protocol
 	encMode         cbor.EncMode
 	protectedHeader []byte
+	SignHash
+	GetSKID
 }
 
 func initCBOREncMode() (cbor.EncMode, error) {
@@ -73,7 +78,7 @@ func initCBOREncMode() (cbor.EncMode, error) {
 	return encOpt.EncMode()
 }
 
-func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
+func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	encMode, err := initCBOREncMode()
 	if err != nil {
 		return nil, err
@@ -86,9 +91,10 @@ func NewCoseSigner(p *Protocol) (*CoseSigner, error) {
 	}
 
 	return &CoseSigner{
-		Protocol:        p,
 		encMode:         encMode,
 		protectedHeader: protectedHeaderAlgES256CBOR,
+		SignHash:        sign,
+		GetSKID:         skid,
 	}, nil
 }
 
@@ -214,6 +220,9 @@ func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error
 			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
 																							payload is unknown
 	*/
+	if signatureBytes == nil {
+		return nil, fmt.Errorf("empty signature")
+	}
 
 	// create COSE_Sign1 object
 	coseSign1 := &COSE_Sign1{
@@ -234,6 +243,10 @@ func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error
 // the [Signing and Verification Process](https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
 // and returns the ToBeSigned value.
 func (c *CoseSigner) GetSigStructBytes(payload []byte) ([]byte, error) {
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("empty payload")
+	}
+
 	sigStruct := &Sig_structure{
 		Context:         COSE_Sign1_Context,
 		ProtectedHeader: c.protectedHeader,

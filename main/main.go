@@ -55,24 +55,15 @@ func main() {
 	const (
 		serviceName = "cose-client"
 		configFile  = "config.json"
-		MigrateArg  = "--migrate"
 	)
 
 	var (
 		configDir string
-		migrate   bool
 		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {
-		for i, arg := range os.Args[1:] {
-			log.Infof("arg #%d: %s", i+1, arg)
-			if arg == MigrateArg {
-				migrate = true
-			} else {
-				configDir = arg
-			}
-		}
+		configDir = os.Args[1]
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
@@ -84,14 +75,6 @@ func main() {
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
-	}
-
-	if migrate {
-		err := MigrateFileToDB(conf)
-		if err != nil {
-			log.Fatalf("migration failed: %v", err)
-		}
-		os.Exit(0)
 	}
 
 	// create a waitgroup that contains all asynchronous operations
@@ -132,44 +115,51 @@ func main() {
 	}
 	defer ctxManager.Close()
 
-	client := &ExtendedClient{}
-	client.KeyServiceURL = conf.KeyService
-	client.IdentityServiceURL = conf.IdentityService
-	//todo client.SigningServiceURL = conf.SigningService
-	client.CertificateServerURL = conf.CertificateServer
-	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
-	client.ServerTLSCertFingerprints = conf.ServerTLSCertFingerprints
-
-	protocol, err := NewProtocol(ctxManager, conf.secretBytes, client, conf.ReloadCertsEveryMinute)
+	protocol, err := NewProtocol(ctxManager, conf.secretBytes)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer protocol.Close()
+
+	client := &ExtendedClient{}
+	client.KeyServiceURL = conf.KeyService
+	client.IdentityServiceURL = conf.IdentityService
+	client.verify = protocol.Verify
+	client.CertificateServerURL = conf.CertificateServer
+	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
+	client.ServerTLSCertFingerprints = conf.serverTLSCertFingerprints
+
+	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
-		protocol:            protocol,
-		subjectCountry:      conf.CSR_Country,
-		subjectOrganization: conf.CSR_Organization,
+		crypto:                protocol.Crypto,
+		ctxManager:            protocol.ctxManager,
+		SubmitKeyRegistration: client.SubmitKeyRegistration,
+		SubmitCSR:             client.SubmitCSR,
+		subjectCountry:        conf.CSR_Country,
+		subjectOrganization:   conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol)
+	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	service := &COSEService{
-		CoseSigner: coseSigner,
+		CoseSigner:  coseSigner,
+		GetIdentity: protocol.GetIdentity,
 	}
 
 	// set up endpoint for identity registration
 	creator := handlers.NewIdentityCreator(conf.RegisterAuth)
-	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, idHandler.protocol.Exists))
+	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, protocol.Exists))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, service.directUUID())
+	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(getUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
 
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, service.directUUID())
+	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
 
 	// set up endpoint for readiness checks
 	httpServer.Router.Get("/readiness", h.Health(serverID))

@@ -148,7 +148,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	return nil
 }
 
-func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (*Identity, error) {
+func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 	var id Identity
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
@@ -156,12 +156,12 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (*Identity, error) {
 	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrNotExist
+			return id, ErrNotExist
 		}
-		return nil, err
+		return id, err
 	}
 
-	return &id, nil
+	return id, nil
 }
 
 func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
