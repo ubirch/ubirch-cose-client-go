@@ -13,6 +13,7 @@ RUN \
 FROM debian:bullseye
 VOLUME /data
 EXPOSE 8080/tcp
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 RUN useradd \
     --home /home/cose-client --create-home \
     --uid 2000 cose-client
