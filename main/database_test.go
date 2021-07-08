@@ -16,7 +16,7 @@ import (
 
 const (
 	testTableName = "test_cose_identity"
-	testLoad      = 10000
+	testLoad      = 100
 )
 
 func TestDatabaseManager(t *testing.T) {
@@ -138,17 +138,21 @@ func TestDatabaseLoad(t *testing.T) {
 
 type dbConfig struct {
 	PostgresDSN string
+	dbParams    *DatabaseParams
 }
 
-func initDB() (*DatabaseManager, error) {
-	testDbParams := &DatabaseParams{
-		MaxOpenConns:    10,
-		MaxIdleConns:    5,
-		ConnMaxLifetime: 2 * time.Minute,
-		ConnMaxIdleTime: 1 * time.Minute,
+func getDatabaseConfig() (*dbConfig, error) {
+	configFileName := "config.json"
+	fileHandle, err := os.Open(configFileName)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("%v \n"+
+			"--------------------------------------------------------------------------------\n"+
+			"Please provide a configuration file \"%s\" which contains a DSN for\n"+
+			"a postgres database in order to test the database connection.\n"+
+			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<database>\"\n}\n"+
+			"--------------------------------------------------------------------------------",
+			err, configFileName)
 	}
-
-	fileHandle, err := os.Open("config.json")
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +164,23 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewSqlDatabaseInfo(c.PostgresDSN, testTableName, testDbParams)
+	c.dbParams = &DatabaseParams{
+		MaxOpenConns:    10,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: 2 * time.Minute,
+		ConnMaxIdleTime: 1 * time.Minute,
+	}
+
+	return c, nil
+}
+
+func initDB() (*DatabaseManager, error) {
+	c, err := getDatabaseConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
 }
 
 func cleanUpDB(t *testing.T, dm *DatabaseManager) {

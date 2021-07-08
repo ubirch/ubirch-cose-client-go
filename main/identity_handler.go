@@ -20,13 +20,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
 type IdentityHandler struct {
-	protocol            *Protocol
+	crypto     ubirch.Crypto
+	ctxManager ContextManager
 	subjectCountry      string
 	subjectOrganization string
 }
@@ -54,12 +56,12 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 		return nil, err
 	}
 
-	pubKeyBytes, err := i.protocol.GetPublicKey(uid)
+	pubKeyBytes, err := i.crypto.GetPublicKey(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
-	pubKeyPEM, err := i.protocol.PublicKeyBytesToPEM(pubKeyBytes)
+	pubKeyPEM, err := i.crypto.PublicKeyBytesToPEM(pubKeyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert public key bytes to PEM: %v", err)
 	}
@@ -70,7 +72,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 		AuthToken:    auth,
 	}
 
-	err = i.protocol.StoreNewIdentity(identity)
+	err = i.ctxManager.StoreNewIdentity(identity)
 	if err != nil {
 		return nil, fmt.Errorf("could not store new identity: %v", err)
 	}
@@ -82,7 +84,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 }
 
 func (i *IdentityHandler) GetCSR(uid uuid.UUID) (csrPEM []byte, err error) {
-	keyExists, err := i.protocol.PrivateKeyExists(uid)
+	keyExists, err := i.crypto.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
@@ -90,7 +92,7 @@ func (i *IdentityHandler) GetCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.protocol.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}

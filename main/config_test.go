@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 )
 
-const expectedConfig = `{"registerAuth":"","env":"","pkcs11Module":"","pkcs11ModulePin":"","pkcs11ModuleSlotNr":0,"postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false}`
+const expectedConfig = `{"secret32":"","registerAuth":"","env":"","postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"KeyService":"","IdentityService":""}`
 
 func TestConfig(t *testing.T) {
 	configBytes := []byte(expectedConfig)
@@ -16,11 +18,6 @@ func TestConfig(t *testing.T) {
 	if err := json.Unmarshal(configBytes, config); err != nil {
 		t.Errorf("Failed to unmarshal json config: %s", err)
 	}
-
-	// FIXME
-	//if !bytes.Equal(config.secretBytes, []byte("1234567890567890")) {
-	//	t.Errorf("Failed to load secret from config")
-	//}
 
 	jsonBytes, err := json.Marshal(config)
 	if err != nil {
@@ -40,6 +37,7 @@ func TestConfig_Load_Full(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to load configuration: %s", err)
 	}
+	log.SetLevel(log.FatalLevel) // set log level to FATAL after this test to avoid flooding the terminal
 }
 
 func TestConfig_Load_Min(t *testing.T) {
@@ -47,5 +45,13 @@ func TestConfig_Load_Min(t *testing.T) {
 	err := conf.Load("", "example_config_min.json")
 	if err != nil {
 		t.Errorf("unable to load configuration: %s", err)
+	}
+}
+
+func TestConfig_Load_FileNotFound(t *testing.T) {
+	conf := &Config{}
+	err := conf.Load("", "no_existing_file.json")
+	if err == nil {
+		t.Errorf("Load returned no error for non-existing file")
 	}
 }

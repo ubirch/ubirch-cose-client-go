@@ -74,7 +74,7 @@ type Config struct {
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
 	serverTLSCertFingerprints map[string][32]byte
 	configDir                 string // directory where config and protocol ctx are stored
-	dbParams                  DatabaseParams
+	dbParams                  *DatabaseParams
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -202,6 +202,8 @@ func (c *Config) setDefaultTLS() {
 }
 
 func (c *Config) setDbParams() error {
+	c.dbParams = &DatabaseParams{}
+
 	if c.DbMaxOpenConns == "" {
 		c.dbParams.MaxOpenConns = defaultDbMaxOpenConns
 	} else {

@@ -14,7 +14,7 @@ var (
 
 type ContextManager interface {
 	StoreNewIdentity(id Identity) error
-	GetIdentity(uid uuid.UUID) (*Identity, error)
+	GetIdentity(uid uuid.UUID) (Identity, error)
 
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 
@@ -22,8 +22,8 @@ type ContextManager interface {
 }
 
 func GetCtxManager(c *Config) (ContextManager, error) {
-	if c.PostgresDSN != "" {
-		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName, &c.dbParams)
+	if len(c.PostgresDSN) != 0 {
+		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName, c.dbParams)
 	} else {
 		return nil, fmt.Errorf("file-based context management is not supported in the current version")
 	}

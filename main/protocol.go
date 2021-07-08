@@ -16,9 +16,7 @@ package main
 
 import (
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -35,36 +33,27 @@ const (
 
 type Protocol struct {
 	ubirch.Crypto
-	*Client
 	ctxManager ContextManager
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
-
-	skidStore           map[uuid.UUID][]byte
-	skidStoreMutex      *sync.RWMutex
-	certLoadFailCounter int
 }
 
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, client *Client) *Protocol {
+func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager) *Protocol {
 	return &Protocol{
 		Crypto:     crypto,
-		Client:     client,
 		ctxManager: ctxManager,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
-
-		skidStore:      map[uuid.UUID][]byte{},
-		skidStoreMutex: &sync.RWMutex{},
 	}
 }
 
 func (p *Protocol) StoreNewIdentity(id Identity) error {
-	err := p.checkIdentityAttributesNotNil(&id)
+	err := p.checkIdentityAttributesNotNil(id)
 	if err != nil {
 		return err
 	}
@@ -80,17 +69,17 @@ func (p *Protocol) StoreNewIdentity(id Identity) error {
 	return err
 }
 
-func (p *Protocol) GetIdentity(uid uuid.UUID) (id *Identity, err error) {
+func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
 	_id, found := p.identityCache.Load(uid)
 
 	if found {
-		id, found = _id.(*Identity)
+		id, found = _id.(Identity)
 	}
 
 	if !found {
 		id, err = p.fetchIdentityFromStorage(uid)
 		if err != nil {
-			return nil, err
+			return id, err
 		}
 
 		p.identityCache.Store(uid, id)
@@ -99,7 +88,7 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id *Identity, err error) {
 	return id, nil
 }
 
-func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id *Identity, err error) {
+func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
 		id, err = p.ctxManager.GetIdentity(uid)
 		if err != nil && isConnectionNotAvailable(err) {
@@ -109,12 +98,12 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id *Identity, err er
 		break
 	}
 	if err != nil {
-		return nil, err
+		return id, err
 	}
 
 	err = p.checkIdentityAttributesNotNil(id)
 	if err != nil {
-		return nil, err
+		return id, err
 	}
 
 	return id, nil
@@ -154,8 +143,6 @@ func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid 
 	return uid, err
 }
 
-func (p *Protocol) Close() {}
-
 func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
 	_, err = p.GetIdentity(uid)
 	if err == ErrNotExist {
@@ -168,7 +155,7 @@ func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
 	return true, nil
 }
 
-func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
+func (p *Protocol) checkIdentityAttributesNotNil(i Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
@@ -184,88 +171,4 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 	return nil
 }
 
-func (p *Protocol) GetSKID(uid uuid.UUID) ([]byte, error) {
-	p.skidStoreMutex.RLock()
-	skid, exists := p.skidStore[uid]
-	p.skidStoreMutex.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("SKID unknown for identity %s (missing X.509 public key certificate)", uid)
-	}
-
-	return skid, nil
-}
-
-func (p *Protocol) setSkidStore(newSkidStore map[uuid.UUID][]byte) {
-	p.skidStoreMutex.Lock()
-	p.skidStore = newSkidStore
-	p.skidStoreMutex.Unlock()
-}
-
-func (p *Protocol) loadSKIDs() {
-	certs, err := p.RequestCertificateList()
-	if err != nil {
-		log.Error(err)
-
-		p.certLoadFailCounter++
-		log.Debugf("loading certificate list failed %d times,"+
-			" clearing local KID lookup after %d failed attempts",
-			p.certLoadFailCounter, maxCertLoadFailCount)
-
-		// if we have not yet reached the maximum amount of failed attempts to load the certificate list,
-		// return and try again later
-		if p.certLoadFailCounter != maxCertLoadFailCount {
-			return
-		}
-
-		// if we have reached the maximum amount of failed attempts to load the certificate list,
-		// clear the SKID lookup
-		log.Warnf("clearing local KID lookup after %d failed attempts to load public key certificate list",
-			p.certLoadFailCounter)
-	} else {
-		// reset fail counter if certs were loaded successfully
-		p.certLoadFailCounter = 0
-	}
-
-	tempSkidStore := map[uuid.UUID][]byte{}
-
-	// go through certificate list and match known public keys
-	for _, cert := range certs {
-		kid := base64.StdEncoding.EncodeToString(cert.Kid)
-
-		// get public key from certificate
-		certificate, err := x509.ParseCertificate(cert.RawData)
-		if err != nil {
-			log.Errorf("%s: %v", kid, err)
-			continue
-		}
-
-		pubKeyPEM, err := p.Crypto.EncodePublicKey(certificate.PublicKey)
-		if err != nil {
-			//log.Debugf("%s: unable to encode public key: %v", kid, err)
-			continue
-		}
-
-		// look up matching UUID for public key
-		uid, err := p.GetUuidForPublicKey(pubKeyPEM)
-		if err != nil {
-			if err != ErrNotExist {
-				log.Errorf("%s: %v", kid, err)
-			}
-			continue
-		}
-		//log.Debugf("%s: public key certificate match", kid)
-
-		if len(cert.Kid) != SkidLen {
-			log.Errorf("invalid KID length: expected %d, got %d", SkidLen, len(kid))
-			continue
-		}
-
-		tempSkidStore[uid] = cert.Kid
-	}
-
-	p.setSkidStore(tempSkidStore)
-
-	skids, _ := json.Marshal(tempSkidStore)
-	log.Infof("loaded %d matching certificates from server: %s", len(tempSkidStore), skids)
-}
+func (p *Protocol) Close() {}

@@ -133,31 +133,33 @@ func main() {
 	}
 	defer ctxManager.Close()
 
+	protocol := NewProtocol(cryptoCtx, ctxManager)
+	defer protocol.Close()
+
 	client := &Client{
+		verify: cryptoCtx.Verify,
 		CertificateServerURL:       conf.CertificateServer,
 		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
 		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
 	}
 
-	protocol := NewProtocol(cryptoCtx, ctxManager, client)
-	defer protocol.Close()
-
-	// load public key certificate list from server and check for new certificates frequently
-	go startLoadScheduler(protocol.loadSKIDs, conf.ReloadCertsEveryMinute)
+	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
-		protocol:            protocol,
-		subjectCountry:      conf.CSR_Country,
-		subjectOrganization: conf.CSR_Organization,
+		crypto:                protocol.Crypto,
+		ctxManager:            protocol.ctxManager,
+		subjectCountry:        conf.CSR_Country,
+		subjectOrganization:   conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol)
+	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	service := &COSEService{
-		CoseSigner: coseSigner,
+		CoseSigner:  coseSigner,
+		GetIdentity: protocol.GetIdentity,
 	}
 
 	// set up endpoint for identity registration
@@ -169,10 +171,10 @@ func main() {
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, service.directUUID())
+	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(getUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
 
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, service.directUUID())
+	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
 
 	// set up endpoint for readiness checks
 	httpServer.Router.Get("/readiness", h.Health(serverID))
