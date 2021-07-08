@@ -1,52 +1,58 @@
 package main
 
 import (
-	"fmt"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"testing"
+
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestIdentityHandler_initIdentity(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &mockKeystorer{},
+	}
 	idHandler := &IdentityHandler{
-		crypto:                &ubirch.ECDSACryptoContext{},
-		ctxManager:            &mockCtxMngr{},
-		SubmitKeyRegistration: mockSubmitKeyRegistration,
-		SubmitCSR:             mockSubmitCSR,
-		subjectCountry:        "AA",
-		subjectOrganization:   "test GmbH",
+		protocol:            NewProtocol(cryptoCtx, &mockCtxMngr{}),
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
 	}
 
-	_, err := idHandler.initIdentity(testUuid, testAuth)
+	_, err := idHandler.InitIdentity(test.Uuid, test.Auth)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
-func TestIdentityHandler_initIdentityBad(t *testing.T) {
+func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &mockKeystorer{},
+	}
 	idHandler := &IdentityHandler{
-		crypto:                &ubirch.ECDSACryptoContext{},
-		ctxManager:            &mockCtxMngr{},
-		SubmitKeyRegistration: mockSubmitKeyRegistrationBad,
-		SubmitCSR:             mockSubmitCSR,
-		subjectCountry:        "AA",
-		subjectOrganization:   "test GmbH",
+		protocol:            NewProtocol(cryptoCtx, &mockCtxMngr{}),
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
 	}
 
-	_, err := idHandler.initIdentity(testUuid, testAuth)
-	if err == nil {
-		t.Error("no error returned")
+	_, err := idHandler.InitIdentity(test.Uuid, test.Auth)
+	if err != h.ErrAlreadyInitialized {
+		t.Errorf("unexpected return value: %v, expected: %v", err, h.ErrAlreadyInitialized)
 	}
 }
 
-func mockSubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) error {
-	return nil
-}
+func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &mockKeystorer{},
+	}
+	idHandler := &IdentityHandler{
+		protocol:            NewProtocol(cryptoCtx, &mockCtxMngr{}),
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
+	}
 
-func mockSubmitKeyRegistrationBad(uid uuid.UUID, cert []byte, auth string) error {
-	return fmt.Errorf("test error")
-}
-
-func mockSubmitCSR(uid uuid.UUID, csr []byte) error {
-	return nil
+	_, err := idHandler.InitIdentity(test.Uuid, test.Auth)
+	if err != h.ErrUnknown {
+		t.Errorf("unexpected return value: %v, expected: %v", err, h.ErrUnknown)
+	}
 }

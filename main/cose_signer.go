@@ -64,7 +64,7 @@ type Sig_structure struct {
 	Payload         []byte
 }
 
-type SignHash func(privKeyPEM []byte, hash []byte) ([]byte, error)
+type SignHash func(id uuid.UUID, hash []byte) ([]byte, error)
 type GetSKID func(uid uuid.UUID) ([]byte, error)
 
 type CoseSigner struct {

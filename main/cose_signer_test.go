@@ -22,19 +22,18 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"net/http"
 	"testing"
+
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 var (
-	testUuid   = uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
-	testKey, _ = base64.StdEncoding.DecodeString("YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM=")
-
 	payloadJSON = "{\"test\": \"hello\"}"
 )
 
 func TestCoseSigner(t *testing.T) {
-	c := setupCryptoCtx(t, testUuid)
+	c := setupCryptoCtx(t, test.Uuid)
 
-	pubKeyPEM, err := c.GetPublicKey(testUuid)
+	pubKeyPEM, err := c.GetPublicKey(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +70,7 @@ func TestCoseSigner(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	coseBytes, err := coseSigner.createSignedCOSE(uid, hash, uid[:], payloadCBOR)
+	coseBytes, err := coseSigner.createSignedCOSE(test.Uuid, hash, test.Uuid[:], payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +79,7 @@ func TestCoseSigner(t *testing.T) {
 }
 
 func TestCoseSign(t *testing.T) {
-	c := setupCryptoCtx(t, testUuid)
+	c := setupCryptoCtx(t, test.Uuid)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
@@ -88,7 +87,7 @@ func TestCoseSign(t *testing.T) {
 	}
 
 	msg := HTTPRequest{
-		ID:      testUuid,
+		ID:      test.Uuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
 	}
@@ -105,7 +104,7 @@ func TestCoseSign(t *testing.T) {
 }
 
 func TestCoseSignBadSkid(t *testing.T) {
-	c := setupCryptoCtx(t, testUuid)
+	c := setupCryptoCtx(t, test.Uuid)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKIDReturnsErr)
 	if err != nil {
@@ -113,7 +112,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 	}
 
 	msg := HTTPRequest{
-		ID:      testUuid,
+		ID:      test.Uuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
 	}
@@ -129,8 +128,8 @@ func TestCoseSignBadSkid(t *testing.T) {
 	}
 }
 
-func TestCoseSignBadKey(t *testing.T) {	// fixme
-	c := setupCryptoCtx(t, testUuid)
+func TestCoseSignBadKey(t *testing.T) { // fixme
+	c := setupCryptoCtx(t, test.Uuid)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
@@ -138,7 +137,7 @@ func TestCoseSignBadKey(t *testing.T) {	// fixme
 	}
 
 	msg := HTTPRequest{
-		ID:      testUuid,
+		ID:      test.Uuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
 	}
@@ -161,7 +160,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 	}
 
 	msg := HTTPRequest{
-		ID:      testUuid,
+		ID:      test.Uuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
 	}
@@ -178,7 +177,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 }
 
 func TestCoseBadGetCBORFromJSON(t *testing.T) {
-	c := setupCryptoCtx(t, testUuid)
+	c := setupCryptoCtx(t, test.Uuid)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKIDReturnsErr)
 	if err != nil {
@@ -196,7 +195,7 @@ func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
 		Keystore: &mockKeystorer{},
 	}
 
-	err := cryptoCtx.SetKey(uid, testKey)
+	err := cryptoCtx.SetKey(uid, test.Key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,10 +211,10 @@ func mockGetSKIDReturnsErr(uuid.UUID) ([]byte, error) {
 	return nil, fmt.Errorf("test error")
 }
 
-func mockSign([]byte, []byte) ([]byte, error) {
+func mockSign(uuid.UUID, []byte) ([]byte, error) {
 	return make([]byte, 64), nil
 }
 
-func mockSignReturnsNilSignature([]byte, []byte) ([]byte, error) {
+func mockSignReturnsNilSignature(uuid.UUID, []byte) ([]byte, error) {
 	return nil, nil
 }

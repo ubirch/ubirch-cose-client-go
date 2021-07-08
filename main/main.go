@@ -137,7 +137,6 @@ func main() {
 	defer protocol.Close()
 
 	client := &Client{
-		verify: cryptoCtx.Verify,
 		CertificateServerURL:       conf.CertificateServer,
 		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
 		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
@@ -146,10 +145,9 @@ func main() {
 	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
-		crypto:                protocol.Crypto,
-		ctxManager:            protocol.ctxManager,
-		subjectCountry:        conf.CSR_Country,
-		subjectOrganization:   conf.CSR_Organization,
+		protocol:            protocol,
+		subjectCountry:      conf.CSR_Country,
+		subjectOrganization: conf.CSR_Organization,
 	}
 
 	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)
