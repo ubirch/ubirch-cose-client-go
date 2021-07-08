@@ -22,9 +22,12 @@ import (
 
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
@@ -113,7 +116,11 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
 		return h.ErrorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: COSE: %x", msg.ID, cose)
+
+	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	auditlogger.AuditLog("create", "COSE", infos)
+
+	p.SignatureCreationCounter.Inc()
 
 	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
@@ -123,7 +130,9 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 }
 
 func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
+	timer := prometheus.NewTimer(p.SignatureCreationDuration)
 	signature, err := c.SignHash(uid, hash[:])
+	timer.ObserveDuration()
 	if err != nil {
 		return nil, err
 	}

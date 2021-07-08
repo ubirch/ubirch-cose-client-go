@@ -23,32 +23,16 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
-	AuthHeader = "X-Auth-Token"
-
-	UUIDKey      = "uuid"
-	CBORPath     = "/cbor"
-	HashEndpoint = "/hash"
-
-	BinType  = "application/octet-stream"
-	TextType = "text/plain"
-	JSONType = "application/json"
-	CBORType = "application/cbor"
-
 	HexEncoding = "hex"
 
 	HashLen = 32
 )
-
-var UUIDPath = fmt.Sprintf("/{%s}", h.UUIDKey)
 
 type Sha256Sum [HashLen]byte
 
@@ -99,18 +83,9 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		timer := prometheus.NewTimer(p.SignatureCreationDuration)
 		resp := s.Sign(msg)
-		timer.ObserveDuration()
 
 		h.SendResponse(w, resp)
-
-		if h.HttpSuccess(resp.StatusCode) {
-			infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-			auditlogger.AuditLog("create", "COSE", infos)
-
-			p.SignatureCreationCounter.Inc()
-		}
 	}
 }
 
