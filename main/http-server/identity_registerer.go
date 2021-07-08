@@ -15,7 +15,7 @@ import (
 
 var (
 	ErrAlreadyInitialized = errors.New("identity already registered")
-	ErrUnknown            = errors.New("no private key found")
+	ErrUnknown            = errors.New("unknown identity")
 )
 
 type IdentityPayload struct {
