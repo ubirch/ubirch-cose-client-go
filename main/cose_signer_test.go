@@ -17,7 +17,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"net/http"
@@ -33,16 +32,10 @@ var (
 func TestCoseSigner(t *testing.T) {
 	c := setupCryptoCtx(t, test.Uuid)
 
-	pubKeyPEM, err := c.GetPublicKey(test.Uuid)
+	pubKeyBytes, err := c.GetPublicKey(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	pubKeyBytes, err := c.PublicKeyPEMToBytes(pubKeyPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Logf("public key: %x", pubKeyBytes)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
@@ -128,10 +121,8 @@ func TestCoseSignBadSkid(t *testing.T) {
 	}
 }
 
-func TestCoseSignBadKey(t *testing.T) { // fixme
-	c := setupCryptoCtx(t, test.Uuid)
-
-	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
+func TestCoseSignBadKey(t *testing.T) {
+	coseSigner, err := NewCoseSigner(mockSignReturnsError, mockGetSKID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,11 +199,15 @@ func mockGetSKID(uuid.UUID) ([]byte, error) {
 }
 
 func mockGetSKIDReturnsErr(uuid.UUID) ([]byte, error) {
-	return nil, fmt.Errorf("test error")
+	return nil, test.Error
 }
 
 func mockSign(uuid.UUID, []byte) ([]byte, error) {
 	return make([]byte, 64), nil
+}
+
+func mockSignReturnsError(uuid.UUID, []byte) ([]byte, error) {
+	return nil, test.Error
 }
 
 func mockSignReturnsNilSignature(uuid.UUID, []byte) ([]byte, error) {

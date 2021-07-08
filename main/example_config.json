@@ -16,5 +16,6 @@
   "logTextFormat": true,
   "certificateServer": "https://www.test.cert.server.com",
   "certificateServerPubKey": "https://www.test.cert.server.com/pubkey.pem",
-  "reloadCertsEveryMinute": true
+  "reloadCertsEveryMinute": true,
+  "pkcs11ModulePin": "1234"
 }
