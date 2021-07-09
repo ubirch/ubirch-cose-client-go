@@ -25,12 +25,9 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 const (
@@ -107,18 +104,9 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		timer := prometheus.NewTimer(p.SignatureCreationDuration)
 		resp := s.Sign(msg, identity.PrivateKey)
-		timer.ObserveDuration()
 
 		sendResponse(w, resp)
-
-		if h.HttpSuccess(resp.StatusCode) {
-			infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-			auditlogger.AuditLog("create", "COSE", infos)
-
-			p.SignatureCreationCounter.Inc()
-		}
 	}
 }
 
