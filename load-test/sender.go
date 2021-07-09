@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -12,24 +12,22 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type HTTPResponse struct {
-	StatusCode int         `json:"statusCode"`
-	Header     http.Header `json:"header"`
-	Content    []byte      `json:"content"`
-}
-
 type Sender struct {
-	httpClient *http.Client
+	httpClient       *http.Client
+	statusCounter    map[string]int
+	statusCounterMtx *sync.Mutex
 }
 
 func NewSender() *Sender {
 	return &Sender{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient:       &http.Client{Timeout: 30 * time.Second},
+		statusCounter:    map[string]int{},
+		statusCounterMtx: &sync.Mutex{},
 	}
 }
 
-func (s *Sender) register(id string, auth string, registerAuth string) error {
-	url := clientBaseURL + "/register"
+func (s *Sender) register(clientBaseURL, id, auth, registerAuth string) error {
+	url := clientBaseURL + "register"
 
 	header := http.Header{}
 	header.Set("Content-Type", "application/json")
@@ -72,7 +70,7 @@ func (s *Sender) register(id string, auth string, registerAuth string) error {
 	return nil
 }
 
-func (s *Sender) sendRequests(uid string, auth string, wg *sync.WaitGroup) {
+func (s *Sender) sendRequests(clientBaseURL, uid, auth string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	clientURL := clientBaseURL + uid + "/cbor/hash"
@@ -92,38 +90,35 @@ func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *
 	defer wg.Done()
 
 	hash := make([]byte, 32)
-	_, err := rand.Read(hash)
-	if err != nil {
-		log.Error(err)
-		return
-	}
+	rand.Read(hash)
 
-	err = s.sendRequest(clientURL, header, hash)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-}
-
-func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) error {
 	req, err := http.NewRequest(http.MethodPost, clientURL, bytes.NewBuffer(hash))
 	if err != nil {
-		return err
+		log.Error(err)
+		return
 	}
 
 	req.Header = header
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return err
+		log.Error(err)
+		return
 	}
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return fmt.Errorf(resp.Status)
+	if resp.StatusCode != http.StatusOK {
+		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
+		log.Errorf("%d: %s", resp.StatusCode, respBodyBytes)
 	}
 
-	return nil
+	s.countStatus(resp.Status)
+}
+
+func (s *Sender) countStatus(status string) {
+	s.statusCounterMtx.Lock()
+	s.statusCounter[status] += 1
+	s.statusCounterMtx.Unlock()
 }

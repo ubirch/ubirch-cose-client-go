@@ -5,7 +5,11 @@ import (
 	"os"
 )
 
-type Config map[string]string
+type Config struct {
+	Url          string
+	RegisterAuth string
+	Token        map[string]string
+}
 
 func (c *Config) Load(filename string) error {
 	fileHandle, err := os.Open(filename)
@@ -17,10 +21,10 @@ func (c *Config) Load(filename string) error {
 	return json.NewDecoder(fileHandle).Decode(c)
 }
 
-func getTestIdentities(c Config) map[string]string {
+func (c *Config) getTestIdentities() map[string]string {
 	testIdentities := make(map[string]string, numberOfTestIDs)
 
-	for uid, auth := range c {
+	for uid, auth := range c.Token {
 		testIdentities[uid] = auth
 		if len(testIdentities) == numberOfTestIDs {
 			break
