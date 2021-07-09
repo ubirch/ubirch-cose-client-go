@@ -103,7 +103,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 }
 
 func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
-	log.Infof("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	log.Debugf("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	skid, err := c.GetSKID(msg.ID)
 	if err != nil {
@@ -116,6 +116,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
 		return h.ErrorResponse(http.StatusInternalServerError, "")
 	}
+	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
 	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 	auditlogger.AuditLog("create", "COSE", infos)
