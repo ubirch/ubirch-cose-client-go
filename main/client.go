@@ -180,9 +180,9 @@ func (c *Client) verifySignature(pubKeyPEM []byte, data []byte, signature []byte
 		return false, fmt.Errorf("wrong signature length: expected: %d, got: %d", nistp256SignatureLength, len(signature))
 	}
 
-	pub, err := decodePublicKey(pubKeyPEM)
+	pub, err := decodeECDSAPublicKey(pubKeyPEM)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to decode ECDSA public key: %v", err)
 	}
 
 	r, s := &big.Int{}, &big.Int{}
@@ -193,7 +193,7 @@ func (c *Client) verifySignature(pubKeyPEM []byte, data []byte, signature []byte
 	return ecdsa.Verify(pub, hash[:], r, s), nil
 }
 
-func decodePublicKey(pemEncoded []byte) (*ecdsa.PublicKey, error) {
+func decodeECDSAPublicKey(pemEncoded []byte) (*ecdsa.PublicKey, error) {
 	block, _ := pem.Decode(pemEncoded)
 	if block == nil {
 		return nil, fmt.Errorf("unable to parse PEM block")
@@ -202,5 +202,9 @@ func decodePublicKey(pemEncoded []byte) (*ecdsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return genericPublicKey.(*ecdsa.PublicKey), nil
+	ecdsaPublicKey, ok := genericPublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("unexpected key type")
+	}
+	return ecdsaPublicKey, nil
 }
