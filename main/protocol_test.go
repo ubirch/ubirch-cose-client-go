@@ -321,6 +321,13 @@ func (m *mockKeystorer) GetIDs() ([]uuid.UUID, error) {
 	panic("implement me")
 }
 
+func (m *mockKeystorer) PrivateKeyExists(id uuid.UUID) (bool, error) {
+	if len(m.priv) == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (m *mockKeystorer) GetPrivateKey(id uuid.UUID) ([]byte, error) {
 	if len(m.priv) == 0 {
 		return nil, fmt.Errorf("key not found")
@@ -331,6 +338,13 @@ func (m *mockKeystorer) GetPrivateKey(id uuid.UUID) ([]byte, error) {
 func (m *mockKeystorer) SetPrivateKey(id uuid.UUID, key []byte) error {
 	m.priv = key
 	return nil
+}
+
+func (m *mockKeystorer) PublicKeyExists(id uuid.UUID) (bool, error) {
+	if len(m.pub) == 0 {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (m *mockKeystorer) GetPublicKey(id uuid.UUID) ([]byte, error) {

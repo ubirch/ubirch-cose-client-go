@@ -11,6 +11,6 @@ require (
 	github.com/lib/pq v1.10.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
-	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210708125710-12db336638c5
+	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210709153602-d55226578553
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
