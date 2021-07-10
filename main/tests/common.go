@@ -3,8 +3,10 @@ package tests
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 const (
@@ -15,10 +17,59 @@ const (
 )
 
 var (
-	Uuid      = uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
+	Uuid = uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
 
 	Key, _    = hex.DecodeString(PrivHex)
 	PubKey, _ = hex.DecodeString(PubHex)
 
-	Error     = errors.New("test error")
+	Error = errors.New("test error")
 )
+
+type MockKeystorer struct {
+	priv []byte
+	pub  []byte
+}
+
+var _ ubirch.Keystorer = (*MockKeystorer)(nil)
+
+func (m *MockKeystorer) GetIDs() ([]uuid.UUID, error) {
+	panic("implement me")
+}
+
+func (m *MockKeystorer) PrivateKeyExists(id uuid.UUID) (bool, error) {
+	if len(m.priv) == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (m *MockKeystorer) GetPrivateKey(id uuid.UUID) ([]byte, error) {
+	if len(m.priv) == 0 {
+		return nil, fmt.Errorf("key not found")
+	}
+	return m.priv, nil
+}
+
+func (m *MockKeystorer) SetPrivateKey(id uuid.UUID, key []byte) error {
+	m.priv = key
+	return nil
+}
+
+func (m *MockKeystorer) PublicKeyExists(id uuid.UUID) (bool, error) {
+	if len(m.pub) == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (m *MockKeystorer) GetPublicKey(id uuid.UUID) ([]byte, error) {
+	if len(m.pub) == 0 {
+		return nil, fmt.Errorf("key not found")
+	}
+	return m.pub, nil
+}
+
+func (m *MockKeystorer) SetPublicKey(id uuid.UUID, key []byte) error {
+	m.pub = key
+	return nil
+}

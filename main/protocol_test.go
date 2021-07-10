@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"sync"
 	"testing"
 
@@ -17,7 +16,7 @@ func TestProtocol(t *testing.T) {
 
 	p := &Protocol{
 		Crypto: &ubirch.ECDSACryptoContext{
-			Keystore: &mockKeystorer{},
+			Keystore: &test.MockKeystorer{},
 		},
 		ctxManager: &mockCtxMngr{},
 
@@ -156,7 +155,7 @@ func TestProtocolLoad(t *testing.T) {
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
@@ -177,7 +176,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 // todo
 //func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 //	cryptoCtx := &ubirch.ECDSACryptoContext{
-//		Keystore: &mockKeystorer{},
+//		Keystore: &test.MockKeystorer{},
 //	}
 //
 //	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
@@ -197,7 +196,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
@@ -217,7 +216,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 
 func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
@@ -239,7 +238,7 @@ func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
@@ -271,7 +270,7 @@ func TestProtocol_Cache(t *testing.T) {
 
 func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
@@ -309,52 +308,3 @@ func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
 }
 
 func (m *mockCtxMngr) Close() {}
-
-type mockKeystorer struct {
-	priv []byte
-	pub  []byte
-}
-
-var _ ubirch.Keystorer = (*mockKeystorer)(nil)
-
-func (m *mockKeystorer) GetIDs() ([]uuid.UUID, error) {
-	panic("implement me")
-}
-
-func (m *mockKeystorer) PrivateKeyExists(id uuid.UUID) (bool, error) {
-	if len(m.priv) == 0 {
-		return false, nil
-	}
-	return true, nil
-}
-
-func (m *mockKeystorer) GetPrivateKey(id uuid.UUID) ([]byte, error) {
-	if len(m.priv) == 0 {
-		return nil, fmt.Errorf("key not found")
-	}
-	return m.priv, nil
-}
-
-func (m *mockKeystorer) SetPrivateKey(id uuid.UUID, key []byte) error {
-	m.priv = key
-	return nil
-}
-
-func (m *mockKeystorer) PublicKeyExists(id uuid.UUID) (bool, error) {
-	if len(m.pub) == 0 {
-		return false, nil
-	}
-	return true, nil
-}
-
-func (m *mockKeystorer) GetPublicKey(id uuid.UUID) ([]byte, error) {
-	if len(m.pub) == 0 {
-		return nil, fmt.Errorf("key not found")
-	}
-	return m.pub, nil
-}
-
-func (m *mockKeystorer) SetPublicKey(id uuid.UUID, key []byte) error {
-	m.pub = key
-	return nil
-}

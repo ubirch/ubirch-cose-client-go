@@ -170,7 +170,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 func TestCoseBadGetCBORFromJSON(t *testing.T) {
 	c := setupCryptoCtx(t, test.Uuid)
 
-	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKIDReturnsErr)
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestCoseBadGetCBORFromJSON(t *testing.T) {
 
 func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
 	cryptoCtx = &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	err := cryptoCtx.SetKey(uid, test.Key)

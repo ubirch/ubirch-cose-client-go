@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
@@ -523,5 +522,5 @@ func mockGetUUIDFromURL(*http.Request) (uuid.UUID, error) {
 }
 
 func mockGetIdentityReturnsErr(uuid.UUID) (Identity, error) {
-	return Identity{}, fmt.Errorf("test error")
+	return Identity{}, test.Error
 }

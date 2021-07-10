@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 	"os"
 	"sync"
 	"testing"
@@ -111,12 +111,13 @@ func TestNewSkidHandler_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T)
 		getCerts: mockBadGetCertificateList,
 	}
 
-	s.skidStore[uuid.New()] = make([]byte, 8)
-	s.skidStore[uuid.New()] = make([]byte, 8)
-	s.skidStore[uuid.New()] = make([]byte, 8)
+	testSkidStoreLen := 2
+	for i := 1; i <= testSkidStoreLen; i++ {
+		s.skidStore[uuid.New()] = make([]byte, 8)
+	}
 
 	for i := 1; i <= s.maxCertLoadFailCount; i++ {
-		if len(s.skidStore) != 3 {
+		if len(s.skidStore) != testSkidStoreLen {
 			t.Errorf("SKIDs were cleared before maxCertLoadFailCount")
 		}
 
@@ -150,15 +151,15 @@ func mockGetCertificateList() ([]Certificate, error) {
 }
 
 func mockBadGetCertificateList() ([]Certificate, error) {
-	return nil, fmt.Errorf("test error")
+	return nil, test.Error
 }
 
-func mockGetUuid(pubKey []byte) (uuid.UUID, error) {
+func mockGetUuid([]byte) (uuid.UUID, error) {
 	newUUID := uuid.New()
 	testUUIDs = append(testUUIDs, newUUID)
 	return newUUID, nil
 }
 
-func mockGetUuidFindsNothing(pubKey []byte) (uuid.UUID, error) {
+func mockGetUuidFindsNothing([]byte) (uuid.UUID, error) {
 	return uuid.Nil, ErrNotExist
 }

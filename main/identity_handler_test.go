@@ -11,7 +11,7 @@ import (
 
 func TestIdentityHandler_initIdentity(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
@@ -35,7 +35,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 
 func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
@@ -64,7 +64,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 
 func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &mockKeystorer{},
+		Keystore: &test.MockKeystorer{},
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
