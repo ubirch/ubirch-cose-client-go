@@ -10,8 +10,14 @@ import (
 
 type GetCSR func(uid uuid.UUID) (csr []byte, err error)
 
-func FetchCSR(get GetCSR) http.HandlerFunc {
+func FetchCSR(auth string, get GetCSR) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(AuthHeader) != auth {
+			log.Warnf("unauthorized CSR request")
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		}
+
 		uid, err := GetUUID(r)
 		if err != nil {
 			log.Warnf("FetchCSR: %v", err)

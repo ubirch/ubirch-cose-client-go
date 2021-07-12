@@ -165,7 +165,7 @@ func main() {
 
 	// set up endpoint for CSRs
 	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(idHandler.GetCSR))
+	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.GetCSR))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
