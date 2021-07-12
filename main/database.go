@@ -38,8 +38,8 @@ var create = map[int]string{
 	PostgresIdentity: "CREATE TABLE IF NOT EXISTS %s(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"public_key VARCHAR(255) NOT NULL, " +
-		"auth VARCHAR(255) NOT NULL, " +
-		"salt VARCHAR(255) NOT NULL);",
+		"auth BYTEA NOT NULL, " +
+		"salt BYTEA NOT NULL);",
 }
 
 func CreateTable(tableType int, tableName string) string {
@@ -126,7 +126,7 @@ func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
 func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 	var id Identity
 
-	query := fmt.Sprintf("SELECT (uid, public_key, auth, salt) FROM %s WHERE uid = $1", dm.tableName)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
 	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PublicKeyPEM, &id.PW.DerivedKey, &id.PW.Salt)
 	if err != nil {
