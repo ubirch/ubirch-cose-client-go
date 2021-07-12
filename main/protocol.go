@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -109,6 +110,10 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 	}
 
 	return id, nil
+}
+
+func (p *Protocol) CheckAuth(authTokenToCheck string, authTokenDerivedKey, salt []byte) bool {
+	return bytes.Equal(p.keyDerivator.GetDerivedKey([]byte(authTokenToCheck), salt), authTokenDerivedKey)
 }
 
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {

@@ -159,6 +159,7 @@ func main() {
 	service := &COSEService{
 		CoseSigner:  coseSigner,
 		GetIdentity: protocol.GetIdentity,
+		CheckAuth:   protocol.CheckAuth,
 	}
 
 	// set up endpoint for identity registration

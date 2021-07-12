@@ -47,6 +47,7 @@ type HTTPRequest struct {
 type COSEService struct {
 	*CoseSigner
 	GetIdentity func(uuid.UUID) (Identity, error)
+	CheckAuth   func(authTokenToCheck string, authTokenDerivedKey, salt []byte) bool
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
@@ -71,8 +72,7 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		err = h.CheckAuth(r, identity.AuthToken)
-		if err != nil {
+		if !s.CheckAuth(r.Header.Get(h.AuthHeader), identity.PW.DerivedKey, identity.PW.Salt) {
 			h.Error(uid, w, err, http.StatusUnauthorized)
 			return
 		}
