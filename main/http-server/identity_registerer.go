@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
-	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 var (
@@ -47,7 +47,7 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 			return
 		}
 
-		timer := prometheus.NewTimer(p.IdentityCreationDuration)
+		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
 		csr, err := initialize(uid, idPayload.Pwd)
 		timer.ObserveDuration()
 		if err != nil {
@@ -71,7 +71,7 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 
 		SendResponse(w, resp)
 
-		p.IdentityCreationCounter.Inc()
+		prom.IdentityCreationCounter.Inc()
 	}
 }
 
