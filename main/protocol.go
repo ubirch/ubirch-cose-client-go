@@ -35,7 +35,7 @@ const (
 type Protocol struct {
 	ubirch.Crypto
 	ctxManager   ContextManager
-	keyDerivator *KeyDerivator
+	keyDerivator KeyDerivator
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
@@ -48,7 +48,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager) *Protocol {
 	return &Protocol{
 		Crypto:       crypto,
 		ctxManager:   ctxManager,
-		keyDerivator: NewDefaultKeyDerivator(),
+		keyDerivator: NewDefaultArgon2idKeyDerivator(),
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},

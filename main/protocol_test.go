@@ -308,7 +308,7 @@ func TestProtocol_CheckAuth(t *testing.T) {
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
 	defer p.Close()
 
-	kd := NewDefaultKeyDerivator()
+	kd := NewDefaultArgon2idKeyDerivator()
 	derivedKey := kd.GetDerivedKey([]byte(test.Auth), []byte(test.Salt))
 
 	authOk := p.CheckAuth(test.Auth, derivedKey, []byte(test.Salt))
@@ -326,7 +326,7 @@ func TestProtocol_CheckAuth_Bad(t *testing.T) {
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
 	defer p.Close()
 
-	kd := NewDefaultKeyDerivator()
+	kd := NewDefaultArgon2idKeyDerivator()
 	derivedKey := kd.GetDerivedKey([]byte(test.Auth), []byte(test.Salt))
 
 	authOk := p.CheckAuth("123", derivedKey, []byte(test.Salt))
