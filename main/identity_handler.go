@@ -64,7 +64,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 	identity := Identity{
 		Uid:          uid,
 		PublicKeyPEM: pubKeyPEM,
-		PW: &Password{
+		PW: Password{
 			DerivedKey: derivedKey,
 			Salt:       salt,
 		},

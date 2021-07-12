@@ -50,14 +50,17 @@ func TestDatabaseManager(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	if !bytes.Equal(idFromDb.Uid[:], testIdentity.Uid[:]) {
+		t.Error("GetIdentity returned unexpected Uid value")
+	}
 	if !bytes.Equal(idFromDb.PublicKeyPEM, testIdentity.PublicKeyPEM) {
 		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
 	}
-	if idFromDb.AuthToken != testIdentity.AuthToken {
-		t.Error("GetIdentity returned unexpected AuthToken value")
+	if !bytes.Equal(idFromDb.PW.DerivedKey, testIdentity.PW.DerivedKey) {
+		t.Error("GetIdentity returned unexpected PW.DerivedKey value")
 	}
-	if !bytes.Equal(idFromDb.Uid[:], testIdentity.Uid[:]) {
-		t.Error("GetIdentity returned unexpected Uid value")
+	if !bytes.Equal(idFromDb.PW.Salt, testIdentity.PW.Salt) {
+		t.Error("GetIdentity returned unexpected PW.Salt value")
 	}
 
 	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
@@ -200,10 +203,13 @@ func generateRandomIdentity() *Identity {
 	auth := make([]byte, 16)
 	rand.Read(auth)
 
+	salt := make([]byte, 16)
+	rand.Read(salt)
+
 	return &Identity{
 		Uid:          uuid.New(),
 		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
-		AuthToken:    base64.StdEncoding.EncodeToString(auth),
+		PW:           Password{DerivedKey: auth, Salt: salt},
 	}
 }
 
@@ -220,14 +226,17 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 	if err != nil {
 		return err
 	}
+	if !bytes.Equal(idFromCtx.Uid[:], id.Uid[:]) {
+		return fmt.Errorf("GetIdentity returned unexpected Uid value")
+	}
 	if !bytes.Equal(idFromCtx.PublicKeyPEM, id.PublicKeyPEM) {
 		return fmt.Errorf("GetIdentity returned unexpected PublicKeyPEM value")
 	}
-	if idFromCtx.AuthToken != id.AuthToken {
-		return fmt.Errorf("GetIdentity returned unexpected AuthToken value")
+	if !bytes.Equal(idFromCtx.PW.DerivedKey, id.PW.DerivedKey) {
+		return fmt.Errorf("GetIdentity returned unexpected PW.DerivedKey value")
 	}
-	if !bytes.Equal(idFromCtx.Uid[:], id.Uid[:]) {
-		return fmt.Errorf("GetIdentity returned unexpected Uid value")
+	if !bytes.Equal(idFromCtx.PW.Salt, id.PW.Salt) {
+		return fmt.Errorf("GetIdentity returned unexpected PW.Salt value")
 	}
 
 	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKeyPEM)

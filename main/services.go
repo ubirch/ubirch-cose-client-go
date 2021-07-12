@@ -73,6 +73,7 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 		if !s.CheckAuth(r.Header.Get(h.AuthHeader), identity.PW.DerivedKey, identity.PW.Salt) {
+			err := fmt.Errorf(http.StatusText(http.StatusUnauthorized))
 			h.Error(uid, w, err, http.StatusUnauthorized)
 			return
 		}

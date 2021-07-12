@@ -10,5 +10,5 @@ type Password struct {
 type Identity struct {
 	Uid          uuid.UUID
 	PublicKeyPEM []byte
-	PW           *Password
+	PW           Password
 }
