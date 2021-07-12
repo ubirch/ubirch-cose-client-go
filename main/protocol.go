@@ -33,7 +33,8 @@ const (
 
 type Protocol struct {
 	ubirch.Crypto
-	ctxManager ContextManager
+	ctxManager   ContextManager
+	keyDerivator *KeyDerivator
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
@@ -44,8 +45,9 @@ var _ ContextManager = (*Protocol)(nil)
 
 func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager) *Protocol {
 	return &Protocol{
-		Crypto:     crypto,
-		ctxManager: ctxManager,
+		Crypto:       crypto,
+		ctxManager:   ctxManager,
+		keyDerivator: NewDefaultKeyDerivator(),
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -53,7 +55,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager) *Protocol {
 }
 
 func (p *Protocol) StoreNewIdentity(id Identity) error {
-	err := p.checkIdentityAttributesNotNil(id)
+	err := p.checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
 	}
@@ -101,7 +103,7 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 		return id, err
 	}
 
-	err = p.checkIdentityAttributesNotNil(id)
+	err = p.checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return id, err
 	}
@@ -155,7 +157,7 @@ func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
 	return true, nil
 }
 
-func (p *Protocol) checkIdentityAttributesNotNil(i Identity) error {
+func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
@@ -164,8 +166,12 @@ func (p *Protocol) checkIdentityAttributesNotNil(i Identity) error {
 		return fmt.Errorf("empty public key")
 	}
 
-	if len(i.AuthToken) == 0 {
-		return fmt.Errorf("empty auth token")
+	if len(i.PW.Salt) == 0 {
+		return fmt.Errorf("empty password salt")
+	}
+
+	if len(i.PW.DerivedKey) == 0 {
+		return fmt.Errorf("empty password derived key")
 	}
 
 	return nil

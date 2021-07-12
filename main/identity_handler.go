@@ -15,6 +15,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/pem"
 	"fmt"
 
@@ -29,12 +30,6 @@ type IdentityHandler struct {
 	protocol            *Protocol
 	subjectCountry      string
 	subjectOrganization string
-}
-
-type Identity struct {
-	Uid          uuid.UUID `json:"uuid"`
-	PublicKeyPEM []byte    `json:"pubKey"`
-	AuthToken    string    `json:"token"`
 }
 
 func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byte, err error) {
@@ -59,10 +54,20 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
+	salt := make([]byte, 32)
+	_, err = rand.Read(salt)
+	if err != nil {
+		return nil, err
+	}
+	derivedKey := i.protocol.keyDerivator.GetDerivedKey([]byte(auth), salt)
+
 	identity := Identity{
 		Uid:          uid,
 		PublicKeyPEM: pubKeyPEM,
-		AuthToken:    auth,
+		PW: &Password{
+			DerivedKey: derivedKey,
+			Salt:       salt,
+		},
 	}
 
 	err = i.protocol.StoreNewIdentity(identity)
