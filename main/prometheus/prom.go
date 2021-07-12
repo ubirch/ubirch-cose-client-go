@@ -77,6 +77,12 @@ var IdentityCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
 	Help: "Number of identities which have been successfully created and stored.",
 })
 
+var AuthCheckDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	Name:    "auth_check_duration",
+	Help:    "Duration of the auth token being checked for validity.",
+	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
+})
+
 func RegisterPromMetrics() {
 	prometheus.Register(totalRequests)
 	prometheus.Register(responseStatus)
@@ -86,6 +92,7 @@ func RegisterPromMetrics() {
 	prometheus.Register(SignatureCreationCounter)
 	prometheus.Register(IdentityCreationDuration)
 	prometheus.Register(IdentityCreationCounter)
+	prometheus.Register(AuthCheckDuration)
 }
 
 func PromMiddleware(next http.Handler) http.Handler {
