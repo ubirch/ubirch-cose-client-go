@@ -22,11 +22,9 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
-	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
@@ -115,9 +113,6 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 }
 
 func (p *Protocol) CheckAuth(authTokenToCheck string, authTokenDerivedKey, salt []byte) bool {
-	timer := prometheus.NewTimer(prom.AuthCheckDuration)
-	defer timer.ObserveDuration()
-
 	return bytes.Equal(p.keyDerivator.GetDerivedKey([]byte(authTokenToCheck), salt), authTokenDerivedKey)
 }
 

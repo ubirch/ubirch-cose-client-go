@@ -24,6 +24,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
+	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
@@ -72,7 +73,12 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		if !s.CheckAuth(r.Header.Get(h.AuthHeader), identity.PW.DerivedKey, identity.PW.Salt) {
+
+		timer := prometheus.NewTimer(prom.AuthCheckDuration)
+		authOk := s.CheckAuth(r.Header.Get(h.AuthHeader), identity.PW.DerivedKey, identity.PW.Salt)
+		timer.ObserveDuration()
+
+		if !authOk {
 			err := fmt.Errorf(http.StatusText(http.StatusUnauthorized))
 			h.Error(uid, w, err, http.StatusUnauthorized)
 			return
