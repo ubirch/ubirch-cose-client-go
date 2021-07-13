@@ -12,7 +12,7 @@ type Argon2idKeyDerivator struct {
 	time    uint32 // the time parameter specifies the number of passes over the memory
 	memory  uint32 // the memory parameter specifies the size of the memory in KiB
 	threads uint8  // the threads parameter specifies the number of threads and can be adjusted to the numbers of available CPUs
-	keyLen  uint32 // the length resulting derived key in byte
+	keyLen  uint32 // the length of the resulting derived key in byte
 }
 
 func NewDefaultArgon2idKeyDerivator() *Argon2idKeyDerivator {
