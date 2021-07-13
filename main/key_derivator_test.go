@@ -1,10 +1,12 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
+	"fmt"
 	"math/rand"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestArgon2idKeyDerivator_GetDerivedKey(t *testing.T) {
@@ -17,8 +19,9 @@ func TestArgon2idKeyDerivator_GetDerivedKey(t *testing.T) {
 	}
 }
 
-func BenchmarkArgon2idKeyDerivator_GetDerivedKey(b *testing.B) {
+func BenchmarkArgon2idKeyDerivator_GetDerivedKey_Default(b *testing.B) {
 	kd := NewDefaultArgon2idKeyDerivator()
+	b.Log(argon2idParams(kd))
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
@@ -33,12 +36,13 @@ func BenchmarkArgon2idKeyDerivator_GetDerivedKey(b *testing.B) {
 }
 
 func BenchmarkArgon2idKeyDerivator_GetDerivedKey_TweakParams(b *testing.B) {
-	kd := Argon2idKeyDerivator{
+	kd := &Argon2idKeyDerivator{
 		time:    1,
 		memory:  32 * 1024,
 		threads: 4,
 		keyLen:  24,
 	}
+	b.Log(argon2idParams(kd))
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
@@ -52,6 +56,14 @@ func BenchmarkArgon2idKeyDerivator_GetDerivedKey_TweakParams(b *testing.B) {
 	}
 }
 
+func argon2idParams(kd *Argon2idKeyDerivator) string {
+	return fmt.Sprintf(""+
+		"\ttime: %d"+
+		"\t\tmemory: %d MB"+
+		"\t\tthreads: %d"+
+		"\t\tkeyLen: %d", kd.time, kd.memory/1024, kd.threads, kd.keyLen)
+}
+
 func TestScryptKeyDerivator_GetDerivedKey(t *testing.T) {
 	kd := NewDefaultScryptKeyDerivator()
 	derivedKey := kd.GetDerivedKey([]byte(test.Auth), []byte(test.Salt))
@@ -62,8 +74,9 @@ func TestScryptKeyDerivator_GetDerivedKey(t *testing.T) {
 	}
 }
 
-func BenchmarkScryptKeyDerivator_GetDerivedKey(b *testing.B) {
+func BenchmarkScryptKeyDerivator_GetDerivedKey_Default(b *testing.B) {
 	kd := NewDefaultScryptKeyDerivator()
+	b.Log(scryptParams(kd))
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
@@ -78,12 +91,13 @@ func BenchmarkScryptKeyDerivator_GetDerivedKey(b *testing.B) {
 }
 
 func BenchmarkScryptKeyDerivator_GetDerivedKey_TweakParams(b *testing.B) {
-	kd := ScryptKeyDerivator{
+	kd := &ScryptKeyDerivator{
 		N:      16 * 1024,
 		r:      8,
 		p:      1,
 		keyLen: 24,
 	}
+	b.Log(scryptParams(kd))
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
@@ -95,4 +109,12 @@ func BenchmarkScryptKeyDerivator_GetDerivedKey_TweakParams(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		kd.GetDerivedKey(auth, salt)
 	}
+}
+
+func scryptParams(kd *ScryptKeyDerivator) string {
+	return fmt.Sprintf(""+
+		"\tN: %d MB"+
+		"\t\tr: %d"+
+		"\t\tp: %d"+
+		"\t\tkeyLen: %d", kd.N/1024, kd.r, kd.p, kd.keyLen)
 }
