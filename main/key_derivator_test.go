@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -15,7 +14,7 @@ func TestArgon2idKeyDerivator_GetDerivedKey(t *testing.T) {
 	t.Logf("%x", derivedKey)
 
 	if len(derivedKey) != int(kd.keyLen) {
-		log.Errorf("unexpected derived key length: %d, expected: %d", len(derivedKey), kd.keyLen)
+		t.Errorf("unexpected derived key length: %d, expected: %d", len(derivedKey), kd.keyLen)
 	}
 }
 
@@ -70,7 +69,7 @@ func TestScryptKeyDerivator_GetDerivedKey(t *testing.T) {
 	t.Logf("%x", derivedKey)
 
 	if len(derivedKey) != kd.keyLen {
-		log.Errorf("unexpected derived key length: %d, expected: %d", len(derivedKey), kd.keyLen)
+		t.Errorf("unexpected derived key length: %d, expected: %d", len(derivedKey), kd.keyLen)
 	}
 }
 
