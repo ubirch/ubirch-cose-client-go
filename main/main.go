@@ -137,13 +137,13 @@ func main() {
 	protocol := NewProtocol(cryptoCtx, ctxManager)
 	defer protocol.Close()
 
-	client := &Client{
-		CertificateServerURL:       conf.CertificateServer,
-		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
-		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
-	}
-
-	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, ubirch.PublicKeyStructToPEM, conf.ReloadCertsEveryMinute)
+	//client := &Client{
+	//	CertificateServerURL:       conf.CertificateServer,
+	//	CertificateServerPubKeyURL: conf.CertificateServerPubKey,
+	//	ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
+	//}
+	//
+	//skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, ubirch.PublicKeyStructToPEM, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
 		protocol:            protocol,
@@ -151,7 +151,7 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)
+	coseSigner, err := NewCoseSigner(protocol.SignHash, getSKID)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -185,4 +185,8 @@ func main() {
 	}
 
 	log.Debug("shut down")
+}
+
+func getSKID(uuid.UUID) ([]byte, error) {
+	return make([]byte, 8), nil
 }
