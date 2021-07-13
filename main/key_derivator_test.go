@@ -37,8 +37,8 @@ func BenchmarkArgon2idKeyDerivator_GetDerivedKey_Default(b *testing.B) {
 func BenchmarkArgon2idKeyDerivator_GetDerivedKey_TweakParams(b *testing.B) {
 	kd := &Argon2idKeyDerivator{
 		time:    1,
-		memory:  32 * 1024,
-		threads: 4,
+		memory:  16 * 1024,
+		threads: 2,
 		keyLen:  24,
 	}
 	b.Log(argon2idParams(kd))
