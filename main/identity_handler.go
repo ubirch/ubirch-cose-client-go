@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
@@ -59,7 +60,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
-	pubKeyPEM, err := i.protocol.PublicKeyBytesToPEM(pubKeyBytes)
+	pubKeyPEM, err := ubirch.PublicKeyBytesToPEM(pubKeyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert public key bytes to PEM: %v", err)
 	}

@@ -35,7 +35,7 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.PublicKeyBytesToPEM(pubKeyBytes)
+	pubKeyPEM, err := ubirch.PublicKeyBytesToPEM(pubKeyBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

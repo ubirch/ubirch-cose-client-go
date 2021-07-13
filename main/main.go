@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
@@ -142,7 +143,7 @@ func main() {
 		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
 	}
 
-	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
+	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, ubirch.PublicKeyStructToPEM, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
 		protocol:            protocol,

@@ -15,9 +15,7 @@ import (
 var testUUIDs []uuid.UUID
 
 func TestNewSkidHandler(t *testing.T) {
-	c := &ubirch.ECDSACryptoContext{}
-
-	s := NewSkidHandler(mockGetCertificateList, mockGetUuid, c.EncodePublicKey, false)
+	s := NewSkidHandler(mockGetCertificateList, mockGetUuid, ubirch.PublicKeyStructToPEM, false)
 
 	if len(s.skidStore) != len(testUUIDs) {
 		t.Errorf("loading SKIDs failed")
@@ -57,9 +55,7 @@ func TestNewSkidHandler(t *testing.T) {
 }
 
 func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
-	c := &ubirch.ECDSACryptoContext{}
-
-	s := NewSkidHandler(mockGetCertificateList, mockGetUuidFindsNothing, c.EncodePublicKey, true)
+	s := NewSkidHandler(mockGetCertificateList, mockGetUuidFindsNothing, ubirch.PublicKeyStructToPEM, true)
 
 	if len(s.skidStore) != 0 {
 		t.Errorf("SKIDs were loaded with mockGetUuidFindsNothing")
