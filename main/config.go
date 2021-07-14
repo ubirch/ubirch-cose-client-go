@@ -75,6 +75,7 @@ type Config struct {
 	CertificateServer         string `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
 	CertificateServerPubKey   string `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
+	UPPSigningService         string `json:"uppSigningService" envconfig:"UPP_SIGNING_SERVICE"`             // UPP signing service URL
 	KeyService                string // key service URL
 	IdentityService           string // identity service URL
 	serverTLSCertFingerprints map[string][32]byte
@@ -163,6 +164,10 @@ func (c *Config) checkMandatory() error {
 
 	if c.CertificateServerPubKey == "" {
 		return fmt.Errorf("missing 'certificateServerPubKey' in configuration")
+	}
+
+	if c.UPPSigningService == "" {
+		log.Warnf("missing 'uppSigningService' in configuration")
 	}
 
 	return nil
