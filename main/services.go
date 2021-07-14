@@ -34,7 +34,8 @@ import (
 
 const (
 	AuthHeader    = "X-Auth-Token"
-	UssAuthHeader = "X-Niomon-Auth-Token"
+	UssUuidHeader = "X-Thing-ID"
+	UssAuthHeader = "X-Thing-Auth"
 
 	UUIDKey      = "uuid"
 	CBORPath     = "/cbor"
@@ -55,10 +56,11 @@ var UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)
 type Sha256Sum [HashLen]byte
 
 type HTTPRequest struct {
-	ID      uuid.UUID
-	Auth    string
-	Hash    Sha256Sum
-	Payload []byte
+	ID         uuid.UUID
+	AnchorUuid uuid.UUID
+	AnchorAuth string
+	Hash       Sha256Sum
+	Payload    []byte
 }
 
 type COSEService struct {
@@ -69,7 +71,7 @@ type COSEService struct {
 type GetUUID func(*http.Request) (uuid.UUID, error)
 type GetPayloadAndHash func(*http.Request) ([]byte, Sha256Sum, error)
 
-func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloadAndHash, anchor bool) http.HandlerFunc {
+func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloadAndHash) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, err := getUUID(r)
 		if err != nil {
@@ -96,13 +98,25 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 
 		msg := HTTPRequest{ID: uid}
 
-		if anchor {
-			msg.Auth = r.Header.Get(UssAuthHeader)
-			if len(msg.Auth) == 0 {
+		var anchor bool
+
+		ussUuid := r.Header.Get(UssUuidHeader)
+		if len(ussUuid) != 0 {
+			msg.AnchorUuid, err = uuid.Parse(ussUuid)
+			if err != nil {
+				err := fmt.Errorf("invalid thing ID for anchoring in header: %v", err)
+				Error(uid, w, err, http.StatusUnauthorized)
+				return
+			}
+
+			msg.AnchorAuth = r.Header.Get(UssAuthHeader)
+			if len(msg.AnchorAuth) == 0 {
 				err := fmt.Errorf("missing auth token for anchoring in header: %s", UssAuthHeader)
 				Error(uid, w, err, http.StatusUnauthorized)
 				return
 			}
+
+			anchor = true
 		}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)

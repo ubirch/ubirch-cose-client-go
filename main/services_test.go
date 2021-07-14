@@ -40,7 +40,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -71,7 +71,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -101,7 +101,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 	r.Header.Set("Content-Type", BinType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -131,7 +131,7 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(getUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(getUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusNotFound)
@@ -161,7 +161,7 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusNotFound)
@@ -186,7 +186,7 @@ func TestCOSEService_HandleRequest_CantGetIdentity(t *testing.T) {
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusInternalServerError)
@@ -216,7 +216,7 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set(AuthHeader, "12345")
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -246,7 +246,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -277,7 +277,7 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -307,7 +307,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 	r.Header.Set("Content-Type", "wrong content type")
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -337,7 +337,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest(), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -365,7 +365,7 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 	r.Header.Set("Content-Type", JSONType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -395,7 +395,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 	r.Header.Set("Content-Type", JSONType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -425,7 +425,7 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 	r.Header.Set("Content-Type", CBORType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -453,7 +453,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 	r.Header.Set("Content-Type", CBORType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -481,7 +481,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set(AuthHeader, testAuth)
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes), false)(w, r)
+	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)

@@ -130,7 +130,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte, anchor bool) h.
 
 	coseStruct, _ := decodeCose(cose)
 
-	resp, err := c.Anchor(msg.ID, msg.Auth, coseStruct.Signature)
+	resp, err := c.Anchor(msg.AnchorUuid, msg.AnchorAuth, coseStruct.Signature)
 	if err != nil {
 		log.Error(err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -139,7 +139,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte, anchor bool) h.
 		return resp
 	}
 
-	resp, err = c.Anchor(msg.ID, msg.Auth, msg.Hash[:])
+	resp, err = c.Anchor(msg.AnchorUuid, msg.AnchorAuth, msg.Hash[:])
 	if err != nil {
 		log.Error(err)
 		return errorResponse(http.StatusInternalServerError, "")
