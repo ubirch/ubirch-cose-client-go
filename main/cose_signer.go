@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -68,7 +69,7 @@ type Sig_structure struct {
 
 type SignHash func(privKeyPEM []byte, hash []byte) ([]byte, error)
 type GetSKID func(uid uuid.UUID) ([]byte, error)
-type Anchor func(uid uuid.UUID, auth string, data []byte) (HTTPResponse, error)
+type Anchor func(uid uuid.UUID, auth string, data []byte) (h.HTTPResponse, error)
 
 type CoseSigner struct {
 	encMode         cbor.EncMode
@@ -119,11 +120,41 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte, anchor bool) h.
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
+	if anchor {
+		coseStruct, _ := decodeCose(cose)
+
+		resp, err := c.Anchor(msg.ID, msg.Auth, coseStruct.Signature)
+		if err != nil {
+			log.Error(err)
+			return errorResponse(http.StatusInternalServerError, "")
+		}
+		if h.HttpFailed(resp.StatusCode) {
+			return resp
+		}
+
+		resp, err = c.Anchor(msg.ID, msg.Auth, msg.Hash[:])
+		if err != nil {
+			log.Error(err)
+			return errorResponse(http.StatusInternalServerError, "")
+		}
+		return resp
+	}
+
 	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
 		Content:    cose,
 	}
+}
+
+func decodeCose(cose []byte) (*COSE_Sign1, error) {
+	coseStruct := &COSE_Sign1{}
+	dec := cbor.NewDecoder(bytes.NewReader(cose))
+	err := dec.Decode(coseStruct)
+	if err != nil {
+		return nil, err
+	}
+	return coseStruct, nil
 }
 
 func (c *CoseSigner) createSignedCOSE(hash Sha256Sum, privateKeyPEM, kid, payload []byte) ([]byte, error) {
