@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	AuthHeader = "X-Auth-Token"
+	AuthHeader    = "X-Auth-Token"
+	UssAuthHeader = "X-Niomon-Auth-Token"
 
 	UUIDKey      = "uuid"
 	CBORPath     = "/cbor"
@@ -55,14 +56,9 @@ type Sha256Sum [HashLen]byte
 
 type HTTPRequest struct {
 	ID      uuid.UUID
+	Auth    string
 	Hash    Sha256Sum
 	Payload []byte
-}
-
-type HTTPResponse struct {
-	StatusCode int         `json:"statusCode"`
-	Header     http.Header `json:"header"`
-	Content    []byte      `json:"content"`
 }
 
 type COSEService struct {
@@ -99,6 +95,15 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		}
 
 		msg := HTTPRequest{ID: uid}
+
+		if anchor {
+			msg.Auth = r.Header.Get(UssAuthHeader)
+			if len(msg.Auth) == 0 {
+				err := fmt.Errorf("missing auth token for anchoring in header: %s", UssAuthHeader)
+				Error(uid, w, err, http.StatusUnauthorized)
+				return
+			}
+		}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {
