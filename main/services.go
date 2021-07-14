@@ -23,8 +23,8 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
