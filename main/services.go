@@ -23,9 +23,11 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
@@ -54,7 +56,7 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, err := getUUID(r)
 		if err != nil {
-			log.Warnf("COSEService: %v", err)
+			log.Warn(err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -85,7 +87,18 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 
 		resp := s.Sign(msg)
 
-		h.SendResponse(w, resp)
+		ctx := r.Context()
+		select {
+		case <-ctx.Done():
+			log.Errorf("signing request context done: %s", ctx.Err())
+		default:
+			h.SendResponse(w, resp)
+
+			p.SignatureCreationCounter.Inc()
+
+			infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+			auditlogger.AuditLog("create", "COSE", infos)
+		}
 	}
 }
 

@@ -23,7 +23,6 @@ import (
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
@@ -117,11 +116,6 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 		return h.ErrorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
-
-	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-	auditlogger.AuditLog("create", "COSE", infos)
-
-	p.SignatureCreationCounter.Inc()
 
 	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
