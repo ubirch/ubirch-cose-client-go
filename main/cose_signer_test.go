@@ -93,7 +93,7 @@ func TestCoseSign(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg, privKeyPEM)
+	resp := coseSigner.Sign(msg, privKeyPEM, false)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -118,7 +118,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg, privateKeyPEM)
+	resp := coseSigner.Sign(msg, privateKeyPEM, false)
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -143,7 +143,7 @@ func TestCoseSignBadKey(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg, nil)
+	resp := coseSigner.Sign(msg, nil, false)
 
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -166,7 +166,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg, nil)
+	resp := coseSigner.Sign(msg, nil, false)
 
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("response status code: %d", resp.StatusCode)

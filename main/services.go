@@ -73,7 +73,7 @@ type COSEService struct {
 type GetUUID func(*http.Request) (uuid.UUID, error)
 type GetPayloadAndHash func(*http.Request) ([]byte, Sha256Sum, error)
 
-func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloadAndHash) http.HandlerFunc {
+func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloadAndHash, anchor bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, err := getUUID(r)
 		if err != nil {
@@ -106,7 +106,7 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		resp := s.Sign(msg, identity.PrivateKey)
+		resp := s.Sign(msg, identity.PrivateKey, anchor)
 
 		ctx := r.Context()
 		select {
@@ -243,7 +243,7 @@ func GetPayloadAndHashFromDataRequest(getCBORFromJSON GetCBORFromJSON, getSigStr
 }
 
 // forwards response to sender
-func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
+func sendResponse(w http.ResponseWriter, resp h.HTTPResponse) {
 	for k, v := range resp.Header {
 		w.Header().Set(k, v[0])
 	}
@@ -254,11 +254,11 @@ func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	}
 }
 
-func errorResponse(code int, message string) HTTPResponse {
+func errorResponse(code int, message string) h.HTTPResponse {
 	if message == "" {
 		message = http.StatusText(code)
 	}
-	return HTTPResponse{
+	return h.HTTPResponse{
 		StatusCode: code,
 		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
 		Content:    []byte(message),

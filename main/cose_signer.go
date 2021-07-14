@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
@@ -67,12 +68,14 @@ type Sig_structure struct {
 
 type SignHash func(privKeyPEM []byte, hash []byte) ([]byte, error)
 type GetSKID func(uid uuid.UUID) ([]byte, error)
+type Anchor func(uid uuid.UUID, auth string, data []byte) (HTTPResponse, error)
 
 type CoseSigner struct {
 	encMode         cbor.EncMode
 	protectedHeader []byte
 	SignHash
 	GetSKID
+	Anchor
 }
 
 func initCBOREncMode() (cbor.EncMode, error) {
@@ -100,7 +103,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	}, nil
 }
 
-func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte) HTTPResponse {
+func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte, anchor bool) h.HTTPResponse {
 	log.Debugf("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	skid, err := c.GetSKID(msg.ID)
@@ -116,7 +119,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte) HTTPResponse {
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
-	return HTTPResponse{
+	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
 		Content:    cose,
