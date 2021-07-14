@@ -121,7 +121,11 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte, anchor bool) h.
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
 	if anchor {
-		coseStruct, _ := decodeCose(cose)
+		coseStruct, err := decodeCose(cose)
+		if err != nil {
+			log.Error(err)
+			return errorResponse(http.StatusInternalServerError, "")
+		}
 
 		resp, err := c.Anchor(msg.AnchorUuid, msg.AnchorAuth, coseStruct.Signature)
 		if err != nil {
