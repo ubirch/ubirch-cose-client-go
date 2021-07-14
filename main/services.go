@@ -120,10 +120,12 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		default:
 			sendResponse(w, resp)
 
-			prom.SignatureCreationCounter.Inc()
+			if h.HttpSuccess(resp.StatusCode) {
+				prom.SignatureCreationCounter.Inc()
 
-			infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-			auditlogger.AuditLog("create", "COSE", infos)
+				infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+				auditlogger.AuditLog("create", "COSE", infos)
+			}
 		}
 	}
 }
