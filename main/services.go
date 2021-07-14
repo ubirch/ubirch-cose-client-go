@@ -25,9 +25,11 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 const (
@@ -106,7 +108,18 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 
 		resp := s.Sign(msg, identity.PrivateKey)
 
-		sendResponse(w, resp)
+		ctx := r.Context()
+		select {
+		case <-ctx.Done():
+			log.Warnf("signing response can not be sent: http request %s", ctx.Err())
+		default:
+			sendResponse(w, resp)
+
+			prom.SignatureCreationCounter.Inc()
+
+			infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+			auditlogger.AuditLog("create", "COSE", infos)
+		}
 	}
 }
 

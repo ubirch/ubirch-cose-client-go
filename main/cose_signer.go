@@ -23,10 +23,9 @@ import (
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 const (
@@ -117,11 +116,6 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte) HTTPResponse {
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
-	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-	auditlogger.AuditLog("create", "COSE", infos)
-
-	p.SignatureCreationCounter.Inc()
-
 	return HTTPResponse{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
@@ -130,7 +124,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte) HTTPResponse {
 }
 
 func (c *CoseSigner) createSignedCOSE(hash Sha256Sum, privateKeyPEM, kid, payload []byte) ([]byte, error) {
-	timer := prometheus.NewTimer(p.SignatureCreationDuration)
+	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
 	signature, err := c.SignHash(privateKeyPEM, hash[:])
 	timer.ObserveDuration()
 	if err != nil {
