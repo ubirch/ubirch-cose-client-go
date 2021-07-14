@@ -170,9 +170,9 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 	}
 }
 
-func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
+func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, data []byte) (h.HTTPResponse, error) {
 	endpoint := path.Join(c.UPPSigningServiceURL, uid.String(), "hash")
-	return clients.Post(endpoint, upp, USSHeader(auth))
+	return clients.Post(endpoint, data, USSHeader(auth))
 }
 
 func USSHeader(auth string) map[string]string {
