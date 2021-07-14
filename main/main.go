@@ -128,6 +128,7 @@ func main() {
 	client.CertificateServerURL = conf.CertificateServer
 	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
 	client.ServerTLSCertFingerprints = conf.serverTLSCertFingerprints
+	client.UPPSigningServiceURL = conf.UPPSigningService
 
 	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
 

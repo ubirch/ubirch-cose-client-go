@@ -23,9 +23,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -40,6 +42,7 @@ type ExtendedClient struct {
 	CertificateServerURL       string
 	CertificateServerPubKeyURL string
 	ServerTLSCertFingerprints  map[string][32]byte
+	UPPSigningServiceURL       string
 }
 
 type trustList struct {
@@ -164,5 +167,17 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 		}
 
 		return nil
+	}
+}
+
+func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
+	endpoint := path.Join(c.UPPSigningServiceURL, uid.String(), "hash")
+	return clients.Post(endpoint, upp, USSHeader(auth))
+}
+
+func USSHeader(auth string) map[string]string {
+	return map[string]string{
+		"x-auth-token": auth,
+		"content-type": "application/octet-stream",
 	}
 }
