@@ -90,7 +90,7 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		ctx := r.Context()
 		select {
 		case <-ctx.Done():
-			log.Errorf("signing request context done: %s", ctx.Err())
+			log.Warnf("signing response can not be sent: http request %s", ctx.Err())
 		default:
 			h.SendResponse(w, resp)
 
