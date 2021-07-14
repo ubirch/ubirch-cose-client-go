@@ -17,10 +17,11 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"net/http"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
@@ -32,7 +33,7 @@ var (
 func TestCoseSigner(t *testing.T) {
 	c := setupCryptoCtx(t, test.Uuid)
 
-	pubKeyBytes, err := c.GetPublicKey(test.Uuid)
+	pubKeyBytes, err := c.GetPublicKeyBytes(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}

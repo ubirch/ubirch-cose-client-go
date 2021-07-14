@@ -30,12 +30,7 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pubKeyBytes, err := p.GetPublicKey(testUid)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pubKeyPEM, err := ubirch.PublicKeyBytesToPEM(pubKeyBytes)
+	pubKeyPEM, err := p.GetPublicKeyPEM(testUid)
 	if err != nil {
 		t.Fatal(err)
 	}

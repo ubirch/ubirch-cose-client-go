@@ -143,7 +143,7 @@ func main() {
 	//	ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
 	//}
 	//
-	//skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, ubirch.PublicKeyStructToPEM, conf.ReloadCertsEveryMinute)
+	//skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
 		protocol:            protocol,
