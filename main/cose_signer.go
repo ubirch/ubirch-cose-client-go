@@ -120,31 +120,31 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte, anchor bool) h.
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
-	if anchor {
-		coseStruct, _ := decodeCose(cose)
+	if !anchor {
+		return h.HTTPResponse{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{},
+			Content:    cose,
+		}
+	}
 
-		resp, err := c.Anchor(msg.ID, msg.Auth, coseStruct.Signature)
-		if err != nil {
-			log.Error(err)
-			return errorResponse(http.StatusInternalServerError, "")
-		}
-		if h.HttpFailed(resp.StatusCode) {
-			return resp
-		}
+	coseStruct, _ := decodeCose(cose)
 
-		resp, err = c.Anchor(msg.ID, msg.Auth, msg.Hash[:])
-		if err != nil {
-			log.Error(err)
-			return errorResponse(http.StatusInternalServerError, "")
-		}
+	resp, err := c.Anchor(msg.ID, msg.Auth, coseStruct.Signature)
+	if err != nil {
+		log.Error(err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+	if h.HttpFailed(resp.StatusCode) {
 		return resp
 	}
 
-	return h.HTTPResponse{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{},
-		Content:    cose,
+	resp, err = c.Anchor(msg.ID, msg.Auth, msg.Hash[:])
+	if err != nil {
+		log.Error(err)
+		return errorResponse(http.StatusInternalServerError, "")
 	}
+	return resp
 }
 
 func decodeCose(cose []byte) (*COSE_Sign1, error) {
