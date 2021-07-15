@@ -136,7 +136,7 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 
 	id.PrivateKey, err = p.keyEncrypter.Decrypt(id.PrivateKey)
 	if err != nil {
-		return id, fmt.Errorf("failed to decrypt key from database: %v", err)
+		return id, err
 	}
 
 	id.PublicKey, err = p.PublicKeyBytesToPEM(id.PublicKey)
