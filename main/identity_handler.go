@@ -20,7 +20,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/auditlogger"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -29,8 +28,7 @@ type SubmitKeyRegistration func(uid uuid.UUID, cert []byte, auth string) error
 type SubmitCSR func(uid uuid.UUID, csr []byte) error
 
 type IdentityHandler struct {
-	crypto     ubirch.Crypto
-	ctxManager ContextManager
+	Protocol *Protocol
 	SubmitKeyRegistration
 	SubmitCSR
 	subjectCountry      string
@@ -48,12 +46,12 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	log.Infof("initializing new identity %s", uid)
 
 	// generate a new new pair
-	privKeyPEM, err := i.crypto.GenerateKey()
+	privKeyPEM, err := i.Protocol.GenerateKey()
 	if err != nil {
 		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
 
-	pubKeyPEM, err := i.crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := i.Protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		return nil, err
 	}
@@ -68,12 +66,12 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := i.ctxManager.StartTransaction(ctx)
+	tx, err := i.Protocol.StartTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.ctxManager.StoreNewIdentity(tx, newIdentity)
+	err = i.Protocol.StoreNewIdentity(tx, newIdentity)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +82,7 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, err
 	}
 
-	err = i.ctxManager.CloseTransaction(tx, Commit)
+	err = i.Protocol.CloseTransaction(tx, Commit)
 	if err != nil {
 		return nil, err
 	}
@@ -96,13 +94,13 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) (csr []byte, 
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {
-	keyRegistration, err := i.crypto.GetSignedKeyRegistration(privKeyPEM, uid)
+	keyRegistration, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
 	if err != nil {
 		return nil, fmt.Errorf("error creating public key certificate: %v", err)
 	}
 	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
 
-	csr, err = i.crypto.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
+	csr, err = i.Protocol.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
 	}
