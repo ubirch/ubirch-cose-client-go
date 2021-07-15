@@ -99,7 +99,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 }
 
 func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte) HTTPResponse {
-	log.Infof("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	log.Debugf("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	skid, err := c.GetSKID(msg.ID)
 	if err != nil {
