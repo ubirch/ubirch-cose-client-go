@@ -29,6 +29,31 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	initializedIdentity, err := p.GetIdentity(testUuid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if initializedIdentity.AuthToken != testAuth {
+		t.Error("initializedIdentity unexpected AuthToken")
+	}
+
+	data := []byte("test")
+
+	signature, err := p.Sign(initializedIdentity.PrivateKey, data)
+	if err != nil {
+		t.Errorf("signing failed: %v", err)
+	}
+
+	verified, err := p.Verify(initializedIdentity.PublicKey, data, signature)
+	if err != nil {
+		t.Errorf("verification failed: %v", err)
+	}
+
+	if !verified {
+		t.Error("signature not verifiable")
+	}
 }
 
 func TestIdentityHandler_initIdentityBad(t *testing.T) {
