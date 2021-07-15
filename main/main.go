@@ -133,7 +133,7 @@ func main() {
 
 	idHandler := &IdentityHandler{
 		crypto:                protocol.Crypto,
-		ctxManager:            protocol.ctxManager,
+		ctxManager:            protocol,
 		SubmitKeyRegistration: client.SubmitKeyRegistration,
 		SubmitCSR:             client.SubmitCSR,
 		subjectCountry:        conf.CSR_Country,
