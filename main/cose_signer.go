@@ -84,7 +84,7 @@ func initCBOREncMode() (cbor.EncMode, error) {
 	return encOpt.EncMode()
 }
 
-func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
+func NewCoseSigner(sign SignHash, skid GetSKID, anchor Anchor) (*CoseSigner, error) {
 	encMode, err := initCBOREncMode()
 	if err != nil {
 		return nil, err
@@ -101,6 +101,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 		protectedHeader: protectedHeaderAlgES256CBOR,
 		SignHash:        sign,
 		GetSKID:         skid,
+		Anchor:          anchor,
 	}, nil
 }
 
@@ -126,24 +127,30 @@ func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte, anchor bool) h.
 			log.Error(err)
 			return errorResponse(http.StatusInternalServerError, "")
 		}
+		log.Debugf("%s: anchor hash: %s and signature: %s", msg.ID,
+			base64.StdEncoding.EncodeToString(msg.Hash[:]),
+			base64.StdEncoding.EncodeToString(coseStruct.Signature))
 
 		resp, err := c.Anchor(msg.AnchorUuid, msg.AnchorAuth, coseStruct.Signature)
 		if err != nil {
-			log.Error(err)
+			log.Errorf("signature anchoring request to upstream server failed: %v", err)
 			return errorResponse(http.StatusInternalServerError, "")
 		}
 		if h.HttpFailed(resp.StatusCode) {
+			log.Errorf("upstream server returned error status for signature anchoring request: (%d) %s", resp.StatusCode, string(resp.Content))
 			return resp
 		}
 
 		resp, err = c.Anchor(msg.AnchorUuid, msg.AnchorAuth, msg.Hash[:])
 		if err != nil {
-			log.Error(err)
+			log.Errorf("hash anchoring request to upstream server failed: %v", err)
 			return errorResponse(http.StatusInternalServerError, "")
 		}
 		if h.HttpFailed(resp.StatusCode) {
+			log.Errorf("upstream server returned error status for hash anchoring request: (%d) %s", resp.StatusCode, string(resp.Content))
 			return resp
 		}
+		log.Debugf("upstream server response: %s", string(resp.Content))
 	}
 
 	return h.HTTPResponse{

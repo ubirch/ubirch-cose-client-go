@@ -140,7 +140,7 @@ func main() {
 		subjectOrganization:   conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)
+	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID, client.SendToUbirchSigningService)
 	if err != nil {
 		log.Fatal(err)
 	}
