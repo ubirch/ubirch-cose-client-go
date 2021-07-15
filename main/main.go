@@ -132,8 +132,7 @@ func main() {
 	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
-		crypto:                protocol.Crypto,
-		ctxManager:            protocol,
+		Protocol:              protocol,
 		SubmitKeyRegistration: client.SubmitKeyRegistration,
 		SubmitCSR:             client.SubmitCSR,
 		subjectCountry:        conf.CSR_Country,
