@@ -111,13 +111,19 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		resp := s.Sign(msg, identity.PrivateKey)
 		timer.ObserveDuration()
 
-		sendResponse(w, resp)
+		ctx := r.Context()
+		select {
+		case <-ctx.Done():
+			log.Warnf("signing response can not be sent: http request %s", ctx.Err())
+		default:
+			sendResponse(w, resp)
 
-		if h.HttpSuccess(resp.StatusCode) {
-			infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-			auditlogger.AuditLog("create", "COSE", infos)
+			if h.HttpSuccess(resp.StatusCode) {
+				infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+				auditlogger.AuditLog("create", "COSE", infos)
 
-			p.SignatureCreationCounter.Inc()
+				p.SignatureCreationCounter.Inc()
+			}
 		}
 	}
 }
