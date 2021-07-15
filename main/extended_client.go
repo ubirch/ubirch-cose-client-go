@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"path"
 	"strings"
 	"time"
 
@@ -171,7 +170,7 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 }
 
 func (c *ExtendedClient) SendToUbirchSigningService(uid uuid.UUID, auth string, data []byte) (h.HTTPResponse, error) {
-	endpoint := path.Join(c.UPPSigningServiceURL, uid.String(), "hash")
+	endpoint := fmt.Sprintf("%s/%s/hash", c.UPPSigningServiceURL, uid.String())
 	return clients.Post(endpoint, data, USSHeader(auth))
 }
 
