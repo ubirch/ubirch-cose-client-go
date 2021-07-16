@@ -38,7 +38,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if initializedIdentity.AuthToken != test.Auth {
+	if !p.CheckAuth(test.Auth, initializedIdentity.PW.DerivedKey, initializedIdentity.PW.Salt) {
 		t.Error("initializedIdentity unexpected AuthToken")
 	}
 
