@@ -1,14 +1,13 @@
 package main
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
 
-type Password struct {
-	DerivedKey []byte
-	Salt       []byte
-}
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
+)
 
 type Identity struct {
 	Uid          uuid.UUID
 	PublicKeyPEM []byte
-	PW           Password
+	PW           pw.Password
 }
