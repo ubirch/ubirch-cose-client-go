@@ -27,7 +27,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
@@ -94,10 +94,12 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		default:
 			h.SendResponse(w, resp)
 
-			p.SignatureCreationCounter.Inc()
+			if h.HttpSuccess(resp.StatusCode) {
+				infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+				auditlogger.AuditLog("create", "COSE", infos)
 
-			infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-			auditlogger.AuditLog("create", "COSE", infos)
+				prom.SignatureCreationCounter.Inc()
+			}
 		}
 	}
 }
