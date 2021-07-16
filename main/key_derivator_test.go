@@ -11,7 +11,6 @@ import (
 func TestArgon2idKeyDerivator_GetDerivedKey(t *testing.T) {
 	kd := NewDefaultArgon2idKeyDerivator()
 	derivedKey := kd.GetDerivedKey([]byte(test.Auth), []byte(test.Salt))
-	t.Logf("%x", derivedKey)
 
 	if len(derivedKey) != int(kd.keyLen) {
 		t.Errorf("unexpected derived key length: %d, expected: %d", len(derivedKey), kd.keyLen)
@@ -66,7 +65,6 @@ func argon2idParams(kd *Argon2idKeyDerivator) string {
 func TestScryptKeyDerivator_GetDerivedKey(t *testing.T) {
 	kd := NewDefaultScryptKeyDerivator()
 	derivedKey := kd.GetDerivedKey([]byte(test.Auth), []byte(test.Salt))
-	t.Logf("%x", derivedKey)
 
 	if len(derivedKey) != kd.keyLen {
 		t.Errorf("unexpected derived key length: %d, expected: %d", len(derivedKey), kd.keyLen)
