@@ -15,6 +15,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	defer p.Close()
 
 	idHandler := &IdentityHandler{
 		protocol:            p,
@@ -29,7 +30,32 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 
 	_, err = idHandler.InitIdentity(test.Uuid, test.Auth)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
+	}
+
+	initializedIdentity, err := p.GetIdentity(test.Uuid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if initializedIdentity.AuthToken != test.Auth {
+		t.Error("initializedIdentity unexpected AuthToken")
+	}
+
+	data := []byte("test")
+
+	signature, err := p.Sign(test.Uuid, data)
+	if err != nil {
+		t.Fatalf("signing failed: %v", err)
+	}
+
+	verified, err := p.Verify(test.Uuid, data, signature)
+	if err != nil {
+		t.Fatalf("verification failed: %v", err)
+	}
+
+	if !verified {
+		t.Fatal("signature not verifiable")
 	}
 }
 
@@ -39,6 +65,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	defer p.Close()
 
 	idHandler := &IdentityHandler{
 		protocol:            p,
@@ -53,7 +80,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 
 	_, err = idHandler.InitIdentity(test.Uuid, test.Auth)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	_, err = idHandler.InitIdentity(test.Uuid, test.Auth)
@@ -68,6 +95,7 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 	}
 
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	defer p.Close()
 
 	idHandler := &IdentityHandler{
 		protocol:            p,
