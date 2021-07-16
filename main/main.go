@@ -151,7 +151,7 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol.SignHash, getSKID)
+	coseSigner, err := NewCoseSigner(protocol.SignHash, getSKID) // FIXME
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -179,6 +179,8 @@ func main() {
 	httpServer.Router.Get("/readiness", h.Health(serverID))
 	log.Info("ready")
 
+	log.Warnf("USING MOCK SKID") // FIXME
+
 	// wait for all go routines of the waitgroup to return
 	if err = g.Wait(); err != nil {
 		log.Error(err)
@@ -188,5 +190,6 @@ func main() {
 }
 
 func getSKID(uuid.UUID) ([]byte, error) {
+	log.Warnf("USING MOCK SKID")
 	return make([]byte, 8), nil
 }
