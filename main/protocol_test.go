@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -38,7 +39,7 @@ func TestProtocol(t *testing.T) {
 	testIdentity := Identity{
 		Uid:          testUid,
 		PublicKeyPEM: pubKeyPEM,
-		PW:           Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}
 
 	// check not exists
@@ -85,7 +86,7 @@ func TestProtocol(t *testing.T) {
 	if !bytes.Equal(storedIdentity.PublicKeyPEM, testIdentity.PublicKeyPEM) {
 		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
 	}
-	if !bytes.Equal(storedIdentity.PW.DerivedKey, testIdentity.PW.DerivedKey) {
+	if !bytes.Equal(storedIdentity.PW.Hash, testIdentity.PW.Hash) {
 		t.Error("GetIdentity returned unexpected PW.DerivedKey value")
 	}
 	if !bytes.Equal(storedIdentity.PW.Salt, testIdentity.PW.Salt) {
@@ -162,7 +163,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	i := Identity{
 		Uid:          uuid.UUID{},
 		PublicKeyPEM: test.PubKey,
-		PW:           Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -203,7 +204,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	i := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: nil,
-		PW:           Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -223,7 +224,7 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	i := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
-		PW:           Password{DerivedKey: []byte(""), Salt: []byte(test.Salt)},
+		PW:           pw.Password{Hash: []byte(""), Salt: []byte(test.Salt)},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -243,7 +244,7 @@ func Test_StoreNewIdentity_NilSalt(t *testing.T) {
 	i := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
-		PW:           Password{DerivedKey: []byte(test.Auth), Salt: []byte("")},
+		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte("")},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -265,7 +266,7 @@ func TestProtocol_Cache(t *testing.T) {
 	testIdentity := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
-		PW:           Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}
 
 	err := p.StoreNewIdentity(testIdentity)
@@ -297,42 +298,6 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	_, err := p.GetUuidForPublicKey(make([]byte, 64))
 	if err == nil {
 		t.Error("GetUuidForPublicKey did not return error for invalid public key")
-	}
-}
-
-func TestProtocol_CheckAuth(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
-	}
-
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
-	defer p.Close()
-
-	kd := NewDefaultArgon2idKeyDerivator()
-	derivedKey := kd.GetDerivedKey([]byte(test.Auth), []byte(test.Salt))
-
-	authOk := p.CheckAuth(test.Auth, derivedKey, []byte(test.Salt))
-
-	if !authOk {
-		t.Errorf("CheckAuth returned false on valid password")
-	}
-}
-
-func TestProtocol_CheckAuth_Bad(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
-	}
-
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
-	defer p.Close()
-
-	kd := NewDefaultArgon2idKeyDerivator()
-	derivedKey := kd.GetDerivedKey([]byte(test.Auth), []byte(test.Salt))
-
-	authOk := p.CheckAuth("123", derivedKey, []byte(test.Salt))
-
-	if authOk {
-		t.Errorf("CheckAuth returned true on invalid password")
 	}
 }
 

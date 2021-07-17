@@ -38,8 +38,10 @@ var create = map[int]string{
 	PostgresIdentity: "CREATE TABLE IF NOT EXISTS %s(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"public_key VARCHAR(255) NOT NULL, " +
-		"auth BYTEA NOT NULL, " +
-		"salt BYTEA NOT NULL);",
+		"algoID VARCHAR(255) NOT NULL, " +
+		"auth VARCHAR(255) NOT NULL, " +
+		"salt VARCHAR(255) NOT NULL," +
+		"params VARCHAR(255) NOT NULL);",
 }
 
 func CreateTable(tableType int, tableName string) string {
@@ -112,10 +114,16 @@ func (dm *DatabaseManager) Close() {
 
 func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
 	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, public_key, auth, salt) VALUES ($1, $2, $3, $4);",
+		"INSERT INTO %s (uid, public_key, algoID, auth, salt, params) VALUES ($1, $2, $3, $4, $5, $6);",
 		dm.tableName)
 
-	_, err := dm.db.Exec(query, &id.Uid, &id.PublicKeyPEM, &id.PW.DerivedKey, &id.PW.Salt)
+	_, err := dm.db.Exec(query,
+		&id.Uid,
+		&id.PublicKeyPEM,
+		&id.PW.AlgoID,
+		&id.PW.Hash,
+		&id.PW.Salt,
+		&id.PW.Params)
 	if err != nil {
 		return err
 	}
@@ -128,7 +136,13 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PublicKeyPEM, &id.PW.DerivedKey, &id.PW.Salt)
+	err := dm.db.QueryRow(query, uid).Scan(
+		&id.Uid,
+		&id.PublicKeyPEM,
+		&id.PW.AlgoID,
+		&id.PW.Hash,
+		&id.PW.Salt,
+		&id.PW.Params)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return id, ErrNotExist

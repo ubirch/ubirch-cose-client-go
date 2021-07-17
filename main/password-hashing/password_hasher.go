@@ -1,7 +1,11 @@
 package password_hashing
 
+import "database/sql/driver"
+
 type PasswordHasher interface {
-	HashPassword(password, salt []byte) []byte
+	DefaultParams() PasswordHashingParams
+	GetPasswordHash(pw []byte, params PasswordHashingParams) (Password, error)
+	CheckPasswordHash(pwToCheck []byte, pwHash Password) (bool, error)
 }
 
 type Password struct {
@@ -12,6 +16,6 @@ type Password struct {
 }
 
 type PasswordHashingParams interface {
-	Encode(interface{}) ([]byte, error)
-	Decode([]byte) (interface{}, error)
+	Scan(src interface{}) error
+	Value() (driver.Value, error)
 }

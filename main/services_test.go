@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"github.com/google/uuid"
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,7 +22,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -52,7 +53,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -84,7 +85,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -115,7 +116,7 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -146,7 +147,7 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: uuid.New(),
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -202,7 +203,7 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -233,7 +234,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -264,7 +265,7 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -296,7 +297,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -327,7 +328,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -358,7 +359,7 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -387,7 +388,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -418,7 +419,7 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -449,7 +450,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -478,7 +479,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  Password{DerivedKey: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -540,10 +541,10 @@ func mockGetIdentityReturnsErr(uuid.UUID) (Identity, error) {
 	return Identity{}, test.Error
 }
 
-func mockCheckAuth(string, []byte, []byte) bool {
-	return true
+func mockCheckAuth(string, pw.Password) (bool, error) {
+	return true, nil
 }
 
-func mockCheckAuthBad(string, []byte, []byte) bool {
-	return false
+func mockCheckAuthBad(string, pw.Password) (bool, error) {
+	return false, nil
 }

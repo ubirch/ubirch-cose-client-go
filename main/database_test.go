@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
@@ -56,7 +58,7 @@ func TestDatabaseManager(t *testing.T) {
 	if !bytes.Equal(idFromDb.PublicKeyPEM, testIdentity.PublicKeyPEM) {
 		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
 	}
-	if !bytes.Equal(idFromDb.PW.DerivedKey, testIdentity.PW.DerivedKey) {
+	if !bytes.Equal(idFromDb.PW.Hash, testIdentity.PW.Hash) {
 		t.Error("GetIdentity returned unexpected PW.DerivedKey value")
 	}
 	if !bytes.Equal(idFromDb.PW.Salt, testIdentity.PW.Salt) {
@@ -209,7 +211,7 @@ func generateRandomIdentity() *Identity {
 	return &Identity{
 		Uid:          uuid.New(),
 		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
-		PW:           Password{DerivedKey: auth, Salt: salt},
+		PW:           pw.Password{Hash: auth, Salt: salt},
 	}
 }
 
@@ -232,7 +234,7 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 	if !bytes.Equal(idFromCtx.PublicKeyPEM, id.PublicKeyPEM) {
 		return fmt.Errorf("GetIdentity returned unexpected PublicKeyPEM value")
 	}
-	if !bytes.Equal(idFromCtx.PW.DerivedKey, id.PW.DerivedKey) {
+	if !bytes.Equal(idFromCtx.PW.Hash, id.PW.Hash) {
 		return fmt.Errorf("GetIdentity returned unexpected PW.DerivedKey value")
 	}
 	if !bytes.Equal(idFromCtx.PW.Salt, id.PW.Salt) {

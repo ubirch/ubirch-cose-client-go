@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -25,6 +24,7 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
@@ -34,8 +34,9 @@ const (
 
 type Protocol struct {
 	ubirch.Crypto
-	ctxManager   ContextManager
-	keyDerivator KeyDerivator
+	ctxManager     ContextManager
+	pwHasher       pw.PasswordHasher
+	pwHasherParams pw.PasswordHashingParams
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
@@ -45,10 +46,14 @@ type Protocol struct {
 var _ ContextManager = (*Protocol)(nil)
 
 func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager) *Protocol {
+	kd := &pw.Argon2idKeyDerivator{}
+
 	return &Protocol{
-		Crypto:       crypto,
-		ctxManager:   ctxManager,
-		keyDerivator: NewDefaultArgon2idKeyDerivator(),
+		Crypto:     crypto,
+		ctxManager: ctxManager,
+
+		pwHasher:       kd,
+		pwHasherParams: kd.DefaultParams(),
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -112,10 +117,6 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 	return id, nil
 }
 
-func (p *Protocol) CheckAuth(authTokenToCheck string, authTokenDerivedKey, salt []byte) bool {
-	return bytes.Equal(p.keyDerivator.GetDerivedKey([]byte(authTokenToCheck), salt), authTokenDerivedKey)
-}
-
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
 	sum256 := sha256.Sum256(publicKeyPEM)
 	pubKeyID := base64.StdEncoding.EncodeToString(sum256[:16])
@@ -175,7 +176,7 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 		return fmt.Errorf("empty password salt")
 	}
 
-	if len(i.PW.DerivedKey) == 0 {
+	if len(i.PW.Hash) == 0 {
 		return fmt.Errorf("empty password derived key")
 	}
 

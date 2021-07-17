@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -48,7 +49,7 @@ type HTTPRequest struct {
 type COSEService struct {
 	*CoseSigner
 	GetIdentity func(uuid.UUID) (Identity, error)
-	CheckAuth   func(authTokenToCheck string, authTokenDerivedKey, salt []byte) bool
+	CheckAuth   func([]byte, pw.Password) (bool, error)
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
@@ -75,12 +76,17 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		}
 
 		timer := prometheus.NewTimer(prom.AuthCheckDuration)
-		authOk := s.CheckAuth(r.Header.Get(h.AuthHeader), identity.PW.DerivedKey, identity.PW.Salt)
+		authOk, err := s.CheckAuth(r.Header.Get(h.AuthHeader), identity.PW)
 		timer.ObserveDuration()
 
+		if err != nil {
+			log.Errorf("%s: password check failed: %v", uid, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
 		if !authOk {
-			err := fmt.Errorf(http.StatusText(http.StatusUnauthorized))
-			h.Error(uid, w, err, http.StatusUnauthorized)
+			h.Error(uid, w, fmt.Errorf(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
 			return
 		}
 
