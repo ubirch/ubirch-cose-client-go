@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 const (
@@ -211,7 +212,12 @@ func generateRandomIdentity() *Identity {
 	return &Identity{
 		Uid:          uuid.New(),
 		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
-		PW:           pw.Password{Hash: auth, Salt: salt},
+		PW: pw.Password{
+			AlgoID: "test-algoID",
+			Hash:   auth,
+			Salt:   salt,
+			Params: &test.MockPasswordHashingParams{},
+		},
 	}
 }
 
