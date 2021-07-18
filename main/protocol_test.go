@@ -39,7 +39,12 @@ func TestProtocol(t *testing.T) {
 	testIdentity := Identity{
 		Uid:          testUid,
 		PublicKeyPEM: pubKeyPEM,
-		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	// check not exists
@@ -163,7 +168,12 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	i := Identity{
 		Uid:          uuid.UUID{},
 		PublicKeyPEM: test.PubKey,
-		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -204,7 +214,12 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	i := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: nil,
-		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -224,7 +239,11 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	i := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
-		PW:           pw.Password{Hash: []byte(""), Salt: []byte(test.Salt)},
+		PW: pw.Password{
+			AlgoID: "test",
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -244,12 +263,64 @@ func Test_StoreNewIdentity_NilSalt(t *testing.T) {
 	i := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
-		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte("")},
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(i)
 	if err == nil {
 		t.Error("StoreNewIdentity did not return error for invalid salt")
+	}
+}
+
+func Test_StoreNewIdentity_NilAlgoID(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
+	}
+
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	defer p.Close()
+
+	i := Identity{
+		Uid:          test.Uuid,
+		PublicKeyPEM: test.PubKey,
+		PW: pw.Password{
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
+	}
+
+	err := p.StoreNewIdentity(i)
+	if err == nil {
+		t.Error("StoreNewIdentity did not return error for invalid algoID")
+	}
+}
+
+func Test_StoreNewIdentity_NilParams(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
+	}
+
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	defer p.Close()
+
+	i := Identity{
+		Uid:          test.Uuid,
+		PublicKeyPEM: test.PubKey,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+		},
+	}
+
+	err := p.StoreNewIdentity(i)
+	if err == nil {
+		t.Error("StoreNewIdentity did not return error for invalid params")
 	}
 }
 
@@ -266,7 +337,12 @@ func TestProtocol_Cache(t *testing.T) {
 	testIdentity := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
-		PW:           pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(testIdentity)

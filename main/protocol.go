@@ -34,7 +34,8 @@ const (
 
 type Protocol struct {
 	ubirch.Crypto
-	ctxManager     ContextManager
+	ctxManager ContextManager
+
 	pwHasher       pw.PasswordHasher
 	pwHasherParams pw.PasswordHashingParams
 
@@ -172,12 +173,20 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 		return fmt.Errorf("empty public key")
 	}
 
+	if len(i.PW.AlgoID) == 0 {
+		return fmt.Errorf("empty password algoID")
+	}
+
+	if len(i.PW.Hash) == 0 {
+		return fmt.Errorf("empty password hash")
+	}
+
 	if len(i.PW.Salt) == 0 {
 		return fmt.Errorf("empty password salt")
 	}
 
-	if len(i.PW.Hash) == 0 {
-		return fmt.Errorf("empty password derived key")
+	if len(i.PW.Params) == 0 {
+		return fmt.Errorf("empty password params")
 	}
 
 	return nil
