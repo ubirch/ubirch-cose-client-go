@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+
 	"golang.org/x/crypto/argon2"
 )
 

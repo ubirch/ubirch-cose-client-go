@@ -2,7 +2,6 @@ package password_hashing
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -13,7 +12,7 @@ import (
 func TestScryptKeyDerivator(t *testing.T) {
 	kd := ScryptKeyDerivator{}
 
-	params, ok := kd.DefaultParams().(*Argon2idParams)
+	params, ok := kd.DefaultParams().(*ScryptParams)
 	if !ok {
 		t.Fatal("invalid parameters")
 	}
@@ -31,7 +30,7 @@ func TestScryptKeyDerivator(t *testing.T) {
 func TestScryptKeyDerivator_NotEqual(t *testing.T) {
 	kd := &ScryptKeyDerivator{}
 
-	params, ok := kd.DefaultParams().(*Argon2idParams)
+	params, ok := kd.DefaultParams().(*ScryptParams)
 	if !ok {
 		t.Fatal("invalid parameters")
 	}
@@ -88,7 +87,7 @@ func BenchmarkScryptKeyDerivator_TweakParams(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := kd.GetPasswordHash(base64.StdEncoding.EncodeToString(auth), params)
+		_, err := kd.GetPasswordHash(auth, params)
 		if err != nil {
 			b.Log(err)
 		}
