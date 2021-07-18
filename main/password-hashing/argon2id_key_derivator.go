@@ -3,11 +3,12 @@ package password_hashing
 import (
 	"bytes"
 	"crypto/rand"
-	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 
 	"golang.org/x/crypto/argon2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const Argon2idAlgID = "argon2id"
@@ -23,28 +24,34 @@ type Argon2idParams struct {
 	KeyLen  uint32 // the length of the resulting derived key in byte
 }
 
-var _ PasswordHashingParams = (*Argon2idParams)(nil)
-
 func (kd *Argon2idKeyDerivator) DefaultParams() PasswordHashingParams {
-	return &Argon2idParams{
+	p := &Argon2idParams{
 		Time:    1,         // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-argon2-03#section-9.3
 		Memory:  64 * 1024, // 64 MB
 		Threads: 4,
 		KeyLen:  24,
 	}
+
+	params, err := p.Encode()
+	if err != nil {
+		log.Errorf("failed to decode default parameter: %v", err)
+	}
+
+	return params
 }
 
 // GetPasswordHash derives a key from the password, salt, and cost parameters using Argon2id
 // returning the derived key of length kd.keyLen
 // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-argon2-03
 func (kd *Argon2idKeyDerivator) GetPasswordHash(pw []byte, params PasswordHashingParams) (Password, error) {
-	p, ok := params.(*Argon2idParams)
-	if !ok {
-		return Password{}, fmt.Errorf("invalid parameters")
+	p := &Argon2idParams{}
+	err := p.Decode(params)
+	if err != nil {
+		return Password{}, fmt.Errorf("failed to decode PasswordHashingParams: %v", err)
 	}
 
 	salt := make([]byte, 32)
-	_, err := rand.Read(salt)
+	_, err = rand.Read(salt)
 	if err != nil {
 		return Password{}, err
 	}
@@ -55,7 +62,7 @@ func (kd *Argon2idKeyDerivator) GetPasswordHash(pw []byte, params PasswordHashin
 		AlgoID: Argon2idAlgID,
 		Hash:   dk,
 		Salt:   salt,
-		Params: p,
+		Params: params,
 	}, nil
 }
 
@@ -64,29 +71,36 @@ func (kd *Argon2idKeyDerivator) CheckPasswordHash(pwToCheck []byte, pwHash Passw
 		return false, fmt.Errorf("unexpected algoID: %s, expected: %s", pwHash.AlgoID, Argon2idAlgID)
 	}
 
-	p, ok := pwHash.Params.(*Argon2idParams)
-	if !ok {
-		return false, fmt.Errorf("invalid parameters")
+	p := &Argon2idParams{}
+	err := p.Decode(pwHash.Params)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode PasswordHashingParams: %v", err)
 	}
 
-	dk := argon2.IDKey([]byte(pwToCheck), pwHash.Salt, p.Time, p.Memory, p.Threads, p.KeyLen)
+	dk := argon2.IDKey(pwToCheck, pwHash.Salt, p.Time, p.Memory, p.Threads, p.KeyLen)
 
 	return bytes.Equal(dk, pwHash.Hash), nil
 }
 
-func (p *Argon2idParams) Scan(src interface{}) error {
-	switch src := src.(type) {
-	case nil:
-		return nil
-	case string:
-		return json.Unmarshal([]byte(src), p)
-	case []byte:
-		return json.Unmarshal(src, p)
-	default:
-		return fmt.Errorf("Scan: unable to scan type %T into Argon2idParams", src)
+func (p *Argon2idParams) Decode(params map[string]interface{}) error {
+	paramBytes, err := json.Marshal(params)
+	if err != nil {
+		return err
 	}
+
+	return json.Unmarshal(paramBytes, p)
 }
 
-func (p *Argon2idParams) Value() (driver.Value, error) {
-	return json.Marshal(p)
+func (p *Argon2idParams) Encode() (params map[string]interface{}, err error) {
+	paramBytes, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(paramBytes, &params)
+	if err != nil {
+		return nil, err
+	}
+
+	return params, nil
 }

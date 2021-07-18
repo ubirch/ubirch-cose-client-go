@@ -1,7 +1,5 @@
 package password_hashing
 
-import "database/sql/driver"
-
 type PasswordHasher interface {
 	DefaultParams() PasswordHashingParams
 	GetPasswordHash(pw []byte, params PasswordHashingParams) (Password, error)
@@ -12,10 +10,7 @@ type Password struct {
 	AlgoID string
 	Hash   []byte
 	Salt   []byte
-	Params interface{} // todo PasswordHashingParams
+	Params PasswordHashingParams
 }
 
-type PasswordHashingParams interface {
-	Scan(src interface{}) error
-	Value() (driver.Value, error)
-}
+type PasswordHashingParams map[string]interface{}

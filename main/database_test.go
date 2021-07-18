@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
-	"database/sql/driver"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"math/rand"
 	"os"
 	"sync"
@@ -51,7 +51,7 @@ func TestDatabaseManager(t *testing.T) {
 	// check exists
 	idFromDb, err := dm.GetIdentity(testIdentity.Uid)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if !bytes.Equal(idFromDb.Uid[:], testIdentity.Uid[:]) {
 		t.Error("GetIdentity returned unexpected Uid value")
@@ -66,9 +66,25 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetIdentity returned unexpected PW.Salt value")
 	}
 
+	paramsFromDb := &MockPasswordHashingParams{}
+	err = paramsFromDb.Decode(idFromDb.PW.Params)
+	if err != nil {
+		t.Fatalf("failed to decode idFromDb.PW.Params: %v", err)
+	}
+
+	testParams := &MockPasswordHashingParams{}
+	err = testParams.Decode(testIdentity.PW.Params)
+	if err != nil {
+		t.Fatalf("failed to decode testIdentity.PW.Params: %v", err)
+	}
+
+	if paramsFromDb.aParam != testParams.aParam {
+		t.Errorf("GetIdentity returned unexpected PW.Params value")
+	}
+
 	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
 		t.Error("GetUuidForPublicKey returned unexpected value")
@@ -209,6 +225,15 @@ func generateRandomIdentity() *Identity {
 	salt := make([]byte, 16)
 	rand.Read(salt)
 
+	p := &MockPasswordHashingParams{
+		aParam: rand.Uint32(),
+	}
+
+	params, err := p.Encode()
+	if err != nil {
+		log.Errorf("failed to decode parameter: %v", err)
+	}
+
 	return &Identity{
 		Uid:          uuid.New(),
 		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
@@ -216,7 +241,7 @@ func generateRandomIdentity() *Identity {
 			AlgoID: "test-algoID",
 			Hash:   auth,
 			Salt:   salt,
-			Params: &MockPasswordHashingParams{},
+			Params: params,
 		},
 	}
 }
@@ -263,21 +288,25 @@ type MockPasswordHashingParams struct {
 	anotherParam []byte
 }
 
-var _ pw.PasswordHashingParams = (*MockPasswordHashingParams)(nil)
-
-func (m *MockPasswordHashingParams) Scan(src interface{}) error {
-	switch src := src.(type) {
-	case nil:
-		return nil
-	case string:
-		return json.Unmarshal([]byte(src), m)
-	case []byte:
-		return json.Unmarshal(src, m)
-	default:
-		return fmt.Errorf("Scan: unable to scan type %T into MockPasswordHashingParams", src)
+func (p *MockPasswordHashingParams) Decode(params map[string]interface{}) error {
+	paramBytes, err := json.Marshal(params)
+	if err != nil {
+		return err
 	}
+
+	return json.Unmarshal(paramBytes, p)
 }
 
-func (m *MockPasswordHashingParams) Value() (driver.Value, error) {
-	return json.Marshal(m)
+func (p *MockPasswordHashingParams) Encode() (params map[string]interface{}, err error) {
+	paramBytes, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(paramBytes, &params)
+	if err != nil {
+		return nil, err
+	}
+
+	return params, nil
 }

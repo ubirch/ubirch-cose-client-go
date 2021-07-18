@@ -11,29 +11,27 @@ import (
 
 func TestScryptKeyDerivator(t *testing.T) {
 	kd := ScryptKeyDerivator{}
-
-	params, ok := kd.DefaultParams().(*ScryptParams)
-	if !ok {
-		t.Fatal("invalid parameters")
-	}
+	params := kd.DefaultParams()
 
 	pw, err := kd.GetPasswordHash(test.Auth, params)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(pw.Hash) != int(params.KeyLen) {
-		t.Errorf("unexpected derived key length: %d, expected: %d", len(pw.Hash), params.KeyLen)
+	p := &ScryptParams{}
+	err = p.Decode(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(pw.Hash) != int(p.KeyLen) {
+		t.Errorf("unexpected derived key length: %d, expected: %d", len(pw.Hash), p.KeyLen)
 	}
 }
 
 func TestScryptKeyDerivator_NotEqual(t *testing.T) {
 	kd := &ScryptKeyDerivator{}
-
-	params, ok := kd.DefaultParams().(*ScryptParams)
-	if !ok {
-		t.Fatal("invalid parameters")
-	}
+	params := kd.DefaultParams()
 
 	pw1, err := kd.GetPasswordHash(test.Auth, params)
 	if err != nil {
@@ -52,12 +50,14 @@ func TestScryptKeyDerivator_NotEqual(t *testing.T) {
 
 func BenchmarkScryptKeyDerivator_Default(b *testing.B) {
 	kd := &ScryptKeyDerivator{}
+	params := kd.DefaultParams()
 
-	params, ok := kd.DefaultParams().(*ScryptParams)
-	if !ok {
-		b.Fatal("invalid parameters")
+	p := &ScryptParams{}
+	err := p.Decode(params)
+	if err != nil {
+		b.Fatal(err)
 	}
-	b.Log(scryptParams(params))
+	b.Log(scryptParams(p))
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
@@ -74,13 +74,18 @@ func BenchmarkScryptKeyDerivator_Default(b *testing.B) {
 func BenchmarkScryptKeyDerivator_TweakParams(b *testing.B) {
 	kd := &ScryptKeyDerivator{}
 
-	params := &ScryptParams{
+	p := &ScryptParams{
 		N:      16 * 1024,
 		R:      8,
 		P:      1,
 		KeyLen: 24,
 	}
-	b.Log(scryptParams(params))
+	b.Log(scryptParams(p))
+
+	params, err := p.Encode()
+	if err != nil {
+		b.Fatalf("failed to decode parameter: %v", err)
+	}
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
