@@ -1,16 +1,12 @@
 package tests
 
 import (
-	"database/sql/driver"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
@@ -77,28 +73,4 @@ func (m *MockKeystorer) GetPublicKey(id uuid.UUID) ([]byte, error) {
 func (m *MockKeystorer) SetPublicKey(id uuid.UUID, key []byte) error {
 	m.pub = key
 	return nil
-}
-
-type MockPasswordHashingParams struct {
-	aParam       uint32
-	anotherParam []byte
-}
-
-var _ pw.PasswordHashingParams = (*MockPasswordHashingParams)(nil)
-
-func (m *MockPasswordHashingParams) Scan(src interface{}) error {
-	switch src := src.(type) {
-	case nil:
-		return nil
-	case string:
-		return json.Unmarshal([]byte(src), m)
-	case []byte:
-		return json.Unmarshal(src, m)
-	default:
-		return fmt.Errorf("Scan: unable to scan type %T into MockPasswordHashingParams", src)
-	}
-}
-
-func (m *MockPasswordHashingParams) Value() (driver.Value, error) {
-	return json.Marshal(m)
 }

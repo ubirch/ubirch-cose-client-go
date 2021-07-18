@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,7 +15,6 @@ import (
 	"github.com/google/uuid"
 
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 const (
@@ -216,7 +216,7 @@ func generateRandomIdentity() *Identity {
 			AlgoID: "test-algoID",
 			Hash:   auth,
 			Salt:   salt,
-			Params: &test.MockPasswordHashingParams{},
+			Params: &MockPasswordHashingParams{},
 		},
 	}
 }
@@ -256,4 +256,28 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 	}
 
 	return nil
+}
+
+type MockPasswordHashingParams struct {
+	aParam       uint32
+	anotherParam []byte
+}
+
+var _ pw.PasswordHashingParams = (*MockPasswordHashingParams)(nil)
+
+func (m *MockPasswordHashingParams) Scan(src interface{}) error {
+	switch src := src.(type) {
+	case nil:
+		return nil
+	case string:
+		return json.Unmarshal([]byte(src), m)
+	case []byte:
+		return json.Unmarshal(src, m)
+	default:
+		return fmt.Errorf("Scan: unable to scan type %T into MockPasswordHashingParams", src)
+	}
+}
+
+func (m *MockPasswordHashingParams) Value() (driver.Value, error) {
+	return json.Marshal(m)
 }
