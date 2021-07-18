@@ -116,7 +116,7 @@ func main() {
 		conf.PKCS11ModulePin,
 		conf.PKCS11ModuleSlotNr,
 		true,
-		2,
+		1,
 		50*time.Millisecond)
 	if err != nil {
 		log.Fatalf("failed to initialize ECDSA PKCS#11 crypto context (HSM): %v", err)
