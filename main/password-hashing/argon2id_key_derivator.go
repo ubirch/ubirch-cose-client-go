@@ -82,25 +82,10 @@ func (kd *Argon2idKeyDerivator) CheckPasswordHash(pwToCheck []byte, pwHash Passw
 	return bytes.Equal(dk, pwHash.Hash), nil
 }
 
-func (p *Argon2idParams) Decode(params map[string]interface{}) error {
-	paramBytes, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(paramBytes, p)
+func (p *Argon2idParams) Decode(params PasswordHashingParams) error {
+	return json.Unmarshal(params, p)
 }
 
-func (p *Argon2idParams) Encode() (params map[string]interface{}, err error) {
-	paramBytes, err := json.Marshal(p)
-	if err != nil {
-		return nil, err
-	}
-
-	err = json.Unmarshal(paramBytes, &params)
-	if err != nil {
-		return nil, err
-	}
-
-	return params, nil
+func (p *Argon2idParams) Encode() (params PasswordHashingParams, err error) {
+	return json.Marshal(p)
 }

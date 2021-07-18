@@ -16,7 +16,6 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -114,22 +113,17 @@ func (dm *DatabaseManager) Close() {
 }
 
 func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
-	paramBytes, err := json.Marshal(id.PW.Params)
-	if err != nil {
-		return err
-	}
-
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, public_key, algoID, auth, salt, params) VALUES ($1, $2, $3, $4, $5, $6);",
 		dm.tableName)
 
-	_, err = dm.db.Exec(query,
+	_, err := dm.db.Exec(query,
 		&id.Uid,
 		&id.PublicKeyPEM,
 		&id.PW.AlgoID,
 		&id.PW.Hash,
 		&id.PW.Salt,
-		&paramBytes)
+		&id.PW.Params)
 	if err != nil {
 		return err
 	}
@@ -139,7 +133,6 @@ func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
 
 func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 	var id Identity
-	var paramBytes []byte
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
@@ -149,16 +142,11 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 		&id.PW.AlgoID,
 		&id.PW.Hash,
 		&id.PW.Salt,
-		&paramBytes)
+		&id.PW.Params)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return id, ErrNotExist
 		}
-		return id, err
-	}
-
-	err = json.Unmarshal(paramBytes, &id.PW.Params)
-	if err != nil {
 		return id, err
 	}
 
