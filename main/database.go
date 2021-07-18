@@ -39,8 +39,8 @@ var create = map[int]string{
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"public_key VARCHAR(255) NOT NULL, " +
 		"algoID VARCHAR(255) NOT NULL, " +
-		"auth VARCHAR(255) NOT NULL, " +
-		"salt VARCHAR(255) NOT NULL," +
+		"auth BYTEA NOT NULL, " +
+		"salt BYTEA NOT NULL," +
 		"params VARCHAR(255) NOT NULL);",
 }
 
