@@ -75,8 +75,10 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
+		auth := []byte(r.Header.Get(h.AuthHeader))
+
 		timer := prometheus.NewTimer(prom.AuthCheckDuration)
-		authOk, err := s.CheckAuth(r.Header.Get(h.AuthHeader), identity.PW)
+		authOk, err := s.CheckAuth(auth, identity.PW)
 		timer.ObserveDuration()
 
 		if err != nil {

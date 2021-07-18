@@ -3,14 +3,15 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/google/uuid"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -22,7 +23,6 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -36,7 +36,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
 	r.Header.Set("Content-Type", h.TextType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -53,7 +53,6 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -68,7 +67,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHashHex))
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -85,7 +84,6 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -99,7 +97,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(testHashBytes))
 	r.Header.Set("Content-Type", h.BinType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -116,7 +114,6 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -130,7 +127,7 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
 	r.Header.Set("Content-Type", h.TextType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(getUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -147,7 +144,6 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: uuid.New(),
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -161,7 +157,7 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
 	r.Header.Set("Content-Type", h.TextType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -186,7 +182,7 @@ func TestCOSEService_HandleRequest_CantGetIdentity(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
 	r.Header.Set("Content-Type", h.TextType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -203,7 +199,6 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -234,7 +229,6 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -248,7 +242,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
 	r.Header.Set("Content-Type", h.TextType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -265,7 +259,6 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -280,7 +273,7 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHashHex))
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -297,7 +290,6 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -311,7 +303,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
 	r.Header.Set("Content-Type", "wrong content type")
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -328,7 +320,6 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -342,7 +333,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tooShortHash))
 	r.Header.Set("Content-Type", h.TextType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -359,7 +350,6 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -371,7 +361,7 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(payloadJSON)))
 	r.Header.Set("Content-Type", h.JSONType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -388,7 +378,6 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -402,7 +391,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(badJSON)))
 	r.Header.Set("Content-Type", h.JSONType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -419,7 +408,6 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -433,7 +421,7 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(testCBOR))
 	r.Header.Set("Content-Type", h.CBORType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -450,7 +438,6 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -462,7 +449,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(nil))
 	r.Header.Set("Content-Type", h.CBORType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -479,7 +466,6 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 
 	ctxMngr := mockCtxMngr{id: Identity{
 		Uid: test.Uuid,
-		PW:  pw.Password{Hash: []byte(test.Auth), Salt: []byte(test.Salt)},
 	}}
 
 	testCOSEService := &COSEService{
@@ -491,7 +477,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(payloadJSON)))
 	r.Header.Set("Content-Type", h.TextType)
-	r.Header.Set(h.AuthHeader, test.Auth)
+	r.Header.Set(h.AuthHeader, string(test.Auth))
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -541,10 +527,10 @@ func mockGetIdentityReturnsErr(uuid.UUID) (Identity, error) {
 	return Identity{}, test.Error
 }
 
-func mockCheckAuth(string, pw.Password) (bool, error) {
+func mockCheckAuth([]byte, pw.Password) (bool, error) {
 	return true, nil
 }
 
-func mockCheckAuthBad(string, pw.Password) (bool, error) {
+func mockCheckAuthBad([]byte, pw.Password) (bool, error) {
 	return false, nil
 }
