@@ -28,7 +28,7 @@ func (kd *Argon2idKeyDerivator) DefaultParams() PasswordHashingParams {
 	p := &Argon2idParams{
 		Time:    1,         // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-argon2-03#section-9.3
 		Memory:  32 * 1024, // 32 MB
-		Threads: 8,
+		Threads: 1,
 		KeyLen:  24,
 	}
 
