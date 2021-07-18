@@ -12,7 +12,7 @@ type Password struct {
 	AlgoID string
 	Hash   []byte
 	Salt   []byte
-	Params PasswordHashingParams
+	Params interface{} // todo PasswordHashingParams
 }
 
 type PasswordHashingParams interface {
