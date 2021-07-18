@@ -86,7 +86,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth []byte) ([]byte, erro
 	return csrPEM, nil
 }
 
-func (i *IdentityHandler) GetCSRAndUpdatePublicKey(uid uuid.UUID) ([]byte, error) {
+func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
 	keyExists, err := i.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
