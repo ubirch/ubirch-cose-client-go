@@ -19,7 +19,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -29,6 +28,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 

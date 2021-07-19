@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"math/rand"
 	"os"
 	"sync"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	log "github.com/sirupsen/logrus"
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
