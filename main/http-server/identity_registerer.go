@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
-	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 var (
@@ -23,7 +23,7 @@ type IdentityPayload struct {
 	Pwd string `json:"password"`
 }
 
-type InitializeIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
+type InitializeIdentity func(uid uuid.UUID, auth []byte) (csr []byte, err error)
 
 func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -47,8 +47,8 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 			return
 		}
 
-		timer := prometheus.NewTimer(p.IdentityCreationDuration)
-		csr, err := initialize(uid, idPayload.Pwd)
+		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
+		csr, err := initialize(uid, []byte(idPayload.Pwd))
 		timer.ObserveDuration()
 		if err != nil {
 			errMsg := fmt.Errorf("identity registration failed: %v", err)
@@ -71,7 +71,7 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 
 		SendResponse(w, resp)
 
-		p.IdentityCreationCounter.Inc()
+		prom.IdentityCreationCounter.Inc()
 	}
 }
 

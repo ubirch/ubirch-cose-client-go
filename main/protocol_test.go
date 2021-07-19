@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -38,7 +39,12 @@ func TestProtocol(t *testing.T) {
 	testIdentity := Identity{
 		Uid:          testUid,
 		PublicKeyPEM: pubKeyPEM,
-		AuthToken:    test.Auth,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	// check not exists
@@ -79,14 +85,17 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if !bytes.Equal(storedIdentity.Uid[:], testIdentity.Uid[:]) {
+		t.Error("GetIdentity returned unexpected Uid value")
+	}
 	if !bytes.Equal(storedIdentity.PublicKeyPEM, testIdentity.PublicKeyPEM) {
 		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
 	}
-	if storedIdentity.AuthToken != testIdentity.AuthToken {
-		t.Error("GetIdentity returned unexpected AuthToken value")
+	if !bytes.Equal(storedIdentity.PW.Hash, testIdentity.PW.Hash) {
+		t.Error("GetIdentity returned unexpected PW.DerivedKey value")
 	}
-	if !bytes.Equal(storedIdentity.Uid[:], testIdentity.Uid[:]) {
-		t.Error("GetIdentity returned unexpected Uid value")
+	if !bytes.Equal(storedIdentity.PW.Salt, testIdentity.PW.Salt) {
+		t.Error("GetIdentity returned unexpected PW.Salt value")
 	}
 
 	storedUid, err := p.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
@@ -153,13 +162,18 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
 		Uid:          uuid.UUID{},
 		PublicKeyPEM: test.PubKey,
-		AuthToken:    test.Auth,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -194,13 +208,18 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: nil,
-		AuthToken:    test.Auth,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(i)
@@ -214,18 +233,94 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
-		AuthToken:    "",
+		PW: pw.Password{
+			AlgoID: "test",
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(i)
 	if err == nil {
 		t.Error("StoreNewIdentity did not return error for invalid auth token")
+	}
+}
+
+func Test_StoreNewIdentity_NilSalt(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
+	}
+
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
+	defer p.Close()
+
+	i := Identity{
+		Uid:          test.Uuid,
+		PublicKeyPEM: test.PubKey,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Params: []byte("test"),
+		},
+	}
+
+	err := p.StoreNewIdentity(i)
+	if err == nil {
+		t.Error("StoreNewIdentity did not return error for invalid salt")
+	}
+}
+
+func Test_StoreNewIdentity_NilAlgoID(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
+	}
+
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
+	defer p.Close()
+
+	i := Identity{
+		Uid:          test.Uuid,
+		PublicKeyPEM: test.PubKey,
+		PW: pw.Password{
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
+	}
+
+	err := p.StoreNewIdentity(i)
+	if err == nil {
+		t.Error("StoreNewIdentity did not return error for invalid algoID")
+	}
+}
+
+func Test_StoreNewIdentity_NilParams(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
+	}
+
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
+	defer p.Close()
+
+	i := Identity{
+		Uid:          test.Uuid,
+		PublicKeyPEM: test.PubKey,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+		},
+	}
+
+	err := p.StoreNewIdentity(i)
+	if err == nil {
+		t.Error("StoreNewIdentity did not return error for invalid params")
 	}
 }
 
@@ -236,13 +331,18 @@ func TestProtocol_Cache(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	testIdentity := Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
-		AuthToken:    test.Auth,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
 	}
 
 	err := p.StoreNewIdentity(testIdentity)
@@ -268,7 +368,7 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	_, err := p.GetUuidForPublicKey(make([]byte, 64))

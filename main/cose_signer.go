@@ -26,7 +26,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	p "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
@@ -125,7 +125,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 }
 
 func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
-	timer := prometheus.NewTimer(p.SignatureCreationDuration)
+	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
 	signature, err := c.SignHash(uid, hash[:])
 	timer.ObserveDuration()
 	if err != nil {

@@ -38,23 +38,10 @@ func GetUUID(r *http.Request) (uuid.UUID, error) {
 	return uid, nil
 }
 
-// CheckAuth checks the auth token from the request header
-// Returns error if auth token is not correct
-func CheckAuth(r *http.Request, correctAuthToken string) error {
-	if r.Header.Get(AuthHeader) != correctAuthToken {
-		return fmt.Errorf("invalid auth token")
-	}
-	return nil
-}
-
 func ReadBody(r *http.Request) ([]byte, error) {
 	rBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read request body: %v", err)
 	}
 	return rBody, nil
-}
-
-func IsHashRequest(r *http.Request) bool {
-	return strings.HasSuffix(r.URL.Path, HashEndpoint)
 }

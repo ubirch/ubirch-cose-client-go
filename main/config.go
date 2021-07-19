@@ -48,6 +48,8 @@ const (
 	defaultDbConnMaxIdleTime = 1
 
 	defaultPKCS11Module = "libcs_pkcs11_R3.so"
+
+	defaultKeyDerivationMemoryParam = 256
 )
 
 type Config struct {
@@ -72,21 +74,19 @@ type Config struct {
 	CertificateServer         string `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
 	CertificateServerPubKey   string `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
+	KdMemParam                uint32 `json:"kdMemParam" envconfig:"KD_MEM_PARAM"`                           // memory parameter for key derivation im MB
 	serverTLSCertFingerprints map[string][32]byte
-	configDir                 string // directory where config and protocol ctx are stored
 	dbParams                  *DatabaseParams
 }
 
 func (c *Config) Load(configDir, filename string) error {
-	c.configDir = configDir
-
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
 	if os.Getenv("UBIRCH_REGISTERAUTH") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(filename)
+		err = c.loadFile(filepath.Join(configDir, filename))
 	}
 	if err != nil {
 		return err
@@ -105,14 +105,15 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	err = c.loadServerTLSCertificates()
+	err = c.loadServerTLSCertificates(configDir)
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
+	c.setDefaultKD()
 	c.setDefaultHSM()
 	c.setDefaultCSR()
-	c.setDefaultTLS()
+	c.setDefaultTLS(configDir)
 	return c.setDbParams()
 }
 
@@ -124,10 +125,9 @@ func (c *Config) loadEnv() error {
 
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
-	configFile := filepath.Join(c.configDir, filename)
-	log.Infof("loading configuration from file: %s", configFile)
+	log.Infof("loading configuration from file: %s", filename)
 
-	fileHandle, err := os.Open(configFile)
+	fileHandle, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
@@ -160,6 +160,12 @@ func (c *Config) checkMandatory() error {
 	return nil
 }
 
+func (c *Config) setDefaultKD() {
+	if c.KdMemParam <= 0 {
+		c.KdMemParam = defaultKeyDerivationMemoryParam
+	}
+}
+
 func (c *Config) setDefaultHSM() {
 	if len(c.PKCS11Module) == 0 {
 		c.PKCS11Module = defaultPKCS11Module
@@ -178,7 +184,7 @@ func (c *Config) setDefaultCSR() {
 	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
 
-func (c *Config) setDefaultTLS() {
+func (c *Config) setDefaultTLS(configDir string) {
 	if c.TCP_addr == "" {
 		c.TCP_addr = defaultTCPAddr
 	}
@@ -190,13 +196,13 @@ func (c *Config) setDefaultTLS() {
 		if c.TLS_CertFile == "" {
 			c.TLS_CertFile = defaultTLSCertFile
 		}
-		c.TLS_CertFile = filepath.Join(c.configDir, c.TLS_CertFile)
+		c.TLS_CertFile = filepath.Join(configDir, c.TLS_CertFile)
 		log.Debugf(" - Cert: %s", c.TLS_CertFile)
 
 		if c.TLS_KeyFile == "" {
 			c.TLS_KeyFile = defaultTLSKeyFile
 		}
-		c.TLS_KeyFile = filepath.Join(c.configDir, c.TLS_KeyFile)
+		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
 	}
 }
@@ -247,8 +253,8 @@ func (c *Config) setDbParams() error {
 	return nil
 }
 
-func (c *Config) loadServerTLSCertificates() error {
-	serverTLSCertFile := filepath.Join(c.configDir, fmt.Sprintf(tlsCertsFileName, c.Env))
+func (c *Config) loadServerTLSCertificates(configDir string) error {
+	serverTLSCertFile := filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env))
 
 	fileHandle, err := os.Open(serverTLSCertFile)
 	if err != nil {

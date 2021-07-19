@@ -116,7 +116,7 @@ func main() {
 		conf.PKCS11ModulePin,
 		conf.PKCS11ModuleSlotNr,
 		true,
-		2,
+		1,
 		50*time.Millisecond)
 	if err != nil {
 		log.Fatalf("failed to initialize ECDSA PKCS#11 crypto context (HSM): %v", err)
@@ -134,7 +134,7 @@ func main() {
 	}
 	defer ctxManager.Close()
 
-	protocol := NewProtocol(cryptoCtx, ctxManager)
+	protocol := NewProtocol(cryptoCtx, ctxManager, conf.KdMemParam)
 	defer protocol.Close()
 
 	//client := &Client{
@@ -146,7 +146,7 @@ func main() {
 	//skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	idHandler := &IdentityHandler{
-		protocol:            protocol,
+		Protocol:            protocol,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
@@ -159,6 +159,7 @@ func main() {
 	service := &COSEService{
 		CoseSigner:  coseSigner,
 		GetIdentity: protocol.GetIdentity,
+		CheckAuth:   protocol.pwHasher.CheckPasswordHash,
 	}
 
 	// set up endpoint for identity registration
@@ -166,7 +167,7 @@ func main() {
 
 	// set up endpoint for CSRs
 	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.GetCSR))
+	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor

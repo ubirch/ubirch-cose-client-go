@@ -14,11 +14,11 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
-		protocol:            p,
+		Protocol:            p,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -38,8 +38,12 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if initializedIdentity.AuthToken != test.Auth {
-		t.Error("initializedIdentity unexpected AuthToken")
+	ok, err := p.pwHasher.CheckPasswordHash(test.Auth, initializedIdentity.PW)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Error("initializedIdentity unexpected password")
 	}
 
 	data := []byte("test")
@@ -64,11 +68,11 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
-		protocol:            p,
+		Protocol:            p,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -94,11 +98,11 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
-		protocol:            p,
+		Protocol:            p,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}

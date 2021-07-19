@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	log "github.com/sirupsen/logrus"
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
@@ -48,21 +51,40 @@ func TestDatabaseManager(t *testing.T) {
 	// check exists
 	idFromDb, err := dm.GetIdentity(testIdentity.Uid)
 	if err != nil {
-		t.Error(err)
-	}
-	if !bytes.Equal(idFromDb.PublicKeyPEM, testIdentity.PublicKeyPEM) {
-		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
-	}
-	if idFromDb.AuthToken != testIdentity.AuthToken {
-		t.Error("GetIdentity returned unexpected AuthToken value")
+		t.Fatal(err)
 	}
 	if !bytes.Equal(idFromDb.Uid[:], testIdentity.Uid[:]) {
 		t.Error("GetIdentity returned unexpected Uid value")
 	}
+	if !bytes.Equal(idFromDb.PublicKeyPEM, testIdentity.PublicKeyPEM) {
+		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
+	}
+	if !bytes.Equal(idFromDb.PW.Hash, testIdentity.PW.Hash) {
+		t.Error("GetIdentity returned unexpected PW.DerivedKey value")
+	}
+	if !bytes.Equal(idFromDb.PW.Salt, testIdentity.PW.Salt) {
+		t.Error("GetIdentity returned unexpected PW.Salt value")
+	}
+
+	paramsFromDb := &MockPasswordHashingParams{}
+	err = paramsFromDb.Decode(idFromDb.PW.Params)
+	if err != nil {
+		t.Fatalf("failed to decode idFromDb.PW.Params: %v", err)
+	}
+
+	testParams := &MockPasswordHashingParams{}
+	err = testParams.Decode(testIdentity.PW.Params)
+	if err != nil {
+		t.Fatalf("failed to decode testIdentity.PW.Params: %v", err)
+	}
+
+	if paramsFromDb.aParam != testParams.aParam {
+		t.Errorf("GetIdentity returned unexpected PW.Params value")
+	}
 
 	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
 		t.Error("GetUuidForPublicKey returned unexpected value")
@@ -200,10 +222,27 @@ func generateRandomIdentity() *Identity {
 	auth := make([]byte, 16)
 	rand.Read(auth)
 
+	salt := make([]byte, 16)
+	rand.Read(salt)
+
+	p := &MockPasswordHashingParams{
+		aParam: rand.Uint32(),
+	}
+
+	params, err := p.Encode()
+	if err != nil {
+		log.Errorf("failed to decode parameter: %v", err)
+	}
+
 	return &Identity{
 		Uid:          uuid.New(),
 		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
-		AuthToken:    base64.StdEncoding.EncodeToString(auth),
+		PW: pw.Password{
+			AlgoID: "test-algoID",
+			Hash:   auth,
+			Salt:   salt,
+			Params: params,
+		},
 	}
 }
 
@@ -220,14 +259,17 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 	if err != nil {
 		return err
 	}
+	if !bytes.Equal(idFromCtx.Uid[:], id.Uid[:]) {
+		return fmt.Errorf("GetIdentity returned unexpected Uid value")
+	}
 	if !bytes.Equal(idFromCtx.PublicKeyPEM, id.PublicKeyPEM) {
 		return fmt.Errorf("GetIdentity returned unexpected PublicKeyPEM value")
 	}
-	if idFromCtx.AuthToken != id.AuthToken {
-		return fmt.Errorf("GetIdentity returned unexpected AuthToken value")
+	if !bytes.Equal(idFromCtx.PW.Hash, id.PW.Hash) {
+		return fmt.Errorf("GetIdentity returned unexpected PW.DerivedKey value")
 	}
-	if !bytes.Equal(idFromCtx.Uid[:], id.Uid[:]) {
-		return fmt.Errorf("GetIdentity returned unexpected Uid value")
+	if !bytes.Equal(idFromCtx.PW.Salt, id.PW.Salt) {
+		return fmt.Errorf("GetIdentity returned unexpected PW.Salt value")
 	}
 
 	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKeyPEM)
@@ -239,4 +281,17 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 	}
 
 	return nil
+}
+
+type MockPasswordHashingParams struct {
+	aParam       uint32
+	anotherParam []byte
+}
+
+func (p *MockPasswordHashingParams) Decode(params pw.PasswordHashingParams) error {
+	return json.Unmarshal(params, p)
+}
+
+func (p *MockPasswordHashingParams) Encode() (params pw.PasswordHashingParams, err error) {
+	return json.Marshal(p)
 }
