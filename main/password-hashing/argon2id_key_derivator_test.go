@@ -84,7 +84,7 @@ func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
 
 	params, err := p.Encode()
 	if err != nil {
-		b.Fatalf("failed to decode parameter: %v", err)
+		b.Fatalf("failed to encode parameter: %v", err)
 	}
 
 	auth := make([]byte, 32)

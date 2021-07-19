@@ -35,7 +35,7 @@ func (kd *Argon2idKeyDerivator) DefaultParams() PasswordHashingParams {
 
 	params, err := p.Encode()
 	if err != nil {
-		log.Errorf("failed to decode default parameter: %v", err)
+		log.Errorf("failed to encode default parameter: %v", err)
 	}
 	log.Debugf("argon2id key derivation with parameters %s", params)
 
