@@ -90,7 +90,7 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelSerializable,
+			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
 		db:        pg,
