@@ -14,7 +14,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
@@ -68,7 +68,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
@@ -98,7 +98,7 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{

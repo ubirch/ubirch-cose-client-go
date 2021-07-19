@@ -162,7 +162,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
@@ -208,7 +208,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
@@ -233,7 +233,7 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
@@ -257,7 +257,7 @@ func Test_StoreNewIdentity_NilSalt(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
@@ -281,7 +281,7 @@ func Test_StoreNewIdentity_NilAlgoID(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
@@ -305,7 +305,7 @@ func Test_StoreNewIdentity_NilParams(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	i := Identity{
@@ -331,7 +331,7 @@ func TestProtocol_Cache(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	testIdentity := Identity{
@@ -368,7 +368,7 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
 	defer p.Close()
 
 	_, err := p.GetUuidForPublicKey(make([]byte, 64))
