@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"runtime"
 
 	"golang.org/x/crypto/argon2"
 
@@ -26,9 +27,9 @@ type Argon2idParams struct {
 
 func (kd *Argon2idKeyDerivator) DefaultParams() PasswordHashingParams {
 	p := &Argon2idParams{
-		Time:    1,         // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-argon2-03#section-9.3
-		Memory:  32 * 1024, // 32 MB
-		Threads: 1,
+		Time:    1,                           // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-argon2-03#section-9.3
+		Memory:  32 * 1024,                   // 32 MB
+		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
 		KeyLen:  24,
 	}
 
@@ -36,6 +37,7 @@ func (kd *Argon2idKeyDerivator) DefaultParams() PasswordHashingParams {
 	if err != nil {
 		log.Errorf("failed to decode default parameter: %v", err)
 	}
+	log.Debugf("argon2id key derivation with parameters %s", params)
 
 	return params
 }
