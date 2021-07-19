@@ -35,6 +35,7 @@ func (kd *ScryptKeyDerivator) DefaultParams() PasswordHashingParams {
 	if err != nil {
 		log.Errorf("failed to decode default parameter: %v", err)
 	}
+	log.Debugf("scrypt key derivation with parameters %s", params)
 
 	return params
 }
