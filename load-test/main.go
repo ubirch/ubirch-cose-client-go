@@ -52,9 +52,11 @@ func main() {
 	}
 
 	wg.Wait()
-	log.Infof(" = = = => [ %4d ] requests done after [ %7.3f ] seconds <= = = = ", len(identities)*numberOfRequestsPerID, time.Since(start).Seconds())
+	log.Infof("[ %4d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, time.Since(start).Seconds())
 
 	for status, count := range sender.statusCounter {
 		log.Infof("[ %4d ] x %s", count, status)
 	}
+
+	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
 }
