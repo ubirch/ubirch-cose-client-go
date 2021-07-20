@@ -48,7 +48,7 @@ type Protocol struct {
 var _ ContextManager = (*Protocol)(nil)
 
 func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, memMB uint32) *Protocol {
-	kd := &pw.PseudoPWHasher{}
+	kd := &pw.PseudoPWHasher{} // FIXME
 	//kd := &pw.Argon2idKeyDerivator{}
 	//p := &pw.Argon2idParams{
 	//	Time:    1,
@@ -67,7 +67,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, memMB uint32) 
 		ctxManager: ctxManager,
 
 		pwHasher:       kd,
-		pwHasherParams: kd.DefaultParams(),
+		pwHasherParams: kd.DefaultParams(), // FIXME
 		//pwHasherParams: kdParams,
 
 		identityCache: &sync.Map{},
