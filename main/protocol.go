@@ -18,7 +18,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"runtime"
+	//"runtime"
 	"sync"
 
 	"github.com/google/uuid"
@@ -48,25 +48,27 @@ type Protocol struct {
 var _ ContextManager = (*Protocol)(nil)
 
 func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, memMB uint32) *Protocol {
-	kd := &pw.Argon2idKeyDerivator{}
-	p := &pw.Argon2idParams{
-		Time:    1,
-		Memory:  memMB * 1024,
-		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
-		KeyLen:  24,
-	}
-	kdParams, err := p.Encode()
-	if err != nil {
-		log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
-	}
-	log.Debugf("argon2id key derivation with parameters %s", kdParams)
+	kd := &pw.PseudoPWHasher{}
+	//kd := &pw.Argon2idKeyDerivator{}
+	//p := &pw.Argon2idParams{
+	//	Time:    1,
+	//	Memory:  memMB * 1024,
+	//	Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
+	//	KeyLen:  24,
+	//}
+	//kdParams, err := p.Encode()
+	//if err != nil {
+	//	log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
+	//}
+	//log.Debugf("argon2id key derivation with parameters %s", kdParams)
 
 	return &Protocol{
 		Crypto:     crypto,
 		ctxManager: ctxManager,
 
 		pwHasher:       kd,
-		pwHasherParams: kdParams,
+		pwHasherParams: kd.DefaultParams(),
+		//pwHasherParams: kdParams,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
