@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -64,7 +65,7 @@ func (s *Sender) register(clientBaseURL, id, auth, registerAuth string) error {
 	case http.StatusConflict:
 		log.Debugf("%s: identity already registered", id)
 	default:
-		log.Warnf("%s: registration returned: %s", id, resp.Status)
+		return fmt.Errorf("%s: registration returned: %s", id, resp.Status)
 	}
 
 	return nil

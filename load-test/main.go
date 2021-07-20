@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	numberOfTestIDs        = 1
-	numberOfRequestsPerID  = 1
+	numberOfTestIDs        = 100
+	numberOfRequestsPerID  = 10
 	requestsPerSecondPerID = 1
 )
 
@@ -32,12 +32,12 @@ func main() {
 	identities := c.getTestIdentities()
 	sender := NewSender()
 
-	//for id, auth := range identities {
-	//	err := sender.register(c.Url, id, auth, c.RegisterAuth)
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//}
+	for id, auth := range identities {
+		err := sender.register(c.Url, id, auth, c.RegisterAuth)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(identities), numberOfRequestsPerID, len(identities)*numberOfRequestsPerID)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
