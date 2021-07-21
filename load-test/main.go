@@ -32,12 +32,12 @@ func main() {
 	identities := c.getTestIdentities()
 	sender := NewSender()
 
-	//for id, auth := range identities {
-	//	err := sender.register(c.Url, id, auth, c.RegisterAuth)
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//}
+	for id, auth := range identities {
+		err := sender.register(c.Url, id, auth, c.RegisterAuth)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(identities), numberOfRequestsPerID, len(identities)*numberOfRequestsPerID)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
@@ -52,9 +52,11 @@ func main() {
 	}
 
 	wg.Wait()
-	log.Infof(" = = = => [ %4d ] requests done after [ %7.3f ] seconds <= = = = ", len(identities)*numberOfRequestsPerID, time.Since(start).Seconds())
+	log.Infof("[ %4d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, time.Since(start).Seconds())
 
 	for status, count := range sender.statusCounter {
 		log.Infof("[ %4d ] x %s", count, status)
 	}
+
+	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
 }

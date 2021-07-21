@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -16,6 +17,9 @@ type Sender struct {
 	httpClient       *http.Client
 	statusCounter    map[string]int
 	statusCounterMtx *sync.Mutex
+	requestTimer     time.Duration
+	requestCounter   int
+	requestTimerMtx  *sync.Mutex
 }
 
 func NewSender() *Sender {
@@ -23,6 +27,7 @@ func NewSender() *Sender {
 		httpClient:       &http.Client{Timeout: 30 * time.Second},
 		statusCounter:    map[string]int{},
 		statusCounterMtx: &sync.Mutex{},
+		requestTimerMtx:  &sync.Mutex{},
 	}
 }
 
@@ -64,7 +69,7 @@ func (s *Sender) register(clientBaseURL, id, auth, registerAuth string) error {
 	case http.StatusConflict:
 		log.Debugf("%s: identity already registered", id)
 	default:
-		log.Warnf("%s: registration returned: %s", id, resp.Status)
+		return fmt.Errorf("%s: registration returned: %s", id, resp.Status)
 	}
 
 	return nil
@@ -100,11 +105,15 @@ func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *
 
 	req.Header = header
 
+	start := time.Now()
+
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		log.Error(err)
 		return
 	}
+
+	s.addTime(time.Since(start))
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
@@ -121,4 +130,15 @@ func (s *Sender) countStatus(status string) {
 	s.statusCounterMtx.Lock()
 	s.statusCounter[status] += 1
 	s.statusCounterMtx.Unlock()
+}
+
+func (s *Sender) addTime(dur time.Duration) {
+	s.requestTimerMtx.Lock()
+	s.requestTimer += dur
+	s.requestCounter += 1
+	s.requestTimerMtx.Unlock()
+}
+
+func (s *Sender) getAvgRequestDuration() time.Duration {
+	return s.requestTimer / time.Duration(s.requestCounter)
 }
