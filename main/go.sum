@@ -111,8 +111,8 @@ github.com/stretchr/testify v1.5.1 h1:nOGnQDM7FYENwehXlg/kFVnos3rEvtKTjRvOWSzb6H
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/ubirch/go.crypto v0.1.2 h1:IYMOx19UgWt4+k7PydcOVtEWFiU10O8dHoof00j8IKw=
 github.com/ubirch/go.crypto v0.1.2/go.mod h1:aiZQ37CxSBS7cBLsFbTnDxGeg5RkH7Z5LKBYeNasIrw=
-github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210714085721-099eaa136097 h1:lHnBzhqh3NBt2d22yi+yXE9IhOAIL09v3WvX/piv0P0=
-github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210714085721-099eaa136097/go.mod h1:JG7PGWaipe8AGzr0QCwtS3aLvI43JCMyQAmWtJ3svwo=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210721113426-fe14317d3888 h1:c1GmwXXxZXtXHzh4x5m+J1aTKh2iBTgVtmEPEVFTKxk=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210721113426-fe14317d3888/go.mod h1:JG7PGWaipe8AGzr0QCwtS3aLvI43JCMyQAmWtJ3svwo=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
 github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs=
