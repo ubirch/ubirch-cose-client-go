@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"runtime"
 	"runtime/pprof"
 	"syscall"
 	"time"
@@ -37,7 +38,8 @@ import (
 
 // declare flags
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
-var configdirectory = flag.String("configdirectory", "", "configuration directory to use")
+var blockprofile = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
+var configdirectory = flag.String("configdirectory", "", "configuration `directory` to use")
 
 // handle graceful shutdown
 func shutdown(cancel context.CancelFunc) {
@@ -47,6 +49,21 @@ func shutdown(cancel context.CancelFunc) {
 	// block until we receive a SIGINT or SIGTERM
 	sig := <-signals
 	log.Infof("shutting down after receiving: %v", sig)
+
+	//write the blocking profile at the moment of shutdown (if enabled by flag)
+	if *blockprofile != "" {
+		log.Infof("writing blocking profile data to file: %s", *blockprofile)
+		f, err := os.Create(*blockprofile)
+		if err != nil {
+			log.Fatal("could not create blocking profile file: ", err)
+		}
+		if err := pprof.Lookup("block").WriteTo(f, 0); err != nil {
+			log.Fatal("could not write blocking profile: ", err)
+		}
+		if err := f.Close(); err != nil {
+			log.Fatal("error when closing blocking profile file: ", err)
+		}
+	}
 
 	// cancel the go routines contexts
 	cancel()
@@ -91,6 +108,7 @@ func main() {
 
 	// set up CPU profiling if enabled by flag
 	if *cpuprofile != "" {
+		log.Infof("enabling CPU profiling to file: %s", *cpuprofile)
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
 			log.Fatalf("could not create CPU profile file: %s", err)
@@ -105,6 +123,12 @@ func main() {
 			log.Fatalf("could not start CPU profile: %s", err)
 		}
 		defer pprof.StopCPUProfile()
+	}
+
+	// print info if memory profiling is enabled
+	if *blockprofile != "" {
+		log.Warn("blocking profiling enabled, this will affect performance, file: ", *blockprofile)
+		runtime.SetBlockProfileRate(1)
 	}
 
 	// create a waitgroup that contains all asynchronous operations
