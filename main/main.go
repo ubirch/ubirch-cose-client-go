@@ -16,10 +16,12 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path"
+	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -32,6 +34,10 @@ import (
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
+
+// declare flags
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
+var configdirectory = flag.String("configdirectory", "", "configuration directory to use")
 
 // handle graceful shutdown
 func shutdown(cancel context.CancelFunc) {
@@ -54,6 +60,9 @@ var (
 )
 
 func main() {
+	// parse commandline flags
+	flag.Parse()
+
 	const (
 		serviceName = "cose-client"
 		configFile  = "config.json"
@@ -64,8 +73,9 @@ func main() {
 		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
-	if len(os.Args) > 1 {
-		configDir = os.Args[1]
+	// check for commandline config directory
+	if *configdirectory != "" {
+		configDir = *configdirectory
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
@@ -77,6 +87,24 @@ func main() {
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
+	}
+
+	// set up CPU profiling if enabled by flag
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatalf("could not create CPU profile file: %s", err)
+		}
+		defer func(myF *os.File) {
+			err := myF.Close()
+			if err != nil {
+				log.Fatalf("error when closing CPU profile file: %s", err)
+			}
+		}(f)
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatalf("could not start CPU profile: %s", err)
+		}
+		defer pprof.StopCPUProfile()
 	}
 
 	// create a waitgroup that contains all asynchronous operations
