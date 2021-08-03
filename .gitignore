@@ -33,3 +33,4 @@ build/
 config.json
 
 /venv/
+/main/cpu.prof

@@ -52,11 +52,17 @@ func main() {
 	}
 
 	wg.Wait()
-	log.Infof("[ %4d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, time.Since(start).Seconds())
+	end := time.Now()
+	duration := end.Sub(start)
+	log.Infof("[ %4d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
 
 	for status, count := range sender.statusCounter {
 		log.Infof("[ %4d ] x %s", count, status)
 	}
 
 	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
+	avgReqsPerSec := float64(len(identities)*numberOfRequestsPerID) / duration.Seconds()
+	log.Infof("avg total throughput: %7.3f requests/second", avgReqsPerSec)
+	avgReqsPerSecSuccess := float64(sender.statusCounter["200 OK"]) / duration.Seconds()
+	log.Infof("avg successful throughput: %7.3f requests/second", avgReqsPerSecSuccess)
 }
