@@ -36,11 +36,6 @@ import (
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
-// declare flags
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
-var blockprofile = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
-var configdirectory = flag.String("configdirectory", "", "configuration `directory` to use")
-
 // handle graceful shutdown
 func shutdown(cancel context.CancelFunc) {
 	signals := make(chan os.Signal, 1)
@@ -74,12 +69,13 @@ var (
 	Version = "local build"
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
+	// declare flags
+	cpuprofile      = flag.String("cpuprofile", "", "write cpu profile to `file`")
+	blockprofile    = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
+	configdirectory = flag.String("configdirectory", "", "configuration `directory` to use")
 )
 
 func main() {
-	// parse commandline flags
-	flag.Parse()
-
 	const (
 		serviceName = "cose-client"
 		configFile  = "config.json"
@@ -89,6 +85,9 @@ func main() {
 		configDir string
 		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
+
+	// parse commandline flags
+	flag.Parse()
 
 	// check for commandline config directory
 	if *configdirectory != "" {
