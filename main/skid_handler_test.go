@@ -78,7 +78,33 @@ func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
 	}
 }
 
-func TestNewSkidHandler_BadGetCertificateList(t *testing.T) {
+func TestSkidHandler_LoadSKIDs(t *testing.T) {
+	c := &ubirch.ECDSACryptoContext{}
+
+	s := &SkidHandler{
+		skidStore:      map[uuid.UUID][]byte{},
+		skidStoreMutex: &sync.RWMutex{},
+
+		certLoadFailCounter:  0,
+		maxCertLoadFailCount: 3,
+
+		getCerts:  mockGetCertificateListReturnsFewerCertsAfterFirstCall,
+		getUuid:   mockGetUuid,
+		encPubKey: c.EncodePublicKey,
+	}
+
+	s.loadSKIDs()
+
+	len1 := len(s.skidStore)
+
+	s.loadSKIDs()
+
+	if len(s.skidStore) == len1 {
+		t.Errorf("SKIDs were not overwritten")
+	}
+}
+
+func TestSkidHandler_LoadSKIDs_BadGetCertificateList(t *testing.T) {
 	s := &SkidHandler{
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -100,7 +126,7 @@ func TestNewSkidHandler_BadGetCertificateList(t *testing.T) {
 	}
 }
 
-func TestNewSkidHandler_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T) {
+func TestSkidHandler_LoadSKIDs_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T) {
 	s := &SkidHandler{
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -133,21 +159,35 @@ func TestNewSkidHandler_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T)
 	}
 }
 
-func mockGetCertificateList() ([]Certificate, error) {
-	filename := "test-cert-list.json"
-	fileHandle, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer fileHandle.Close()
+var certs []Certificate
 
-	var certs []Certificate
-	err = json.NewDecoder(fileHandle).Decode(&certs)
-	if err != nil {
-		return nil, err
+func mockGetCertificateList() ([]Certificate, error) {
+	if len(certs) == 0 {
+		filename := "test-cert-list.json"
+		fileHandle, err := os.Open(filename)
+		if err != nil {
+			return nil, err
+		}
+		defer fileHandle.Close()
+
+		err = json.NewDecoder(fileHandle).Decode(&certs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return certs, nil
+}
+
+var alreadyCalled bool
+
+func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, error) {
+	if !alreadyCalled {
+		alreadyCalled = true
+		return mockGetCertificateList()
+	} else {
+		return certs[:1], nil
+	}
 }
 
 func mockBadGetCertificateList() ([]Certificate, error) {
