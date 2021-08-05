@@ -15,6 +15,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 const (
@@ -156,6 +157,62 @@ func TestDatabaseLoad(t *testing.T) {
 	//if dm.db.Stats().OpenConnections > dm.db.Stats().Idle {
 	//	t.Errorf("%d open connections, %d idle", dm.db.Stats().OpenConnections, dm.db.Stats().Idle)
 	//}
+}
+
+func TestDatabaseManager_UpdatePublicKey(t *testing.T) {
+	dm, err := initDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanUpDB(t, dm)
+
+	pubKeyPEM := []byte(
+		"-----BEGIN PUBLIC KEY-----\n" +
+			"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhrTtAOwGeOLlcMxbyeypCadNKz1OKZYuAEj0iSB2jDx5+jlVXgx39skkLpip5rwixxoEmplRQQ9e2fQ84iEbzw==\n" +
+			"-----END PUBLIC KEY-----\n")
+
+	testIdentity := Identity{
+		Uid:          test.Uuid,
+		PublicKeyPEM: pubKeyPEM,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
+	}
+
+	err = dm.StoreNewIdentity(testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	idFromDb, err := dm.GetIdentity(testIdentity.Uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(idFromDb.PublicKeyPEM, testIdentity.PublicKeyPEM) {
+		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
+	}
+
+	newPubKeyPEM := []byte(
+		"-----BEGIN PUBLIC KEY-----\n" +
+			"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/c4u1GtrOLXdtPCflgqIbrkkOd4ZJtZv67SU7GsOfH24f6H7mnkFDFFOWh/e/onWRbQ4ExOFx12xa1tDh1Ew/g==\n" +
+			"-----END PUBLIC KEY-----\n")
+
+	err = dm.UpdatePublicKey(testIdentity.Uid, newPubKeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	idFromDb, err = dm.GetIdentity(testIdentity.Uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(idFromDb.PublicKeyPEM, newPubKeyPEM) {
+		t.Error("stored identity has unexpected PublicKeyPEM value")
+	}
 }
 
 type dbConfig struct {

@@ -169,6 +169,17 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 	return uid, nil
 }
 
+func (dm *DatabaseManager) UpdatePublicKey(uid uuid.UUID, publicKeyPEM []byte) error {
+	query := fmt.Sprintf("UPDATE %s SET public_key = $1 WHERE uid = $2;", dm.tableName)
+
+	_, err := dm.db.Exec(query, &publicKeyPEM, &uid)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func isConnectionNotAvailable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",

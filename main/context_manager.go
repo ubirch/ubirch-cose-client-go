@@ -18,6 +18,8 @@ type ContextManager interface {
 
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 
+	UpdatePublicKey(uid uuid.UUID, publicKeyPEM []byte) error
+
 	Close()
 }
 

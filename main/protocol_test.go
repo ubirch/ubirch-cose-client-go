@@ -377,6 +377,76 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	}
 }
 
+func TestProtocol_UpdatePublicKey(t *testing.T) {
+	p := &Protocol{
+		Crypto: &ubirch.ECDSACryptoContext{
+			Keystore: &test.MockKeystorer{},
+		},
+		ctxManager: &mockCtxMngr{},
+
+		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
+	}
+	defer p.Close()
+
+	pubKeyPEM := []byte(
+		"-----BEGIN PUBLIC KEY-----\n" +
+			"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhrTtAOwGeOLlcMxbyeypCadNKz1OKZYuAEj0iSB2jDx5+jlVXgx39skkLpip5rwixxoEmplRQQ9e2fQ84iEbzw==\n" +
+			"-----END PUBLIC KEY-----\n")
+
+	testIdentity := Identity{
+		Uid:          test.Uuid,
+		PublicKeyPEM: pubKeyPEM,
+		PW: pw.Password{
+			AlgoID: "test",
+			Hash:   test.Auth,
+			Salt:   test.Salt,
+			Params: []byte("test"),
+		},
+	}
+
+	err := p.StoreNewIdentity(testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	storedIdentity, err := p.GetIdentity(testIdentity.Uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(storedIdentity.PublicKeyPEM, testIdentity.PublicKeyPEM) {
+		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
+	}
+
+	newPubKeyPEM := []byte(
+		"-----BEGIN PUBLIC KEY-----\n" +
+			"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/c4u1GtrOLXdtPCflgqIbrkkOd4ZJtZv67SU7GsOfH24f6H7mnkFDFFOWh/e/onWRbQ4ExOFx12xa1tDh1Ew/g==\n" +
+			"-----END PUBLIC KEY-----\n")
+
+	err = p.UpdatePublicKey(testIdentity.Uid, newPubKeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cachedIdentity, found := p.identityCache.Load(testIdentity.Uid)
+	if !found {
+		t.Fatal("identity not found in cache")
+	}
+
+	if !bytes.Equal(cachedIdentity.(Identity).PublicKeyPEM, newPubKeyPEM) {
+		t.Error("cached identity has unexpected PublicKeyPEM value")
+	}
+
+	storedIdentity, err = p.ctxManager.GetIdentity(testIdentity.Uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(storedIdentity.PublicKeyPEM, newPubKeyPEM) {
+		t.Error("stored identity has unexpected PublicKeyPEM value")
+	}
+}
+
 type mockCtxMngr struct {
 	id Identity
 }
@@ -400,6 +470,14 @@ func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
 		return uuid.Nil, ErrNotExist
 	}
 	return m.id.Uid, nil
+}
+
+func (m *mockCtxMngr) UpdatePublicKey(uid uuid.UUID, publicKeyPEM []byte) error {
+	if m.id.Uid == uuid.Nil || m.id.Uid != uid {
+		return ErrNotExist
+	}
+	m.id.PublicKeyPEM = publicKeyPEM
+	return nil
 }
 
 func (m *mockCtxMngr) Close() {}

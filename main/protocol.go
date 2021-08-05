@@ -165,6 +165,42 @@ func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid 
 	return uid, err
 }
 
+func (p *Protocol) UpdatePublicKey(uid uuid.UUID, publicKeyPEM []byte) error {
+	// get currently cached public key
+	id, err := p.GetIdentity(uid)
+	if err != nil {
+		return err
+	}
+
+	// store new public key
+	for i := 0; i < maxDbConnAttempts; i++ {
+		err = p.ctxManager.UpdatePublicKey(uid, publicKeyPEM)
+		if err != nil && isConnectionNotAvailable(err) {
+			log.Debugf("UpdatePublicKey connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+			continue
+		}
+		break
+	}
+	if err != nil {
+		return err
+	}
+
+	// TODO all instances have to be notified about the new public key and update their caches
+
+	// update cache of UUIDs for public keys
+	oldPubKeyID := getPubKeyID(id.PublicKeyPEM)
+	p.uidCache.Delete(oldPubKeyID)
+
+	newPubKeyID := getPubKeyID(publicKeyPEM)
+	p.uidCache.Store(newPubKeyID, uid)
+
+	// update identity cache
+	id.PublicKeyPEM = publicKeyPEM
+	p.identityCache.Store(uid, id)
+
+	return nil
+}
+
 func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
 	_, err = p.GetIdentity(uid)
 	if err == ErrNotExist {
