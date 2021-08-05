@@ -76,7 +76,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, memMB uint32) 
 }
 
 func (p *Protocol) StoreNewIdentity(id Identity) error {
-	err := p.checkIdentityAttributesNotNil(&id)
+	err := checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 		return id, err
 	}
 
-	err = p.checkIdentityAttributesNotNil(&id)
+	err = checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return id, err
 	}
@@ -133,8 +133,7 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 }
 
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
-	sum256 := sha256.Sum256(publicKeyPEM)
-	pubKeyID := base64.StdEncoding.EncodeToString(sum256[:16])
+	pubKeyID := getPubKeyID(publicKeyPEM)
 
 	_uid, found := p.uidCache.Load(pubKeyID)
 
@@ -178,7 +177,7 @@ func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
 	return true, nil
 }
 
-func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
+func checkIdentityAttributesNotNil(i *Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
@@ -204,6 +203,11 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 	}
 
 	return nil
+}
+
+func getPubKeyID(publicKeyPEM []byte) string {
+	sum256 := sha256.Sum256(publicKeyPEM)
+	return base64.StdEncoding.EncodeToString(sum256[:])
 }
 
 func (p *Protocol) Close() {}
