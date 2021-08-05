@@ -103,12 +103,5 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
 
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-	//pubKeyPEM, err := i.GetPublicKeyPEM(uid)
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not get public key: %v", err)
-	//}
-	//
-	// todo update public key in database
-
 	return csrPEM, nil
 }
