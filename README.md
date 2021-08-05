@@ -44,7 +44,7 @@ following [header parameters](https://tools.ietf.org/html/rfc8152#section-3):
 | Bucket | Name | Label | Value | Description |
 |--------|------|-------|-------|-------------|
 | protected header | "alg" | 1 | -7 ([ES256](https://cose-wg.github.io/cose-spec/#rfc.section.8.1)) | Identifier for the cryptographic algorithm used for signing |
-| unprotected header | "kid" | 4 |  <UUID (bytes) corresponding to the key used for signing> | Key identifier |
+| unprotected header | "kid" | 4 |  <SKID, i.e. the first 8 bytes of the sha256 hash of the DER-encoded X.509 certificate of the public key (according to the hcert specification)> | Key identifier |
 
 **Note, that the `COSE_Sign1` object will not be verifiable, if it does not have the original data as payload.**
 
