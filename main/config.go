@@ -105,7 +105,7 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	err = c.loadServerTLSCertificates(configDir)
+	err = c.loadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env)))
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
@@ -253,9 +253,7 @@ func (c *Config) setDbParams() error {
 	return nil
 }
 
-func (c *Config) loadServerTLSCertificates(configDir string) error {
-	serverTLSCertFile := filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env))
-
+func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
 	fileHandle, err := os.Open(serverTLSCertFile)
 	if err != nil {
 		return err
