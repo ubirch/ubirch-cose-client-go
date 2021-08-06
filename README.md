@@ -13,8 +13,8 @@ with [Canonical CBOR](https://tools.ietf.org/html/rfc7049#section-3.9) rules.
 
 | Method | Path | Content-Type | Description |
 |--------|------|--------------|-------------|
-| POST | `/<UUID>/anchor` | `"application/json"` | original data (JSON data package) |
-| POST | `/<UUID>/anchor` | `"application/cbor"` | original data (CBOR encoded) |
+| POST | `/<UUID>/cbor` | `"application/json"` | original data (JSON data package) |
+| POST | `/<UUID>/cbor` | `"application/cbor"` | original data (CBOR encoded) |
 | POST | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 | POST | `/<UUID>/cbor/hash` | `text/plain` | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 
