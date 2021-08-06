@@ -6,6 +6,7 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -14,7 +15,14 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
+	argon2idParams := &pw.Argon2idParams{
+		Time:    1,
+		Memory:  1024,
+		Threads: 1,
+		KeyLen:  8,
+	}
+
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, argon2idParams)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
@@ -68,7 +76,14 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
+	argon2idParams := &pw.Argon2idParams{
+		Time:    1,
+		Memory:  1024,
+		Threads: 1,
+		KeyLen:  8,
+	}
+
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, argon2idParams)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
@@ -98,7 +113,14 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 1)
+	argon2idParams := &pw.Argon2idParams{
+		Time:    1,
+		Memory:  1024,
+		Threads: 1,
+		KeyLen:  8,
+	}
+
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, argon2idParams)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{

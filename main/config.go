@@ -21,12 +21,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
 
 	log "github.com/sirupsen/logrus"
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
@@ -49,7 +51,9 @@ const (
 
 	defaultPKCS11Module = "libcs_pkcs11_R3.so"
 
-	defaultKeyDerivationMemoryParam = 256
+	defaultKeyDerivationParamMemory = 4
+	defaultKeyDerivationParamTime   = 16
+	defaultKeyDerivationParamKeyLen = 24
 )
 
 type Config struct {
@@ -74,9 +78,11 @@ type Config struct {
 	CertificateServer         string `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
 	CertificateServerPubKey   string `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
-	KdMemParam                uint32 `json:"kdMemParam" envconfig:"KD_MEM_PARAM"`                           // memory parameter for key derivation im MB
+	KdParamMemMiB             uint32 `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                    // memory parameter for key derivation, specifies the size of the memory in MiB
+	KdParamTime               uint32 `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`                         // time parameter for key derivation, specifies the number of passes over the memory
 	serverTLSCertFingerprints map[string][32]byte
 	dbParams                  *DatabaseParams
+	kdParams                  *pw.Argon2idParams
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -110,10 +116,10 @@ func (c *Config) Load(configDir, filename string) error {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
-	c.setDefaultKD()
 	c.setDefaultHSM()
 	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
+	c.setKeyDerivationParams()
 	return c.setDbParams()
 }
 
@@ -160,12 +166,6 @@ func (c *Config) checkMandatory() error {
 	return nil
 }
 
-func (c *Config) setDefaultKD() {
-	if c.KdMemParam <= 0 {
-		c.KdMemParam = defaultKeyDerivationMemoryParam
-	}
-}
-
 func (c *Config) setDefaultHSM() {
 	if len(c.PKCS11Module) == 0 {
 		c.PKCS11Module = defaultPKCS11Module
@@ -204,6 +204,23 @@ func (c *Config) setDefaultTLS(configDir string) {
 		}
 		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
+	}
+}
+
+func (c *Config) setKeyDerivationParams() {
+	if c.KdParamMemMiB == 0 {
+		c.KdParamMemMiB = defaultKeyDerivationParamMemory
+	}
+
+	if c.KdParamTime == 0 {
+		c.KdParamTime = defaultKeyDerivationParamTime
+	}
+
+	c.kdParams = &pw.Argon2idParams{
+		Time:    c.KdParamTime,
+		Memory:  c.KdParamMemMiB * 1024,
+		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
+		KeyLen:  defaultKeyDerivationParamKeyLen,
 	}
 }
 
