@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -527,10 +526,10 @@ func mockGetIdentityReturnsErr(uuid.UUID) (Identity, error) {
 	return Identity{}, test.Error
 }
 
-func mockCheckAuth([]byte, pw.Password) (bool, error) {
+func mockCheckAuth(string, string) (bool, error) {
 	return true, nil
 }
 
-func mockCheckAuthBad([]byte, pw.Password) (bool, error) {
+func mockCheckAuthBad(string, string) (bool, error) {
 	return false, nil
 }

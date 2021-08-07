@@ -46,7 +46,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := p.pwHasher.CheckPasswordHash(test.Auth, initializedIdentity.PW)
+	ok, err := p.pwHasher.CheckPassword(test.Auth, initializedIdentity.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}

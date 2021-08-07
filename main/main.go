@@ -204,7 +204,7 @@ func main() {
 	service := &COSEService{
 		CoseSigner:  coseSigner,
 		GetIdentity: protocol.GetIdentity,
-		CheckAuth:   protocol.pwHasher.CheckPasswordHash,
+		CheckAuth:   protocol.pwHasher.CheckPassword,
 	}
 
 	// set up endpoint for identity registration

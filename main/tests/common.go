@@ -20,8 +20,7 @@ var (
 	Key, _    = hex.DecodeString(PrivHex)
 	PubKey, _ = hex.DecodeString(PubHex)
 
-	Auth = []byte("1234")
-	Salt = []byte("5678")
+	Auth = "password1234!"
 
 	Error = errors.New("test error")
 )

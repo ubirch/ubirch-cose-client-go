@@ -31,7 +31,7 @@ type IdentityHandler struct {
 	subjectOrganization string
 }
 
-func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth []byte) ([]byte, error) {
+func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) ([]byte, error) {
 	log.Infof("initializing identity %s", uid)
 
 	initialized, err := i.isInitialized(uid)
@@ -64,7 +64,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth []byte) ([]byte, erro
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
-	pw, err := i.pwHasher.GetPasswordHash(auth, i.pwHasherParams)
+	pwHash, err := i.pwHasher.GeneratePasswordHash(auth, i.pwHasherParams)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth []byte) ([]byte, erro
 	identity := Identity{
 		Uid:          uid,
 		PublicKeyPEM: pubKeyPEM,
-		PW:           pw,
+		Auth:         pwHash,
 	}
 
 	err = i.StoreNewIdentity(identity)

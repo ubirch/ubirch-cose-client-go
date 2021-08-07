@@ -51,9 +51,10 @@ const (
 
 	defaultPKCS11Module = "libcs_pkcs11_R3.so"
 
-	defaultKeyDerivationParamMemory = 4
-	defaultKeyDerivationParamTime   = 16
-	defaultKeyDerivationParamKeyLen = 24
+	defaultKeyDerivationParamSaltLen = 16
+	defaultKeyDerivationParamMemory  = 4
+	defaultKeyDerivationParamTime    = 16
+	defaultKeyDerivationParamKeyLen  = 24
 )
 
 type Config struct {
@@ -217,6 +218,7 @@ func (c *Config) setKeyDerivationParams() {
 	}
 
 	c.kdParams = &pw.Argon2idParams{
+		SaltLen: defaultKeyDerivationParamSaltLen,
 		Time:    c.KdParamTime,
 		Memory:  c.KdParamMemMiB * 1024,
 		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores

@@ -28,7 +28,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
@@ -49,7 +48,7 @@ type HTTPRequest struct {
 type COSEService struct {
 	*CoseSigner
 	GetIdentity func(uuid.UUID) (Identity, error)
-	CheckAuth   func([]byte, pw.Password) (bool, error)
+	CheckAuth   func(string, string) (bool, error)
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
@@ -75,10 +74,10 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		auth := []byte(r.Header.Get(h.AuthHeader))
+		auth := r.Header.Get(h.AuthHeader)
 
 		timer := prometheus.NewTimer(prom.AuthCheckDuration)
-		authOk, err := s.CheckAuth(auth, identity.PW)
+		authOk, err := s.CheckAuth(auth, identity.Auth)
 		timer.ObserveDuration()
 
 		if err != nil {

@@ -17,6 +17,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -36,8 +37,8 @@ type Protocol struct {
 	ubirch.Crypto
 	ctxManager ContextManager
 
-	pwHasher       pw.PasswordHasher
-	pwHasherParams pw.PasswordHashingParams
+	pwHasher       *pw.Argon2idKeyDerivator
+	pwHasherParams *pw.Argon2idParams
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
@@ -47,19 +48,18 @@ type Protocol struct {
 var _ ContextManager = (*Protocol)(nil)
 
 func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, argon2idParams *pw.Argon2idParams) *Protocol {
-	kd := &pw.Argon2idKeyDerivator{}
-	kdParams, err := argon2idParams.Encode()
+	params, err := json.Marshal(argon2idParams)
 	if err != nil {
 		log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
 	}
-	log.Debugf("argon2id key derivation with parameters %s", kdParams)
+	log.Debugf("initialize argon2id key derivation with parameters %s", params)
 
 	return &Protocol{
 		Crypto:     crypto,
 		ctxManager: ctxManager,
 
-		pwHasher:       kd,
-		pwHasherParams: kdParams,
+		pwHasher:       &pw.Argon2idKeyDerivator{},
+		pwHasherParams: argon2idParams,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -177,20 +177,8 @@ func checkIdentityAttributesNotNil(i *Identity) error {
 		return fmt.Errorf("empty public key")
 	}
 
-	if len(i.PW.AlgoID) == 0 {
-		return fmt.Errorf("empty password algoID")
-	}
-
-	if len(i.PW.Hash) == 0 {
-		return fmt.Errorf("empty password hash")
-	}
-
-	if len(i.PW.Salt) == 0 {
-		return fmt.Errorf("empty password salt")
-	}
-
-	if len(i.PW.Params) == 0 {
-		return fmt.Errorf("empty password params")
+	if len(i.Auth) == 0 {
+		return fmt.Errorf("empty auth")
 	}
 
 	return nil
