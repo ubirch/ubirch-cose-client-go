@@ -93,8 +93,6 @@ func encodePasswordHash(params *Argon2idParams, salt, hash []byte) string {
 }
 
 func decodePasswordHash(encodedPasswordHash string) (params *Argon2idParams, salt, hash []byte, err error) {
-	params = &Argon2idParams{}
-
 	vals := strings.Split(encodedPasswordHash, "$")
 	if len(vals) != 6 {
 		return nil, nil, nil, fmt.Errorf("invalid encoded argon2id password hash: %s", encodedPasswordHash)
@@ -109,6 +107,7 @@ func decodePasswordHash(encodedPasswordHash string) (params *Argon2idParams, sal
 		return nil, nil, nil, fmt.Errorf("unsupported argon2id version: %d", version)
 	}
 
+	params = &Argon2idParams{}
 	_, err = fmt.Sscanf(vals[3], "m=%d,t=%d,p=%d", &params.Memory, &params.Time, &params.Threads)
 	if err != nil {
 		return nil, nil, nil, err
