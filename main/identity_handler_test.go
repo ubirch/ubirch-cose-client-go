@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -22,7 +23,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		KeyLen:  8,
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, argon2idParams)
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, argon2idParams)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
@@ -36,7 +37,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid, test.Auth)
+	_, err = idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +47,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := p.pwHasher.CheckPassword(test.Auth, initializedIdentity.Auth)
+	ok, err := p.pwHasher.CheckPassword(context.Background(), test.Auth, initializedIdentity.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		KeyLen:  8,
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, argon2idParams)
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, argon2idParams)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
@@ -97,12 +98,12 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid, test.Auth)
+	_, err = idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid, test.Auth)
+	_, err = idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
 	if err != h.ErrAlreadyInitialized {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrAlreadyInitialized)
 	}
@@ -120,7 +121,7 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 		KeyLen:  8,
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, argon2idParams)
+	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, argon2idParams)
 	defer p.Close()
 
 	idHandler := &IdentityHandler{
@@ -129,7 +130,7 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err := idHandler.InitIdentity(test.Uuid, test.Auth)
+	_, err := idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
 	if err != h.ErrUnknown {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}

@@ -51,10 +51,11 @@ const (
 
 	defaultPKCS11Module = "libcs_pkcs11_R3.so"
 
-	defaultKeyDerivationParamSaltLen = 16
-	defaultKeyDerivationParamMemory  = 4
-	defaultKeyDerivationParamTime    = 16
-	defaultKeyDerivationParamKeyLen  = 24
+	defaultKeyDerivationMaxTotalMemory = 64
+	defaultKeyDerivationParamMemory    = 4
+	defaultKeyDerivationParamTime      = 16
+	defaultKeyDerivationParamKeyLen    = 24
+	defaultKeyDerivationParamSaltLen   = 16
 )
 
 type Config struct {
@@ -79,6 +80,7 @@ type Config struct {
 	CertificateServer         string `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
 	CertificateServerPubKey   string `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
+	KdMaxTotalMemMiB          uint32 `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`             // maximal total memory to use for key derivation at a time in MiB
 	KdParamMemMiB             uint32 `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                    // memory parameter for key derivation, specifies the size of the memory in MiB
 	KdParamTime               uint32 `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`                         // time parameter for key derivation, specifies the number of passes over the memory
 	serverTLSCertFingerprints map[string][32]byte
@@ -209,6 +211,10 @@ func (c *Config) setDefaultTLS(configDir string) {
 }
 
 func (c *Config) setKeyDerivationParams() {
+	if c.KdMaxTotalMemMiB == 0 {
+		c.KdMaxTotalMemMiB = defaultKeyDerivationMaxTotalMemory
+	}
+
 	if c.KdParamMemMiB == 0 {
 		c.KdParamMemMiB = defaultKeyDerivationParamMemory
 	}
@@ -218,11 +224,11 @@ func (c *Config) setKeyDerivationParams() {
 	}
 
 	c.kdParams = &pw.Argon2idParams{
-		SaltLen: defaultKeyDerivationParamSaltLen,
 		Time:    c.KdParamTime,
 		Memory:  c.KdParamMemMiB * 1024,
 		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
 		KeyLen:  defaultKeyDerivationParamKeyLen,
+		SaltLen: defaultKeyDerivationParamSaltLen,
 	}
 }
 

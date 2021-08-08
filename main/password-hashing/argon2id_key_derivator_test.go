@@ -2,6 +2,7 @@ package password_hashing
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"math/rand"
@@ -14,7 +15,7 @@ func TestArgon2idKeyDerivator(t *testing.T) {
 	kd := &Argon2idKeyDerivator{}
 	params := kd.DefaultParams()
 
-	pw, err := kd.GeneratePasswordHash(test.Auth, params)
+	pw, err := kd.GeneratePasswordHash(context.Background(), test.Auth, params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,12 +42,12 @@ func TestArgon2idKeyDerivator_NotEqual(t *testing.T) {
 	kd := &Argon2idKeyDerivator{}
 	params := kd.DefaultParams()
 
-	pw1, err := kd.GeneratePasswordHash(test.Auth, params)
+	pw1, err := kd.GeneratePasswordHash(context.Background(), test.Auth, params)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pw2, err := kd.GeneratePasswordHash(test.Auth, params)
+	pw2, err := kd.GeneratePasswordHash(context.Background(), test.Auth, params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +78,7 @@ func BenchmarkArgon2idKeyDerivator_Default(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := kd.GeneratePasswordHash(authBase64, params)
+		_, err := kd.GeneratePasswordHash(context.Background(), authBase64, params)
 		if err != nil {
 			b.Log(err)
 		}
@@ -88,11 +89,11 @@ func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
 	kd := &Argon2idKeyDerivator{}
 
 	params := &Argon2idParams{
-		SaltLen: 16,
 		Time:    1,
 		Memory:  64 * 1024,
 		Threads: 4,
 		KeyLen:  24,
+		SaltLen: 16,
 	}
 	b.Log(argon2idParams(params))
 
@@ -102,7 +103,7 @@ func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := kd.GeneratePasswordHash(authBase64, params)
+		_, err := kd.GeneratePasswordHash(context.Background(), authBase64, params)
 		if err != nil {
 			b.Log(err)
 		}

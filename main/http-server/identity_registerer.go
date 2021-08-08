@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,7 +24,7 @@ type IdentityPayload struct {
 	Pwd string `json:"password"`
 }
 
-type InitializeIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
+type InitializeIdentity func(ctx context.Context, uid uuid.UUID, auth string) (csr []byte, err error)
 
 func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +49,7 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 		}
 
 		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
-		csr, err := initialize(uid, idPayload.Pwd)
+		csr, err := initialize(r.Context(), uid, idPayload.Pwd)
 		timer.ObserveDuration()
 		if err != nil {
 			errMsg := fmt.Errorf("identity registration failed: %v", err)

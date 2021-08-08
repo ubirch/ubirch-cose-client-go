@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"encoding/pem"
 	"fmt"
 
@@ -31,7 +32,7 @@ type IdentityHandler struct {
 	subjectOrganization string
 }
 
-func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) ([]byte, error) {
+func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth string) ([]byte, error) {
 	log.Infof("initializing identity %s", uid)
 
 	initialized, err := i.isInitialized(uid)
@@ -64,7 +65,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) ([]byte, erro
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
-	pwHash, err := i.pwHasher.GeneratePasswordHash(auth, i.pwHasherParams)
+	pwHash, err := i.pwHasher.GeneratePasswordHash(ctx, auth, i.pwHasherParams)
 	if err != nil {
 		return nil, err
 	}

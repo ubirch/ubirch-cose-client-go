@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
@@ -526,10 +527,10 @@ func mockGetIdentityReturnsErr(uuid.UUID) (Identity, error) {
 	return Identity{}, test.Error
 }
 
-func mockCheckAuth(string, string) (bool, error) {
+func mockCheckAuth(context.Context, string, string) (bool, error) {
 	return true, nil
 }
 
-func mockCheckAuthBad(string, string) (bool, error) {
+func mockCheckAuthBad(context.Context, string, string) (bool, error) {
 	return false, nil
 }

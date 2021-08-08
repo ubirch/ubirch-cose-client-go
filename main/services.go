@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -48,7 +49,7 @@ type HTTPRequest struct {
 type COSEService struct {
 	*CoseSigner
 	GetIdentity func(uuid.UUID) (Identity, error)
-	CheckAuth   func(string, string) (bool, error)
+	CheckAuth   func(context.Context, string, string) (bool, error)
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
@@ -74,10 +75,11 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
+		ctx := r.Context()
 		auth := r.Header.Get(h.AuthHeader)
 
 		timer := prometheus.NewTimer(prom.AuthCheckDuration)
-		authOk, err := s.CheckAuth(auth, identity.Auth)
+		authOk, err := s.CheckAuth(ctx, auth, identity.Auth)
 		timer.ObserveDuration()
 
 		if err != nil {
@@ -101,7 +103,6 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 
 		resp := s.Sign(msg)
 
-		ctx := r.Context()
 		select {
 		case <-ctx.Done():
 			log.Warnf("signing response can not be sent: http request %s", ctx.Err())

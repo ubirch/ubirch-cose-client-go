@@ -179,7 +179,7 @@ func main() {
 	}
 	defer ctxManager.Close()
 
-	protocol := NewProtocol(cryptoCtx, ctxManager, conf.kdParams)
+	protocol := NewProtocol(cryptoCtx, ctxManager, conf.KdMaxTotalMemMiB, conf.kdParams)
 	defer protocol.Close()
 
 	//client := &Client{

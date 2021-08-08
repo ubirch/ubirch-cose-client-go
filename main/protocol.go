@@ -47,7 +47,7 @@ type Protocol struct {
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, argon2idParams *pw.Argon2idParams) *Protocol {
+func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, maxTotalMem uint32, argon2idParams *pw.Argon2idParams) *Protocol {
 	params, err := json.Marshal(argon2idParams)
 	if err != nil {
 		log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
@@ -58,7 +58,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, argon2idParams
 		Crypto:     crypto,
 		ctxManager: ctxManager,
 
-		pwHasher:       &pw.Argon2idKeyDerivator{},
+		pwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
 		pwHasherParams: argon2idParams,
 
 		identityCache: &sync.Map{},
