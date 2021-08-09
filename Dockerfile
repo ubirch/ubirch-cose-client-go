@@ -27,4 +27,4 @@ COPY hsm/libcs_pkcs11_R3.so /usr/local/lib/utimaco/
 COPY hsm/cs_pkcs11_R3.cfg /etc/utimaco/
 
 ENTRYPOINT ["/opt/cose-client"]
-CMD ["/data"]
+CMD ["-configdirectory", "/data"]

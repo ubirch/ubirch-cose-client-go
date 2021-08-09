@@ -17,8 +17,8 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	//"runtime"
 	"sync"
 
 	"github.com/google/uuid"
@@ -37,8 +37,8 @@ type Protocol struct {
 	ubirch.Crypto
 	ctxManager ContextManager
 
-	pwHasher       pw.PasswordHasher
-	pwHasherParams pw.PasswordHashingParams
+	pwHasher       *pw.Argon2idKeyDerivator
+	pwHasherParams *pw.Argon2idParams
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
@@ -47,28 +47,19 @@ type Protocol struct {
 // Ensure Protocol implements the ContextManager interface
 var _ ContextManager = (*Protocol)(nil)
 
-func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, memMB uint32) *Protocol {
-	kd := &pw.PseudoPWHasher{} // FIXME
-	//kd := &pw.Argon2idKeyDerivator{}
-	//p := &pw.Argon2idParams{
-	//	Time:    1,
-	//	Memory:  memMB * 1024,
-	//	Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
-	//	KeyLen:  24,
-	//}
-	//kdParams, err := p.Encode()
-	//if err != nil {
-	//	log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
-	//}
-	//log.Debugf("argon2id key derivation with parameters %s", kdParams)
+func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, maxTotalMem uint32, argon2idParams *pw.Argon2idParams) *Protocol {
+	params, err := json.Marshal(argon2idParams)
+	if err != nil {
+		log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
+	}
+	log.Debugf("initialize argon2id key derivation with parameters %s", params)
 
 	return &Protocol{
 		Crypto:     crypto,
 		ctxManager: ctxManager,
 
-		pwHasher:       kd,
-		pwHasherParams: kd.DefaultParams(), // FIXME
-		//pwHasherParams: kdParams,
+		pwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
+		pwHasherParams: argon2idParams,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -76,7 +67,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, memMB uint32) 
 }
 
 func (p *Protocol) StoreNewIdentity(id Identity) error {
-	err := p.checkIdentityAttributesNotNil(&id)
+	err := checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
 	}
@@ -124,7 +115,7 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 		return id, err
 	}
 
-	err = p.checkIdentityAttributesNotNil(&id)
+	err = checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return id, err
 	}
@@ -133,8 +124,7 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 }
 
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
-	sum256 := sha256.Sum256(publicKeyPEM)
-	pubKeyID := base64.StdEncoding.EncodeToString(sum256[:16])
+	pubKeyID := getPubKeyID(publicKeyPEM)
 
 	_uid, found := p.uidCache.Load(pubKeyID)
 
@@ -178,7 +168,7 @@ func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
 	return true, nil
 }
 
-func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
+func checkIdentityAttributesNotNil(i *Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
@@ -187,23 +177,16 @@ func (p *Protocol) checkIdentityAttributesNotNil(i *Identity) error {
 		return fmt.Errorf("empty public key")
 	}
 
-	if len(i.PW.AlgoID) == 0 {
-		return fmt.Errorf("empty password algoID")
-	}
-
-	if len(i.PW.Hash) == 0 {
-		return fmt.Errorf("empty password hash")
-	}
-
-	if len(i.PW.Salt) == 0 {
-		return fmt.Errorf("empty password salt")
-	}
-
-	if len(i.PW.Params) == 0 {
-		return fmt.Errorf("empty password params")
+	if len(i.Auth) == 0 {
+		return fmt.Errorf("empty auth")
 	}
 
 	return nil
+}
+
+func getPubKeyID(publicKeyPEM []byte) string {
+	sum256 := sha256.Sum256(publicKeyPEM)
+	return base64.StdEncoding.EncodeToString(sum256[:])
 }
 
 func (p *Protocol) Close() {}

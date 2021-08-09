@@ -70,9 +70,9 @@ var (
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
 	// declare flags
-	cpuprofile      = flag.String("cpuprofile", "", "write cpu profile to `file`")
-	blockprofile    = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
-	configdirectory = flag.String("configdirectory", "", "configuration `directory` to use")
+	cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to `file`")
+	blockprofile = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
+	configDir    = flag.String("configdirectory", "", "configuration `directory` to use")
 )
 
 func main() {
@@ -82,17 +82,11 @@ func main() {
 	)
 
 	var (
-		configDir string
-		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
+		serverID = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	// parse commandline flags
 	flag.Parse()
-
-	// check for commandline config directory
-	if *configdirectory != "" {
-		configDir = *configdirectory
-	}
 
 	log.SetFormatter(&log.JSONFormatter{})
 	log.Printf("UBIRCH COSE client (version=%s, revision=%s)", Version, Revision)
@@ -100,7 +94,7 @@ func main() {
 
 	// read configuration
 	conf := &Config{}
-	err := conf.Load(configDir, configFile)
+	err := conf.Load(*configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
@@ -185,7 +179,7 @@ func main() {
 	}
 	defer ctxManager.Close()
 
-	protocol := NewProtocol(cryptoCtx, ctxManager, conf.KdMemParam)
+	protocol := NewProtocol(cryptoCtx, ctxManager, conf.KdMaxTotalMemMiB, conf.kdParams)
 	defer protocol.Close()
 
 	//client := &Client{
@@ -210,7 +204,7 @@ func main() {
 	service := &COSEService{
 		CoseSigner:  coseSigner,
 		GetIdentity: protocol.GetIdentity,
-		CheckAuth:   protocol.pwHasher.CheckPasswordHash,
+		CheckAuth:   protocol.pwHasher.CheckPassword,
 	}
 
 	// set up endpoint for identity registration

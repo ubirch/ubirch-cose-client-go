@@ -38,10 +38,7 @@ var create = map[int]string{
 	PostgresIdentity: "CREATE TABLE IF NOT EXISTS %s(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"public_key VARCHAR(255) NOT NULL, " +
-		"algo_id VARCHAR(255) NOT NULL, " +
-		"auth BYTEA NOT NULL, " +
-		"salt BYTEA NOT NULL," +
-		"params VARCHAR(255) NOT NULL);",
+		"auth VARCHAR(255) NOT NULL);",
 }
 
 func CreateTable(tableType int, tableName string) string {
@@ -114,16 +111,13 @@ func (dm *DatabaseManager) Close() {
 
 func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
 	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, public_key, algo_id, auth, salt, params) VALUES ($1, $2, $3, $4, $5, $6);",
+		"INSERT INTO %s (uid, public_key, auth) VALUES ($1, $2, $3);",
 		dm.tableName)
 
 	_, err := dm.db.Exec(query,
 		&id.Uid,
 		&id.PublicKeyPEM,
-		&id.PW.AlgoID,
-		&id.PW.Hash,
-		&id.PW.Salt,
-		&id.PW.Params)
+		&id.Auth)
 	if err != nil {
 		return err
 	}
@@ -139,10 +133,7 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 	err := dm.db.QueryRow(query, uid).Scan(
 		&id.Uid,
 		&id.PublicKeyPEM,
-		&id.PW.AlgoID,
-		&id.PW.Hash,
-		&id.PW.Salt,
-		&id.PW.Params)
+		&id.Auth)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return id, ErrNotExist
