@@ -33,7 +33,7 @@ func TestConfig(t *testing.T) {
 
 func TestConfig_Load_Full(t *testing.T) {
 	conf := &Config{}
-	err := conf.Load("./config", "example_config.json")
+	err := conf.Load("", "example_config.json")
 	if err != nil {
 		t.Errorf("unable to load configuration: %s", err)
 	}
@@ -42,7 +42,7 @@ func TestConfig_Load_Full(t *testing.T) {
 
 func TestConfig_Load_Min(t *testing.T) {
 	conf := &Config{}
-	err := conf.Load("./config", "example_config_min.json")
+	err := conf.Load("", "example_config_min.json")
 	if err != nil {
 		t.Errorf("unable to load configuration: %s", err)
 	}
