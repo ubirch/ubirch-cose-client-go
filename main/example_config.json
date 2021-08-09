@@ -17,5 +17,10 @@
   "certificateServer": "https://www.test.cert.server.com",
   "certificateServerPubKey": "https://www.test.cert.server.com/pubkey.pem",
   "reloadCertsEveryMinute": true,
-  "pkcs11ModulePin": "1234"
+  "pkcs11ModulePin": "1234",
+  "kdMaxTotalMemMiB": 10,
+  "kdParamMemMiB": 1,
+  "kdParamTime": 100,
+  "requestLimit": 200,
+  "requestBacklogLimit": 50
 }

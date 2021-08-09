@@ -58,9 +58,10 @@ type HTTPServer struct {
 	KeyFile  string
 }
 
-func NewRouter() *chi.Mux {
+func NewRouter(limit, backlogLimit int) *chi.Mux {
 	router := chi.NewMux()
 	router.Use(middleware.Timeout(GatewayTimeout))
+	router.Use(middleware.ThrottleBacklog(limit, backlogLimit, time.Second))
 	return router
 }
 

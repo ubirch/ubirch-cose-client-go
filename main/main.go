@@ -134,7 +134,7 @@ func main() {
 
 	// set up HTTP server
 	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(),
+		Router:   h.NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
