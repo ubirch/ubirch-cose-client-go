@@ -169,27 +169,6 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	}
 }
 
-// todo
-//func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
-//	cryptoCtx := &ubirch.ECDSACryptoContext{
-//		Keystore: &test.MockKeystorer{},
-//	}
-//
-//	p := NewProtocol(cryptoCtx, &mockCtxMngr{})
-//	defer p.Close()
-//
-//	i := Identity{
-//		Uid:          test.Uuid,
-//		PublicKeyPEM: make([]byte, 64),
-//		AuthToken:    test.Auth,
-//	}
-//
-//	err := p.StoreNewIdentity(i)
-//	if err == nil {
-//		t.Error("StoreNewIdentity did not return error for invalid public key")
-//	}
-//}
-
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
 		Keystore: &test.MockKeystorer{},
