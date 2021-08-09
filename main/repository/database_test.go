@@ -1,10 +1,12 @@
-package main
+package repository
 
 import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 	"math/rand"
 	"os"
 	"sync"
@@ -101,7 +103,7 @@ func TestDatabaseLoad(t *testing.T) {
 	defer cleanUpDB(t, dm)
 
 	// generate identities
-	var testIdentities []*Identity
+	var testIdentities []*ent.Identity
 	for i := 0; i < testLoad; i++ {
 		testIdentities = append(testIdentities, generateRandomIdentity())
 	}
@@ -109,7 +111,7 @@ func TestDatabaseLoad(t *testing.T) {
 	// store identities
 	for i, testId := range testIdentities {
 		wg.Add(1)
-		go func(idx int, identity *Identity) {
+		go func(idx int, identity *ent.Identity) {
 			err := storeIdentity(dm, identity, wg)
 			if err != nil {
 				t.Errorf("%s: identity could not be stored: %v", identity.Uid, err)
@@ -121,7 +123,7 @@ func TestDatabaseLoad(t *testing.T) {
 	// check identities
 	for _, testId := range testIdentities {
 		wg.Add(1)
-		go func(id *Identity) {
+		go func(id *ent.Identity) {
 			err := checkIdentity(dm, id, wg)
 			if err != nil {
 				t.Errorf("%s: %v", id.Uid, err)
@@ -138,7 +140,7 @@ func TestDatabaseLoad(t *testing.T) {
 
 type dbConfig struct {
 	PostgresDSN string
-	dbParams    *DatabaseParams
+	dbParams    *config.DatabaseParams
 }
 
 func getDatabaseConfig() (*dbConfig, error) {
@@ -164,7 +166,7 @@ func getDatabaseConfig() (*dbConfig, error) {
 		return nil, err
 	}
 
-	c.dbParams = &DatabaseParams{
+	c.dbParams = &config.DatabaseParams{
 		MaxOpenConns:    10,
 		MaxIdleConns:    5,
 		ConnMaxLifetime: 2 * time.Minute,
@@ -193,27 +195,27 @@ func cleanUpDB(t *testing.T, dm *DatabaseManager) {
 	dm.Close()
 }
 
-func generateRandomIdentity() *Identity {
+func generateRandomIdentity() *ent.Identity {
 	pub := make([]byte, 64)
 	rand.Read(pub)
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
 
-	return &Identity{
+	return &ent.Identity{
 		Uid:          uuid.New(),
 		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
 		Auth:         base64.StdEncoding.EncodeToString(auth),
 	}
 }
 
-func storeIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
+func storeIdentity(ctxMngr ContextManager, id *ent.Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	return ctxMngr.StoreNewIdentity(*id)
 }
 
-func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
+func checkIdentity(ctxMngr ContextManager, id *ent.Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	idFromCtx, err := ctxMngr.GetIdentity(id.Uid)

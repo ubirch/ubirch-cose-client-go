@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package client
 
 import (
 	"bytes"
@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	urlpkg "net/url"
 )
 
@@ -143,7 +143,6 @@ func (c *Client) getWithCertPinning(url string) ([]byte, error) {
 
 	return ioutil.ReadAll(resp.Body)
 }
-
 // VerifyConnection is called after normal certificate verification and after VerifyPeerCertificate by
 // either a TLS client or server. If it returns a non-nil error, the handshake is aborted and that error results.
 //

@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package repository
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	"net/http"
 
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
@@ -25,7 +26,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 

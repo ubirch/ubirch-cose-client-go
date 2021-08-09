@@ -1,8 +1,9 @@
-package main
+package client
 
 import (
 	"fmt"
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"testing"
 )
 
@@ -12,13 +13,13 @@ const (
 )
 
 func TestExtendedClient_RequestCertificateList(t *testing.T) {
-	conf := &Config{}
-	err := conf.loadServerTLSCertificates("demo_ubirch_tls_certs.json")
+	conf := &config.Config{}
+	err := conf.LoadServerTLSCertificates("demo_ubirch_tls_certs.json")
 	if err != nil {
 		t.Fatalf("loading TLS certificates failed: %v", err)
 	}
-	conf2 := &Config{}
-	err = conf2.loadServerTLSCertificates("dev_ubirch_tls_certs.json")
+	conf2 := &config.Config{}
+	err = conf2.LoadServerTLSCertificates("dev_ubirch_tls_certs.json")
 	if err != nil {
 		t.Fatalf("loading TLS certificates failed: %v", err)
 	}
@@ -56,7 +57,7 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 		},
 		{
 			name:   "Empty config no local pinned cert",
-			client: createClient(certificateServerURL, certificateServerPubKeyURL, &Config{}),
+			client: createClient(certificateServerURL, certificateServerPubKeyURL, &config.Config{}),
 			checkResponse: func(t *testing.T, certs []Certificate, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "missing TLS certificate fingerprint for host de.test.dscg.ubirch.com")
@@ -72,10 +73,10 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 	}
 }
 
-func createClient(certificateServerURL, certificateServerPubKeyURL string, conf *Config) *Client {
+func createClient(certificateServerURL, certificateServerPubKeyURL string, conf *config.Config) *Client {
 	return &Client{
 		CertificateServerURL:       certificateServerURL,
 		CertificateServerPubKeyURL: certificateServerPubKeyURL,
-		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
+		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
 	}
 }

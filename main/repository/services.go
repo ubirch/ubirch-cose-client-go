@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package repository
 
 import (
 	"context"
@@ -20,6 +20,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -28,7 +30,6 @@ import (
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
@@ -48,14 +49,14 @@ type HTTPRequest struct {
 
 type COSEService struct {
 	*CoseSigner
-	GetIdentity func(uuid.UUID) (Identity, error)
+	GetIdentity func(uuid.UUID) (ent.Identity, error)
 	CheckAuth   func(context.Context, string, string) (bool, error)
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
 type GetPayloadAndHash func(*http.Request) ([]byte, Sha256Sum, error)
 
-func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloadAndHash) http.HandlerFunc {
+func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloadAndHash) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, err := getUUID(r)
 		if err != nil {
@@ -119,8 +120,8 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 	}
 }
 
-// getUUIDFromURL returns the UUID parameter from the request URL
-func getUUIDFromURL(r *http.Request) (uuid.UUID, error) {
+// GetUUIDFromURL returns the UUID parameter from the request URL
+func GetUUIDFromURL(r *http.Request) (uuid.UUID, error) {
 	uuidParam := chi.URLParam(r, h.UUIDKey)
 	uid, err := uuid.Parse(uuidParam)
 	if err != nil {

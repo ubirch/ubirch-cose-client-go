@@ -1,13 +1,41 @@
-package http_server
+package helper
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+)
+
+const (
+	GatewayTimeout  = 90 * time.Second // time after which a 504 response will be sent if no timely response could be produced
+	ShutdownTimeout = 25 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
+	ReadTimeout     = 1 * time.Second  // maximum duration for reading the entire request -> low since we only expect requests with small content
+	WriteTimeout    = 99 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
+	IdleTimeout     = 60 * time.Second // time to wait for the next request when keep-alives are enabled
+
+	UUIDKey          = "uuid"
+	CBORPath         = "/cbor"
+	HashEndpoint     = "/hash"
+	RegisterEndpoint = "/register"
+	CSREndpoint      = "/csr"
+
+	BinType  = "application/octet-stream"
+	TextType = "text/plain"
+	JSONType = "application/json"
+	CBORType = "application/cbor"
+
+	AuthHeader = "X-Auth-Token"
+)
+
+var (
+	ErrAlreadyInitialized = errors.New("identity already registered")
+	ErrUnknown            = errors.New("unknown identity")
 )
 
 // ContentType is a helper function to get "Content-Type" from request header

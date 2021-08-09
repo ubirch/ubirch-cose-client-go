@@ -1,7 +1,8 @@
-package main
+package repository
 
 import (
 	"bytes"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 	"sync"
 	"testing"
 
@@ -36,7 +37,7 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testIdentity := Identity{
+	testIdentity := ent.Identity{
 		Uid:          testUid,
 		PublicKeyPEM: pubKeyPEM,
 		Auth:         test.Auth,
@@ -117,7 +118,7 @@ func TestProtocolLoad(t *testing.T) {
 	defer p.Close()
 
 	// generate identities
-	var testIdentities []*Identity
+	var testIdentities []*ent.Identity
 	for i := 0; i < testLoad/10; i++ {
 		testId := generateRandomIdentity()
 
@@ -127,7 +128,7 @@ func TestProtocolLoad(t *testing.T) {
 	// store identities
 	for i, testId := range testIdentities {
 		wg.Add(1)
-		go func(idx int, identity *Identity) {
+		go func(idx int, identity *ent.Identity) {
 			err := storeIdentity(p, identity, wg)
 			if err != nil {
 				t.Errorf("%s: identity could not be stored: %v", identity.Uid, err)
@@ -139,7 +140,7 @@ func TestProtocolLoad(t *testing.T) {
 	// check identities
 	for _, testId := range testIdentities {
 		wg.Add(1)
-		go func(id *Identity) {
+		go func(id *ent.Identity) {
 			err := checkIdentity(p, id, wg)
 			if err != nil {
 				t.Errorf("%s: %v", id.Uid, err)
@@ -157,7 +158,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
 	defer p.Close()
 
-	i := Identity{
+	i := ent.Identity{
 		Uid:          uuid.UUID{},
 		PublicKeyPEM: test.PubKey,
 		Auth:         test.Auth,
@@ -198,7 +199,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
 	defer p.Close()
 
-	i := Identity{
+	i := ent.Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: nil,
 		Auth:         test.Auth,
@@ -218,7 +219,7 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
 	defer p.Close()
 
-	i := Identity{
+	i := ent.Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
 		Auth:         "",
@@ -240,7 +241,7 @@ func TestProtocol_Cache(t *testing.T) {
 	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
 	defer p.Close()
 
-	testIdentity := Identity{
+	testIdentity := ent.Identity{
 		Uid:          test.Uuid,
 		PublicKeyPEM: test.PubKey,
 		Auth:         test.Auth,
@@ -279,19 +280,19 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 }
 
 type mockCtxMngr struct {
-	id Identity
+	id ent.Identity
 }
 
 var _ ContextManager = (*mockCtxMngr)(nil)
 
-func (m *mockCtxMngr) StoreNewIdentity(id Identity) error {
+func (m *mockCtxMngr) StoreNewIdentity(id ent.Identity) error {
 	m.id = id
 	return nil
 }
 
-func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (Identity, error) {
+func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (ent.Identity, error) {
 	if m.id.Uid == uuid.Nil || m.id.Uid != uid {
-		return Identity{}, ErrNotExist
+		return ent.Identity{}, ErrNotExist
 	}
 	return m.id, nil
 }

@@ -1,9 +1,11 @@
-package main
+package repository
 
 import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -21,7 +22,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -38,7 +39,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -51,7 +52,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -69,7 +70,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -82,7 +83,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -99,7 +100,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 	r.Header.Set("Content-Type", h.BinType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -112,7 +113,7 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -129,7 +130,7 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(getUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(GetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusNotFound)
@@ -142,7 +143,7 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: uuid.New(),
 	}}
 
@@ -159,7 +160,7 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusNotFound)
@@ -184,7 +185,7 @@ func TestCOSEService_HandleRequest_CantGetIdentity(t *testing.T) {
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusInternalServerError)
@@ -197,7 +198,7 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -214,7 +215,7 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set(h.AuthHeader, "12345")
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusUnauthorized)
@@ -227,7 +228,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -244,7 +245,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -257,7 +258,7 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -275,7 +276,7 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -288,7 +289,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -305,7 +306,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 	r.Header.Set("Content-Type", "wrong content type")
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -318,7 +319,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -335,7 +336,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -348,7 +349,7 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -363,7 +364,7 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 	r.Header.Set("Content-Type", h.JSONType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -376,7 +377,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -393,7 +394,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 	r.Header.Set("Content-Type", h.JSONType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -406,7 +407,7 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -423,7 +424,7 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 	r.Header.Set("Content-Type", h.CBORType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
@@ -436,7 +437,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -451,7 +452,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 	r.Header.Set("Content-Type", h.CBORType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -464,7 +465,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	ctxMngr := mockCtxMngr{id: ent.Identity{
 		Uid: test.Uuid,
 	}}
 
@@ -479,7 +480,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set(h.AuthHeader, string(test.Auth))
 
-	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
@@ -523,8 +524,8 @@ func mockGetUUIDFromURL(*http.Request) (uuid.UUID, error) {
 	return test.Uuid, nil
 }
 
-func mockGetIdentityReturnsErr(uuid.UUID) (Identity, error) {
-	return Identity{}, test.Error
+func mockGetIdentityReturnsErr(uuid.UUID) (ent.Identity, error) {
+	return ent.Identity{}, test.Error
 }
 
 func mockCheckAuth(context.Context, string, string) (bool, error) {

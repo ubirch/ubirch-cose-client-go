@@ -1,4 +1,4 @@
-package http_server
+package helper
 
 import (
 	"github.com/google/uuid"

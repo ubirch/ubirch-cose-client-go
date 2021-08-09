@@ -18,22 +18,19 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	http_server "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	"github.com/ubirch/ubirch-cose-client-go/main/repository"
 	"os"
 	"os/signal"
-	"path"
 	"runtime"
 	"runtime/pprof"
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-	"golang.org/x/sync/errgroup"
-
-	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 // handle graceful shutdown
@@ -93,7 +90,7 @@ func main() {
 	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
-	conf := &Config{}
+	conf := &config.Config{}
 	err := conf.Load(*configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
@@ -127,33 +124,9 @@ func main() {
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
 
 	// set up graceful shutdown handling
 	go shutdown(cancel)
-
-	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
-
-	// start HTTP server
-	serverReadyCtx, serverReady := context.WithCancel(context.Background())
-	g.Go(func() error {
-		return httpServer.Serve(ctx, serverReady)
-	})
-	// wait for server to start
-	<-serverReadyCtx.Done()
-
-	// set up metrics
-	prom.InitPromMetrics(httpServer.Router)
-
-	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(serverID))
 
 	// initialize COSE service
 	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(
@@ -173,13 +146,13 @@ func main() {
 		}
 	}()
 
-	ctxManager, err := GetCtxManager(conf)
+	ctxManager, err := repository.GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer ctxManager.Close()
 
-	protocol := NewProtocol(cryptoCtx, ctxManager, conf.KdMaxTotalMemMiB, conf.kdParams)
+	protocol := repository.NewProtocol(cryptoCtx, ctxManager, conf.KdMaxTotalMemMiB, conf.KdParams)
 	defer protocol.Close()
 
 	//client := &Client{
@@ -190,52 +163,14 @@ func main() {
 	//
 	//skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
-	idHandler := &IdentityHandler{
-		Protocol:            protocol,
-		subjectCountry:      conf.CSR_Country,
-		subjectOrganization: conf.CSR_Organization,
-	}
+	httpServer := http_server.NewServer(conf, serverID, protocol)
 
-	coseSigner, err := NewCoseSigner(protocol.SignHash, getSKID) // FIXME
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	service := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: protocol.GetIdentity,
-		CheckAuth:   protocol.pwHasher.CheckPassword,
-	}
-
-	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
-
-	// set up endpoint for CSRs
-	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
-
-	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(getUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
-
-	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
-
-	// set up endpoint for readiness checks
-	httpServer.Router.Get("/readiness", h.Health(serverID))
-	log.Info("ready")
-
-	log.Warnf("USING MOCK SKID") // FIXME
-
-	// wait for all go routines of the waitgroup to return
-	if err = g.Wait(); err != nil {
-		log.Error(err)
-	}
+	// start HTTP server
+	httpServer.Serve(ctx)
 
 	log.Debug("shut down")
 }
 
-func getSKID(uuid.UUID) ([]byte, error) {
-	log.Warnf("USING MOCK SKID")
-	return make([]byte, 8), nil
-}
+
+
+

@@ -1,7 +1,8 @@
-package main
+package repository
 
 import (
 	"encoding/json"
+	"github.com/ubirch/ubirch-cose-client-go/main/client"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 	"os"
 	"sync"
@@ -159,9 +160,9 @@ func TestSkidHandler_LoadSKIDs_BadGetCertificateList_MaxCertLoadFailCount(t *tes
 	}
 }
 
-var certs []Certificate
+var certs []client.Certificate
 
-func mockGetCertificateList() ([]Certificate, error) {
+func mockGetCertificateList() ([]client.Certificate, error) {
 	if len(certs) == 0 {
 		filename := "test-cert-list.json"
 		fileHandle, err := os.Open(filename)
@@ -181,7 +182,7 @@ func mockGetCertificateList() ([]Certificate, error) {
 
 var alreadyCalled bool
 
-func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, error) {
+func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]client.Certificate, error) {
 	if !alreadyCalled {
 		alreadyCalled = true
 		return mockGetCertificateList()
@@ -190,7 +191,7 @@ func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, err
 	}
 }
 
-func mockBadGetCertificateList() ([]Certificate, error) {
+func mockBadGetCertificateList() ([]client.Certificate, error) {
 	return nil, test.Error
 }
 

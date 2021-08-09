@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package config
 
 import (
 	"crypto/sha256"
@@ -83,9 +83,16 @@ type Config struct {
 	KdMaxTotalMemMiB          uint32 `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`             // maximal total memory to use for key derivation at a time in MiB
 	KdParamMemMiB             uint32 `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                    // memory parameter for key derivation, specifies the size of the memory in MiB
 	KdParamTime               uint32 `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`                         // time parameter for key derivation, specifies the number of passes over the memory
-	serverTLSCertFingerprints map[string][32]byte
-	dbParams                  *DatabaseParams
-	kdParams                  *pw.Argon2idParams
+	ServerTLSCertFingerprints map[string][32]byte
+	DbParams                  *DatabaseParams
+	KdParams                  *pw.Argon2idParams
+}
+
+type DatabaseParams struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -114,7 +121,7 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	err = c.loadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env)))
+	err = c.LoadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env)))
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
@@ -223,7 +230,7 @@ func (c *Config) setKeyDerivationParams() {
 		c.KdParamTime = defaultKeyDerivationParamTime
 	}
 
-	c.kdParams = &pw.Argon2idParams{
+	c.KdParams = &pw.Argon2idParams{
 		Time:    c.KdParamTime,
 		Memory:  c.KdParamMemMiB * 1024,
 		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
@@ -233,52 +240,52 @@ func (c *Config) setKeyDerivationParams() {
 }
 
 func (c *Config) setDbParams() error {
-	c.dbParams = &DatabaseParams{}
+	c.DbParams = &DatabaseParams{}
 
 	if c.DbMaxOpenConns == "" {
-		c.dbParams.MaxOpenConns = defaultDbMaxOpenConns
+		c.DbParams.MaxOpenConns = defaultDbMaxOpenConns
 	} else {
 		i, err := strconv.Atoi(c.DbMaxOpenConns)
 		if err != nil {
 			return fmt.Errorf("failed to set DB parameter MaxOpenConns: %v", err)
 		}
-		c.dbParams.MaxOpenConns = i
+		c.DbParams.MaxOpenConns = i
 	}
 
 	if c.DbMaxIdleConns == "" {
-		c.dbParams.MaxIdleConns = defaultDbMaxIdleConns
+		c.DbParams.MaxIdleConns = defaultDbMaxIdleConns
 	} else {
 		i, err := strconv.Atoi(c.DbMaxIdleConns)
 		if err != nil {
 			return fmt.Errorf("failed to set DB parameter MaxIdleConns: %v", err)
 		}
-		c.dbParams.MaxIdleConns = i
+		c.DbParams.MaxIdleConns = i
 	}
 
 	if c.DbConnMaxLifetime == "" {
-		c.dbParams.ConnMaxLifetime = defaultDbConnMaxLifetime * time.Minute
+		c.DbParams.ConnMaxLifetime = defaultDbConnMaxLifetime * time.Minute
 	} else {
 		i, err := strconv.Atoi(c.DbConnMaxLifetime)
 		if err != nil {
 			return fmt.Errorf("failed to set DB parameter ConnMaxLifetime: %v", err)
 		}
-		c.dbParams.ConnMaxLifetime = time.Duration(i) * time.Minute
+		c.DbParams.ConnMaxLifetime = time.Duration(i) * time.Minute
 	}
 
 	if c.DbConnMaxIdleTime == "" {
-		c.dbParams.ConnMaxIdleTime = defaultDbConnMaxIdleTime * time.Minute
+		c.DbParams.ConnMaxIdleTime = defaultDbConnMaxIdleTime * time.Minute
 	} else {
 		i, err := strconv.Atoi(c.DbConnMaxIdleTime)
 		if err != nil {
 			return fmt.Errorf("failed to set DB parameter ConnMaxIdleTime: %v", err)
 		}
-		c.dbParams.ConnMaxIdleTime = time.Duration(i) * time.Minute
+		c.DbParams.ConnMaxIdleTime = time.Duration(i) * time.Minute
 	}
 
 	return nil
 }
 
-func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
+func (c *Config) LoadServerTLSCertificates(serverTLSCertFile string) error {
 	fileHandle, err := os.Open(serverTLSCertFile)
 	if err != nil {
 		return err
@@ -297,7 +304,7 @@ func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
 	}
 	log.Infof("found %d entries in file %s", len(serverTLSCertBuffer), serverTLSCertFile)
 
-	c.serverTLSCertFingerprints = make(map[string][32]byte)
+	c.ServerTLSCertFingerprints = make(map[string][32]byte)
 
 	for host, cert := range serverTLSCertBuffer {
 		x509cert, err := x509.ParseCertificate(cert)
@@ -307,7 +314,7 @@ func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
 		}
 
 		fingerprint := sha256.Sum256(x509cert.RawSubjectPublicKeyInfo)
-		c.serverTLSCertFingerprints[host] = fingerprint
+		c.ServerTLSCertFingerprints[host] = fingerprint
 	}
 
 	return nil

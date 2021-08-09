@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package repository
 
 import (
 	"database/sql"
 	"fmt"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,19 +55,14 @@ type DatabaseManager struct {
 	tableName string
 }
 
-type DatabaseParams struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	ConnMaxIdleTime time.Duration
-}
+
 
 // Ensure Database implements the ContextManager interface
 var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabaseParams) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *config.DatabaseParams) (*DatabaseManager, error) {
 	log.Infof("preparing postgres usage")
 
 	pg, err := sql.Open(PostgreSql, dataSourceName)
@@ -109,7 +106,7 @@ func (dm *DatabaseManager) Close() {
 	}
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
+func (dm *DatabaseManager) StoreNewIdentity(id ent.Identity) error {
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, public_key, auth) VALUES ($1, $2, $3);",
 		dm.tableName)
@@ -125,8 +122,8 @@ func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
 	return nil
 }
 
-func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
-	var id Identity
+func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (ent.Identity, error) {
+	var id ent.Identity
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 

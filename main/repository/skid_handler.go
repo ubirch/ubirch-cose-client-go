@@ -1,10 +1,11 @@
-package main
+package repository
 
 import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/ubirch/ubirch-cose-client-go/main/client"
 	"sync"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type GetCertificateList func() ([]Certificate, error)
+type GetCertificateList func() ([]client.Certificate, error)
 type EncodePublicKey func(pub interface{}) (pemEncoded []byte, err error)
 type GetUuid func(pubKey []byte) (uuid.UUID, error)
 

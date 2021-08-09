@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package repository
 
 import (
 	"context"
 	"encoding/pem"
 	"fmt"
-
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 )
 
 type IdentityHandler struct {
 	*Protocol
-	subjectCountry      string
-	subjectOrganization string
+	SubjectCountry      string
+	SubjectOrganization string
 }
 
 func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth string) ([]byte, error) {
@@ -53,7 +53,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth 
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}
@@ -65,12 +65,12 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth 
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
-	pwHash, err := i.pwHasher.GeneratePasswordHash(ctx, auth, i.pwHasherParams)
+	pwHash, err := i.PwHasher.GeneratePasswordHash(ctx, auth, i.pwHasherParams)
 	if err != nil {
 		return nil, err
 	}
 
-	identity := Identity{
+	identity := ent.Identity{
 		Uid:          uid,
 		PublicKeyPEM: pubKeyPEM,
 		Auth:         pwHash,
@@ -97,7 +97,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}

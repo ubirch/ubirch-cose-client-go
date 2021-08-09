@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package repository
 
 import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 	"sync"
 
 	"github.com/google/uuid"
@@ -37,7 +38,7 @@ type Protocol struct {
 	ubirch.Crypto
 	ctxManager ContextManager
 
-	pwHasher       *pw.Argon2idKeyDerivator
+	PwHasher       *pw.Argon2idKeyDerivator
 	pwHasherParams *pw.Argon2idParams
 
 	identityCache *sync.Map // {<uid>: <*identity>}
@@ -58,7 +59,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, maxTotalMem ui
 		Crypto:     crypto,
 		ctxManager: ctxManager,
 
-		pwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
+		PwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
 		pwHasherParams: argon2idParams,
 
 		identityCache: &sync.Map{},
@@ -66,7 +67,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, maxTotalMem ui
 	}
 }
 
-func (p *Protocol) StoreNewIdentity(id Identity) error {
+func (p *Protocol) StoreNewIdentity(id ent.Identity) error {
 	err := checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
@@ -83,11 +84,11 @@ func (p *Protocol) StoreNewIdentity(id Identity) error {
 	return err
 }
 
-func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
+func (p *Protocol) GetIdentity(uid uuid.UUID) (id ent.Identity, err error) {
 	_id, found := p.identityCache.Load(uid)
 
 	if found {
-		id, found = _id.(Identity)
+		id, found = _id.(ent.Identity)
 	}
 
 	if !found {
@@ -102,7 +103,7 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
 	return id, nil
 }
 
-func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err error) {
+func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id ent.Identity, err error) {
 	for i := 0; i < maxDbConnAttempts; i++ {
 		id, err = p.ctxManager.GetIdentity(uid)
 		if err != nil && isConnectionNotAvailable(err) {
@@ -168,7 +169,7 @@ func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
 	return true, nil
 }
 
-func checkIdentityAttributesNotNil(i *Identity) error {
+func checkIdentityAttributesNotNil(i *ent.Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}

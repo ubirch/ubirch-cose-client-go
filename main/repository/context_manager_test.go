@@ -1,6 +1,7 @@
-package main
+package repository
 
 import (
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"testing"
 )
 
@@ -10,9 +11,9 @@ func TestGetCtxManagerDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{
+	conf := &config.Config{
 		PostgresDSN: dbConf.PostgresDSN,
-		dbParams:    dbConf.dbParams,
+		DbParams:    dbConf.dbParams,
 	}
 
 	ctxMngr, err := GetCtxManager(conf)
@@ -29,7 +30,7 @@ func TestGetCtxManagerDB(t *testing.T) {
 }
 
 func TestGetCtxManagerFile(t *testing.T) {
-	conf := &Config{}
+	conf := &config.Config{}
 
 	expectedErr := "file-based context management is not supported in the current version"
 

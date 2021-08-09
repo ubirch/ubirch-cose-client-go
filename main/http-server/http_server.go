@@ -3,9 +3,13 @@ package http_server
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
+	repo "github.com/ubirch/ubirch-cose-client-go/main/repository"
 	"net/http"
 	"path"
-	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -14,28 +18,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	GatewayTimeout  = 90 * time.Second // time after which a 504 response will be sent if no timely response could be produced
-	ShutdownTimeout = 25 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
-	ReadTimeout     = 1 * time.Second  // maximum duration for reading the entire request -> low since we only expect requests with small content
-	WriteTimeout    = 99 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
-	IdleTimeout     = 60 * time.Second // time to wait for the next request when keep-alives are enabled
 
-	UUIDKey          = "uuid"
-	CBORPath         = "/cbor"
-	HashEndpoint     = "/hash"
-	RegisterEndpoint = "/register"
-	CSREndpoint      = "/csr"
 
-	BinType  = "application/octet-stream"
-	TextType = "text/plain"
-	JSONType = "application/json"
-	CBORType = "application/cbor"
-
-	AuthHeader = "X-Auth-Token"
-)
-
-var UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)
+var UUIDPath = fmt.Sprintf("/{%s}", h.UUIDKey)
 
 type Service interface {
 	HandleRequest(w http.ResponseWriter, r *http.Request)
@@ -60,7 +45,7 @@ type HTTPServer struct {
 
 func NewRouter() *chi.Mux {
 	router := chi.NewMux()
-	router.Use(middleware.Timeout(GatewayTimeout))
+	router.Use(middleware.Timeout(h.GatewayTimeout))
 	return router
 }
 
@@ -77,7 +62,7 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 }
 
 func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
+	hashEndpointPath := path.Join(endpoint.Path, h.HashEndpoint)
 
 	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
 	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
@@ -86,32 +71,19 @@ func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
 	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
 }
 
-func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.CancelFunc) error {
+func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
 	server := &http.Server{
 		Addr:         srv.Addr,
 		Handler:      srv.Router,
-		ReadTimeout:  ReadTimeout,
-		WriteTimeout: WriteTimeout,
-		IdleTimeout:  IdleTimeout,
+		ReadTimeout:  h.ReadTimeout,
+		WriteTimeout: h.WriteTimeout,
+		IdleTimeout:  h.IdleTimeout,
 	}
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
-	go func() {
-		<-cancelCtx.Done()
-		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
-
-		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, ShutdownTimeout)
-		defer shutdownCancel()
-
-		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {
-			log.Warnf("could not gracefully shut down server: %s", err)
-		} else {
-			log.Debug("shut down HTTP server")
-		}
-	}()
+	go shutdownServer(cancelCtx, server, shutdownCtx, shutdownCancel)
 
 	log.Infof("starting HTTP server")
-	serverReady()
 
 	var err error
 	if srv.TLS {
@@ -126,4 +98,78 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.Canc
 	// wait for server to shut down gracefully
 	<-shutdownCtx.Done()
 	return nil
+}
+
+func shutdownServer(cancelCtx context.Context, server *http.Server, shutdownCtx context.Context, shutdownCancel context.CancelFunc) {
+	<-cancelCtx.Done()
+	server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
+
+	shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, h.ShutdownTimeout)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {
+		log.Warnf("could not gracefully shut down server: %s", err)
+	} else {
+		log.Debug("shut down HTTP server")
+	}
+}
+
+func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol) HTTPServer {
+	// set up HTTP server
+	httpServer := HTTPServer{
+		Router:   NewRouter(),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
+
+	// set up metrics
+	prom.InitPromMetrics(httpServer.Router)
+
+	// set up endpoint for liveliness checks
+	httpServer.Router.Get("/healtz", h.Health(serverID))
+
+	idHandler := &repo.IdentityHandler{
+		Protocol:            protocol,
+		SubjectCountry:      conf.CSR_Country,
+		SubjectOrganization: conf.CSR_Organization,
+	}
+
+	coseSigner, err := repo.NewCoseSigner(protocol.SignHash, getSKID) // FIXME
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	service := &repo.COSEService{
+		CoseSigner:  coseSigner,
+		GetIdentity: protocol.GetIdentity,
+		CheckAuth:   protocol.PwHasher.CheckPassword,
+	}
+
+	// set up endpoint for identity registration
+	httpServer.Router.Put(h.RegisterEndpoint, Register(conf.RegisterAuth, idHandler.InitIdentity))
+
+	// set up endpoint for CSRs
+	fetchCSREndpoint := path.Join(UUIDPath, h.CSREndpoint) // /<uuid>/csr
+	httpServer.Router.Get(fetchCSREndpoint, FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
+
+	// set up endpoints for COSE signing (UUID as URL parameter)
+	directUuidEndpoint := path.Join(UUIDPath, h.CBORPath) // /<uuid>/cbor
+	httpServer.Router.Post(directUuidEndpoint, service.HandleRequest(repo.GetUUIDFromURL, repo.GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
+
+	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
+	httpServer.Router.Post(directUuidHashEndpoint, service.HandleRequest(repo.GetUUIDFromURL, repo.GetHashFromHashRequest()))
+
+	// set up endpoint for readiness checks
+	httpServer.Router.Get("/readiness", h.Health(serverID))
+	log.Info("ready")
+
+	log.Warnf("USING MOCK SKID") // FIXME
+	return httpServer
+}
+
+func getSKID(uuid.UUID) ([]byte, error) {
+	log.Warnf("USING MOCK SKID")
+	return make([]byte, 8), nil
 }

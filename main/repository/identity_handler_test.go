@@ -1,4 +1,4 @@
-package main
+package repository
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
@@ -28,8 +28,8 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		subjectCountry:      "AA",
-		subjectOrganization: "test GmbH",
+		SubjectCountry:      "AA",
+		SubjectOrganization: "test GmbH",
 	}
 
 	err := p.Crypto.GenerateKey(test.Uuid)
@@ -47,7 +47,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := p.pwHasher.CheckPassword(context.Background(), test.Auth, initializedIdentity.Auth)
+	ok, err := p.PwHasher.CheckPassword(context.Background(), test.Auth, initializedIdentity.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,8 +89,8 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		subjectCountry:      "AA",
-		subjectOrganization: "test GmbH",
+		SubjectCountry:      "AA",
+		SubjectOrganization: "test GmbH",
 	}
 
 	err := p.Crypto.GenerateKey(test.Uuid)
@@ -126,8 +126,8 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		subjectCountry:      "AA",
-		subjectOrganization: "test GmbH",
+		SubjectCountry:      "AA",
+		SubjectOrganization: "test GmbH",
 	}
 
 	_, err := idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
