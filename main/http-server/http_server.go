@@ -10,6 +10,7 @@ import (
 	repo "github.com/ubirch/ubirch-cose-client-go/main/repository"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -43,9 +44,10 @@ type HTTPServer struct {
 	KeyFile  string
 }
 
-func NewRouter() *chi.Mux {
+func NewRouter(limit, backlogLimit int) *chi.Mux {
 	router := chi.NewMux()
 	router.Use(middleware.Timeout(h.GatewayTimeout))
+	router.Use(middleware.ThrottleBacklog(limit, backlogLimit, time.Second))
 	return router
 }
 
@@ -117,7 +119,7 @@ func shutdownServer(cancelCtx context.Context, server *http.Server, shutdownCtx 
 func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol) HTTPServer {
 	// set up HTTP server
 	httpServer := HTTPServer{
-		Router:   NewRouter(),
+		Router:   NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,

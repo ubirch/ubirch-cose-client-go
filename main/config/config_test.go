@@ -8,7 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const expectedConfig = `{"registerAuth":"","env":"","pkcs11Module":"","pkcs11ModulePin":"","pkcs11ModuleSlotNr":0,"postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"kdMaxTotalMemMiB":0,"kdParamMemMiB":0,"kdParamTime":0,"ServerTLSCertFingerprints":null,"DbParams":null,"KdParams":null}`
+const expectedConfig = `{"registerAuth":"","env":"","pkcs11Module":"","pkcs11ModulePin":"","pkcs11ModuleSlotNr":0,"postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"kdMaxTotalMemMiB":0,"kdParamMemMiB":0,"kdParamTime":0,"requestLimit":0,"requestBacklogLimit":0,"ServerTLSCertFingerprints":null,"DbParams":null,"KdParams":null}`
 
 func TestConfig(t *testing.T) {
 	configBytes := []byte(expectedConfig)
@@ -33,7 +33,7 @@ func TestConfig(t *testing.T) {
 
 func TestConfig_Load_Full(t *testing.T) {
 	conf := &Config{}
-	err := conf.Load("", "example_config.json")
+	err := conf.Load("./config", "example_config.json")
 	if err != nil {
 		t.Errorf("unable to load configuration: %s", err)
 	}
@@ -42,7 +42,7 @@ func TestConfig_Load_Full(t *testing.T) {
 
 func TestConfig_Load_Min(t *testing.T) {
 	conf := &Config{}
-	err := conf.Load("", "example_config_min.json")
+	err := conf.Load("./config", "example_config_min.json")
 	if err != nil {
 		t.Errorf("unable to load configuration: %s", err)
 	}

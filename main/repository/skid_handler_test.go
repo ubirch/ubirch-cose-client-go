@@ -164,7 +164,7 @@ var certs []client.Certificate
 
 func mockGetCertificateList() ([]client.Certificate, error) {
 	if len(certs) == 0 {
-		filename := "test-cert-list.json"
+		filename := "../config/certs/test-cert-list.json"
 		fileHandle, err := os.Open(filename)
 		if err != nil {
 			return nil, err

@@ -144,7 +144,7 @@ type dbConfig struct {
 }
 
 func getDatabaseConfig() (*dbConfig, error) {
-	configFileName := "config.json"
+	configFileName := "../config/config.json"
 	fileHandle, err := os.Open(configFileName)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("%v \n"+
