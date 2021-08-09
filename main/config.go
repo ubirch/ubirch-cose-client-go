@@ -57,8 +57,8 @@ const (
 	defaultKeyDerivationParamKeyLen    = 24
 	defaultKeyDerivationParamSaltLen   = 16
 
-	defaultRequestLimit        = 100
-	defaultRequestBacklogLimit = 100
+	defaultRequestLimit        = 200
+	defaultRequestBacklogLimit = 200
 )
 
 type Config struct {
