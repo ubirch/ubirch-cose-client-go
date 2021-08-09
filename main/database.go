@@ -27,7 +27,7 @@ import (
 
 const (
 	PostgreSql                  string = "postgres"
-	PostgreSqlIdentityTableName string = "cose_identity_hsm_test" // FIXME
+	PostgreSqlIdentityTableName string = "cose_identity_hsm"
 )
 
 const (
