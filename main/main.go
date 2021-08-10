@@ -125,7 +125,7 @@ func main() {
 
 	// initialize COSE service
 	cryptoCtx := &ubirch.ECDSAPKCS11CryptoContext{}
-	attempts := 10
+	attempts := 9
 	sleep := 125 * time.Millisecond
 	for i := 0; i < attempts; i++ {
 		if i > 0 {
