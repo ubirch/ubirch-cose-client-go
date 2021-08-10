@@ -194,6 +194,9 @@ func main() {
 		KeyFile:  conf.TLS_KeyFile,
 	}
 
+	// set up metrics
+	prom.InitPromMetrics(httpServer.Router)
+
 	// set up endpoint for identity registration
 	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
 
@@ -207,9 +210,6 @@ func main() {
 
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
 	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
-
-	// set up metrics
-	prom.InitPromMetrics(httpServer.Router)
 
 	// set up endpoints for liveliness and readiness checks
 	httpServer.Router.Get("/healtz", h.Health(serverID))
