@@ -29,7 +29,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
@@ -124,37 +123,6 @@ func main() {
 		runtime.SetBlockProfileRate(1)
 	}
 
-	// create a waitgroup that contains all asynchronous operations
-	// a cancellable context is used to stop the operations gracefully
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
-
-	// set up graceful shutdown handling
-	go shutdown(cancel)
-
-	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
-
-	// start HTTP server
-	serverReadyCtx, serverReady := context.WithCancel(context.Background())
-	g.Go(func() error {
-		return httpServer.Serve(ctx, serverReady)
-	})
-	// wait for server to start
-	<-serverReadyCtx.Done()
-
-	// set up metrics
-	prom.InitPromMetrics(httpServer.Router)
-
-	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(serverID))
-
 	// initialize COSE service
 	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(
 		conf.PKCS11Module,
@@ -200,11 +168,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Warnf("USING MOCK SKID") // FIXME
 
 	service := &COSEService{
 		CoseSigner:  coseSigner,
 		GetIdentity: protocol.GetIdentity,
 		CheckAuth:   protocol.pwHasher.CheckPassword,
+	}
+
+	// set up HTTP server
+	httpServer := h.HTTPServer{
+		Router:   h.NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
 	}
 
 	// set up endpoint for identity registration
@@ -221,14 +199,19 @@ func main() {
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
 	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
 
-	// set up endpoint for readiness checks
+	// set up metrics
+	prom.InitPromMetrics(httpServer.Router)
+
+	// set up endpoints for liveliness and readiness checks
+	httpServer.Router.Get("/healtz", h.Health(serverID))
 	httpServer.Router.Get("/readiness", h.Health(serverID))
-	log.Info("ready")
 
-	log.Warnf("USING MOCK SKID") // FIXME
+	// set up graceful shutdown handling
+	ctx, cancel := context.WithCancel(context.Background())
+	go shutdown(cancel)
 
-	// wait for all go routines of the waitgroup to return
-	if err = g.Wait(); err != nil {
+	// start HTTP server (blocks)
+	if err = httpServer.Serve(ctx); err != nil {
 		log.Error(err)
 	}
 
