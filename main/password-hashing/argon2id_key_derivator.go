@@ -9,8 +9,11 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/sync/semaphore"
+
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const stdEncodingFormat = "$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s"
@@ -80,7 +83,9 @@ func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck str
 		defer kd.sem.Release(int64(p.Memory))
 	}
 
+	timer := prometheus.NewTimer(prom.AuthCheckDuration)
 	hashToCheck := argon2.IDKey([]byte(pwToCheck), salt, p.Time, p.Memory, p.Threads, p.KeyLen)
+	timer.ObserveDuration()
 
 	return bytes.Equal(hash, hashToCheck), nil
 }

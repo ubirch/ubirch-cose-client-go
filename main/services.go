@@ -24,7 +24,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
@@ -78,9 +77,7 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		ctx := r.Context()
 		auth := r.Header.Get(h.AuthHeader)
 
-		timer := prometheus.NewTimer(prom.AuthCheckDuration)
 		authOk, err := s.CheckAuth(ctx, auth, identity.Auth)
-		timer.ObserveDuration()
 
 		if err != nil {
 			log.Errorf("%s: password check failed: %v", uid, err)
