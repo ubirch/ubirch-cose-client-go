@@ -124,15 +124,24 @@ func main() {
 	}
 
 	// initialize COSE service
-	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(
-		conf.PKCS11Module,
-		conf.PKCS11ModulePin,
-		conf.PKCS11ModuleSlotNr,
-		true,
-		1,
-		50*time.Millisecond)
+	cryptoCtx := &ubirch.ECDSAPKCS11CryptoContext{}
+	attempts := 10
+	sleep := 125 * time.Millisecond
+	for i := 0; i < attempts; i++ {
+		if i > 0 {
+			log.Warnf("PKCS#11 crypto context (HSM) initialization failed: %v", err)
+			log.Infof("retry crypto context initialization in %s", sleep.String())
+			time.Sleep(sleep)
+			sleep *= 2
+		}
+		cryptoCtx, err = ubirch.NewECDSAPKCS11CryptoContext(conf.PKCS11Module, conf.PKCS11ModulePin,
+			conf.PKCS11ModuleSlotNr, true, 1, 50*time.Millisecond)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
-		log.Fatalf("failed to initialize ECDSA PKCS#11 crypto context (HSM): %v", err)
+		log.Fatalf("failed to initialize PKCS#11 crypto context (HSM): %v", err)
 	}
 	defer func() {
 		err := cryptoCtx.Close()
