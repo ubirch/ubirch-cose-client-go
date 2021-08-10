@@ -25,6 +25,7 @@ const (
 	RegisterEndpoint = "/register"
 	CSREndpoint      = "/csr"
 
+	ContentTypeKey = "Content-Type"
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
 	JSONType = "application/json"
@@ -40,7 +41,7 @@ var (
 
 // ContentType is a helper function to get "Content-Type" from request header
 func ContentType(header http.Header) string {
-	return strings.ToLower(header.Get("Content-Type"))
+	return strings.ToLower(header.Get(ContentTypeKey))
 }
 
 // ContentEncoding is a helper function to get "Content-Transfer-Encoding" from request header

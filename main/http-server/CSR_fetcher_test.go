@@ -22,7 +22,7 @@ func TestFetchCSR(t *testing.T) {
 		callerUrl string
 		auth      string
 		getCsR    GetCSR
-		tcChecks  func(recorder *httptest.ResponseRecorder)
+		tcChecks  func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
 			name:      "happy path",
@@ -31,7 +31,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return uid.NodeID(), nil
 			},
-			tcChecks: func(recorder *httptest.ResponseRecorder) {
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, testUuid.NodeID(), recorder.Body.Bytes())
 				require.Equal(t, http.StatusOK, recorder.Code)
 			},
@@ -43,7 +43,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return uid.NodeID(), nil
 			},
-			tcChecks: func(recorder *httptest.ResponseRecorder) {
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized))
 				require.Equal(t, http.StatusUnauthorized, recorder.Code)
 			},
@@ -55,7 +55,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return uid.NodeID(), nil
 			},
-			tcChecks: func(recorder *httptest.ResponseRecorder) {
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), "invalid UUID")
 				require.Equal(t, http.StatusNotFound, recorder.Code)
 			},
@@ -67,7 +67,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return nil, h.ErrUnknown
 			},
-			tcChecks: func(recorder *httptest.ResponseRecorder) {
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), "unknown identity")
 				require.Equal(t, http.StatusNotFound, recorder.Code)
 			},
@@ -79,7 +79,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return nil, errors.New("unknown error")
 			},
-			tcChecks: func(recorder *httptest.ResponseRecorder) {
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.NotEmpty(t, recorder.Body.String())
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
 			},
@@ -96,7 +96,7 @@ func TestFetchCSR(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, c.callerUrl, nil)
 			req.Header.Add(h.AuthHeader, c.auth)
 			router.ServeHTTP(recorder, req)
-			c.tcChecks(recorder)
+			c.tcChecks(t, recorder)
 		})
 	}
 
