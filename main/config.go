@@ -143,9 +143,16 @@ func (c *Config) loadFile(filename string) error {
 	if err != nil {
 		return err
 	}
-	defer fileHandle.Close()
 
-	return json.NewDecoder(fileHandle).Decode(c)
+	err = json.NewDecoder(fileHandle).Decode(c)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			log.Error(fileCloseErr)
+		}
+		return err
+	}
+
+	return fileHandle.Close()
 }
 
 func (c *Config) checkMandatory() error {
@@ -274,11 +281,18 @@ func (c *Config) loadServerTLSCertificates() error {
 	if err != nil {
 		return err
 	}
-	defer fileHandle.Close()
 
 	serverTLSCertBuffer := make(map[string][]byte)
 
 	err = json.NewDecoder(fileHandle).Decode(&serverTLSCertBuffer)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			log.Error(fileCloseErr)
+		}
+		return err
+	}
+
+	err = fileHandle.Close()
 	if err != nil {
 		return err
 	}

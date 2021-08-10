@@ -190,10 +190,17 @@ func getDatabaseConfig() (*dbConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer fileHandle.Close()
 
 	c := &dbConfig{}
 	err = json.NewDecoder(fileHandle).Decode(c)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			fmt.Print(fileCloseErr)
+		}
+		return nil, err
+	}
+
+	err = fileHandle.Close()
 	if err != nil {
 		return nil, err
 	}

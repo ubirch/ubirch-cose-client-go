@@ -138,10 +138,17 @@ func mockGetCertificateList() ([]Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer fileHandle.Close()
 
 	var certs []Certificate
 	err = json.NewDecoder(fileHandle).Decode(&certs)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			fmt.Print(fileCloseErr)
+		}
+		return nil, err
+	}
+
+	err = fileHandle.Close()
 	if err != nil {
 		return nil, err
 	}
