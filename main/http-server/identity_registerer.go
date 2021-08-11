@@ -8,8 +8,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-
 	log "github.com/sirupsen/logrus"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
@@ -48,9 +46,7 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 			return
 		}
 
-		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
 		csr, err := initialize(r.Context(), uid, idPayload.Pwd)
-		timer.ObserveDuration()
 		if err != nil {
 			errMsg := fmt.Errorf("identity registration failed: %v", err)
 			switch err {
