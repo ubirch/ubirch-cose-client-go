@@ -63,32 +63,32 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		//identity, err := s.GetIdentity(uid)
-		//if err == ErrNotExist {
-		//	h.Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
-		//	return
-		//}
-		//if err != nil {
-		//	log.Errorf("%s: %v", uid, err)
-		//	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		//	return
-		//}
+		identity, err := s.GetIdentity(uid)
+		if err == ErrNotExist {
+			h.Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			log.Errorf("%s: %v", uid, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 
 		ctx := r.Context()
-		//auth := r.Header.Get(h.AuthHeader)
-		//
-		//authOk, err := s.CheckAuth(ctx, auth, identity.Auth)
-		//
-		//if err != nil {
-		//	log.Errorf("%s: password check failed: %v", uid, err)
-		//	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		//	return
-		//}
-		//
-		//if !authOk {
-		//	h.Error(uid, w, fmt.Errorf(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
-		//	return
-		//}
+		auth := r.Header.Get(h.AuthHeader)
+
+		authOk, err := s.CheckAuth(ctx, auth, identity.Auth)
+
+		if err != nil {
+			log.Errorf("%s: password check failed: %v", uid, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		if !authOk {
+			h.Error(uid, w, fmt.Errorf(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+			return
+		}
 
 		msg := HTTPRequest{ID: uid}
 
