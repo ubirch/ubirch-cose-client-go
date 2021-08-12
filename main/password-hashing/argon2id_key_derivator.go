@@ -76,6 +76,8 @@ func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck str
 	}
 
 	if kd.sem != nil {
+		timerWait := prometheus.NewTimer(prom.AuthCheckWithWaitDuration)
+		defer timerWait.ObserveDuration()
 		err = kd.sem.Acquire(ctx, int64(p.Memory))
 		if err != nil {
 			return false, fmt.Errorf("failed to acquire semaphore for key derivation: %v", err)
@@ -83,9 +85,9 @@ func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck str
 		defer kd.sem.Release(int64(p.Memory))
 	}
 
-	timer := prometheus.NewTimer(prom.AuthCheckDuration)
+	timerAuth := prometheus.NewTimer(prom.AuthCheckDuration)
+	defer timerAuth.ObserveDuration()
 	hashToCheck := argon2.IDKey([]byte(pwToCheck), salt, p.Time, p.Memory, p.Threads, p.KeyLen)
-	timer.ObserveDuration()
 
 	return bytes.Equal(hash, hashToCheck), nil
 }
