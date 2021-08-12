@@ -18,7 +18,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"path"
@@ -34,8 +33,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
-
-	_ "net/http/pprof" //FIXME this must be removed as it exposes debugging info via http
 )
 
 // handle graceful shutdown
@@ -78,14 +75,6 @@ var (
 )
 
 func main() {
-
-	//fixme////////////////////////////////////////////
-	// start pprof server
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-	//fixme////////////////////////////////////////////
-
 	const (
 		serviceName = "cose-client"
 		configFile  = "config.json"
