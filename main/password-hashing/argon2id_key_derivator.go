@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"runtime"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,8 +28,8 @@ func NewArgon2idKeyDerivator(maxTotalMemMiB uint32) *Argon2idKeyDerivator {
 }
 
 type Argon2idParams struct {
-	Time    uint32 // the time parameter specifies the number of passes over the memory
 	Memory  uint32 // the memory parameter specifies the size of the memory in KiB
+	Time    uint32 // the time parameter specifies the number of passes over the memory
 	Threads uint8  // the threads parameter specifies the number of threads and can be adjusted to the numbers of available CPUs
 	KeyLen  uint32 // the length of the resulting derived key in byte
 	SaltLen uint32 // the length of the random salt in byte
@@ -38,9 +37,9 @@ type Argon2idParams struct {
 
 func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
 	return &Argon2idParams{
-		Time:    1,                           // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-argon2-03#section-9.3
-		Memory:  32 * 1024,                   // 32 MB
-		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
+		Memory:  15 * 1024,
+		Time:    2,
+		Threads: 2,
 		KeyLen:  24,
 		SaltLen: 16,
 	}

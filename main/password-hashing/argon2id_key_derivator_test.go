@@ -89,8 +89,8 @@ func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
 	kd := &Argon2idKeyDerivator{}
 
 	params := &Argon2idParams{
+		Memory:  37 * 1024,
 		Time:    1,
-		Memory:  64 * 1024,
 		Threads: 4,
 		KeyLen:  24,
 		SaltLen: 16,
