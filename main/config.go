@@ -51,14 +51,14 @@ const (
 	defaultPKCS11Module = "libcs_pkcs11_R3.so"
 
 	defaultKeyDerivationMaxTotalMemory   = 64
-	defaultKeyDerivationParamMemory      = 4
-	defaultKeyDerivationParamTime        = 16
-	defaultKeyDerivationParamParallelism = 2
+	defaultKeyDerivationParamMemory      = 16
+	defaultKeyDerivationParamTime        = 2
+	defaultKeyDerivationParamParallelism = 8
 	defaultKeyDerivationParamKeyLen      = 24
 	defaultKeyDerivationParamSaltLen     = 16
 
-	defaultRequestLimit        = 200 // 100
-	defaultRequestBacklogLimit = 100 // 50
+	defaultRequestLimit        = 100
+	defaultRequestBacklogLimit = 50
 )
 
 type Config struct {
