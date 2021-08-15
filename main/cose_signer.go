@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
@@ -72,6 +73,7 @@ type GetSKID func(uid uuid.UUID) ([]byte, error)
 type CoseSigner struct {
 	encMode         cbor.EncMode
 	protectedHeader []byte
+	signMtx         sync.Mutex
 	SignHash
 	GetSKID
 }
@@ -96,6 +98,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	return &CoseSigner{
 		encMode:         encMode,
 		protectedHeader: protectedHeaderAlgES256CBOR,
+		signMtx:         sync.Mutex{},
 		SignHash:        sign,
 		GetSKID:         skid,
 	}, nil
@@ -125,9 +128,16 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 }
 
 func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
-	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
+	timerWait := prometheus.NewTimer(prom.SignatureCreationWithWaitDuration)
+	c.signMtx.Lock()
+
+	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
 	signature, err := c.SignHash(uid, hash[:])
-	timer.ObserveDuration()
+
+	c.signMtx.Unlock()
+	timerWait.ObserveDuration()
+	timerSign.ObserveDuration()
+
 	if err != nil {
 		return nil, err
 	}

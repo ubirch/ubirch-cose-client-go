@@ -68,6 +68,13 @@ var SignatureCreationDuration = promauto.NewHistogram(
 		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .075, .1, .25, .5, 1, 2.5, 5},
 	})
 
+var SignatureCreationWithWaitDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "signature_creation_with_wait_duration",
+		Help:    "Duration of the creation of a signed object including waiting time for mutex",
+		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .075, .1, .25, .5, 1, 2.5, 5},
+	})
+
 var AuthCheckDuration = promauto.NewHistogram(
 	prometheus.HistogramOpts{
 		Name:    "auth_check_duration",
