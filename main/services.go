@@ -91,7 +91,7 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		msg := HTTPRequest{ID: uid}
+		msg := HTTPRequest{ID: uid, Ctx: ctx}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {

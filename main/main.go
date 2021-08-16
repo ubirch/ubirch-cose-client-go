@@ -228,6 +228,5 @@ func main() {
 }
 
 func getSKID(uuid.UUID) ([]byte, error) {
-	log.Warnf("USING MOCK SKID")
 	return make([]byte, 8), nil
 }
