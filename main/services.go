@@ -43,6 +43,7 @@ type HTTPRequest struct {
 	ID      uuid.UUID
 	Hash    Sha256Sum
 	Payload []byte
+	Ctx     context.Context
 }
 
 type COSEService struct {

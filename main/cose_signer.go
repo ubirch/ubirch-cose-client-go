@@ -15,15 +15,16 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
@@ -73,7 +74,7 @@ type GetSKID func(uid uuid.UUID) ([]byte, error)
 type CoseSigner struct {
 	encMode         cbor.EncMode
 	protectedHeader []byte
-	signMtx         sync.Mutex
+	signSem         *semaphore.Weighted
 	SignHash
 	GetSKID
 }
@@ -98,7 +99,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	return &CoseSigner{
 		encMode:         encMode,
 		protectedHeader: protectedHeaderAlgES256CBOR,
-		signMtx:         sync.Mutex{},
+		signSem:         semaphore.NewWeighted(1),
 		SignHash:        sign,
 		GetSKID:         skid,
 	}, nil
@@ -113,7 +114,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 		return h.ErrorResponse(http.StatusBadRequest, err.Error())
 	}
 
-	cose, err := c.createSignedCOSE(msg.ID, msg.Hash, skid, msg.Payload)
+	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
 		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
 		return h.ErrorResponse(http.StatusInternalServerError, "")
@@ -127,14 +128,19 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 	}
 }
 
-func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
+func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
 	timerWait := prometheus.NewTimer(prom.SignatureCreationWithWaitDuration)
-	c.signMtx.Lock()
+
+	err := c.signSem.Acquire(ctx, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire semaphore for signing: %v", err)
+	}
 
 	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
+
 	signature, err := c.SignHash(uid, hash[:])
 
-	c.signMtx.Unlock()
+	c.signSem.Release(1)
 	timerWait.ObserveDuration()
 	timerSign.ObserveDuration()
 
