@@ -62,7 +62,7 @@ func TestRegister(t *testing.T) {
 			auth:        testAuth,
 			contentType: h.JSONType,
 			body: IdentityPayload{
-				Uid: "no uuid",
+				Uid: "bad uuid",
 				Pwd: "pass",
 			},
 			initId: func(ctx context.Context, uid uuid.UUID, auth string) (csr []byte, err error) {
@@ -70,6 +70,38 @@ func TestRegister(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), "invalid UUID")
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+			},
+		},
+		{
+			name:        "no uuid",
+			auth:        testAuth,
+			contentType: h.JSONType,
+			body: IdentityPayload{
+				Uid: "",
+				Pwd: "pass",
+			},
+			initId: func(ctx context.Context, uid uuid.UUID, auth string) (csr []byte, err error) {
+				return byteStr, nil
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Contains(t, recorder.Body.String(), "empty uuid")
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+			},
+		},
+		{
+			name:        "no password",
+			auth:        testAuth,
+			contentType: h.JSONType,
+			body: IdentityPayload{
+				Uid: uuid.NewString(),
+				Pwd: "",
+			},
+			initId: func(ctx context.Context, uid uuid.UUID, auth string) (csr []byte, err error) {
+				return byteStr, nil
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Contains(t, recorder.Body.String(), "empty password")
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 			},
 		},
@@ -85,8 +117,24 @@ func TestRegister(t *testing.T) {
 				return byteStr, nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized) )
+				require.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized))
 				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			},
+		},
+		{
+			name:        "conflict",
+			auth:        testAuth,
+			contentType: h.JSONType,
+			body: IdentityPayload{
+				Uid: uuid.NewString(),
+				Pwd: "pass",
+			},
+			initId: func(ctx context.Context, uid uuid.UUID, auth string) (csr []byte, err error) {
+				return nil, h.ErrAlreadyInitialized
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Contains(t, recorder.Body.String(), h.ErrAlreadyInitialized.Error())
+				require.Equal(t, http.StatusConflict, recorder.Code)
 			},
 		},
 	}
@@ -110,9 +158,3 @@ func TestRegister(t *testing.T) {
 		})
 	}
 }
-
-var body = `{
-	"uuid": "sdsd"
-	"password": "password"
-}
-`
