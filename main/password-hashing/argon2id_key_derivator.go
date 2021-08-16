@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -37,9 +38,9 @@ type Argon2idParams struct {
 
 func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
 	return &Argon2idParams{
-		Memory:  15 * 1024,
+		Memory:  15 * 1024, // https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
 		Time:    2,
-		Threads: 2,
+		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
 		KeyLen:  24,
 		SaltLen: 16,
 	}
