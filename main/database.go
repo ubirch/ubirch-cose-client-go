@@ -92,10 +92,14 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 		tableName: tableName,
 	}
 
-	_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
-	if err != nil {
+	if err = pg.Ping(); err != nil {
 		// if there is no connection to the database yet, continue anyway.
-		log.Warn(err)
+		log.Warnf("connection to the database could not yet be established: %v", err)
+	} else {
+		_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
+		if err != nil {
+			return nil, fmt.Errorf("creating DB table failed: %v", err)
+		}
 	}
 
 	return dm, nil
