@@ -19,6 +19,7 @@ RUN useradd \
     --uid 2000 cose-client
 USER cose-client
 COPY --from=builder app/main/main /opt/cose-client
+COPY --from=builder app/repository/migration /migration
 
 # Add utimaco library
 ENV LD_LIBRARY_PATH=/usr/local/lib/utimaco/

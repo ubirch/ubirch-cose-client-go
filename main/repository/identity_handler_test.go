@@ -57,12 +57,12 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 
 	data := []byte("test")
 
-	signature, err := p.Sign(test.Uuid, data)
+	signature, err := p.Crypto.Sign(test.Uuid, data)
 	if err != nil {
 		t.Fatalf("signing failed: %v", err)
 	}
 
-	verified, err := p.Verify(test.Uuid, data, signature)
+	verified, err := p.Crypto.Verify(test.Uuid, data, signature)
 	if err != nil {
 		t.Fatalf("verification failed: %v", err)
 	}

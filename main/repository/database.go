@@ -25,27 +25,15 @@ import (
 	"github.com/lib/pq"
 
 	log "github.com/sirupsen/logrus"
+
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 const (
 	PostgreSql                  string = "postgres"
 	PostgreSqlIdentityTableName string = "cose_identity_hsm"
 )
-
-const (
-	PostgresIdentity = iota
-)
-
-var create = map[int]string{
-	PostgresIdentity: "CREATE TABLE IF NOT EXISTS %s(" +
-		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
-		"public_key VARCHAR(255) NOT NULL, " +
-		"auth VARCHAR(255) NOT NULL);",
-}
-
-func CreateTable(tableType int, tableName string) string {
-	return fmt.Sprintf(create[tableType], tableName)
-}
 
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
@@ -55,17 +43,14 @@ type DatabaseManager struct {
 	tableName string
 }
 
-
-
 // Ensure Database implements the ContextManager interface
 var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *config.DatabaseParams) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(postgresDSN, tableName string, dbParams *config.DatabaseParams) (*DatabaseManager, error) {
 	log.Infof("preparing postgres usage")
-
-	pg, err := sql.Open(PostgreSql, dataSourceName)
+	pg, err := sql.Open(PostgreSql, postgresDSN)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +76,9 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *config.Datab
 		tableName: tableName,
 	}
 
-	_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
+	//_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
+	//TODO: change schema
+	err = RunMigrations("file://./migration", postgresDSN, "public")
 	if err != nil {
 		return nil, err
 	}

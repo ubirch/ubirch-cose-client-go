@@ -138,7 +138,7 @@ func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol) HT
 		SubjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := repo.NewCoseSigner(protocol.SignHash, getSKID) // FIXME
+	coseSigner, err := repo.NewCoseSigner(protocol.Crypto.SignHash, getSKID) // FIXME
 	if err != nil {
 		log.Fatal(err)
 	}

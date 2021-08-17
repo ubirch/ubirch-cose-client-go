@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	testTableName = "test_cose_identity"
+	testTableName = "cose_identity_hsm"
 	testLoad      = 100
 )
 
@@ -186,7 +186,7 @@ func initDB() (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t *testing.T, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", testTableName)
+	dropTableQuery := fmt.Sprintf("DELETE FROM %s;", testTableName)
 	_, err := dm.db.Exec(dropTableQuery)
 	if err != nil {
 		t.Error(err)

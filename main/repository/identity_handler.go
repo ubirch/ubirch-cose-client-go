@@ -44,7 +44,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth 
 		return nil, h.ErrAlreadyInitialized
 	}
 
-	keyExists, err := i.PrivateKeyExists(uid)
+	keyExists, err := i.Crypto.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
@@ -53,14 +53,14 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth 
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
+	csr, err := i.Crypto.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}
 
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-	pubKeyPEM, err := i.GetPublicKeyPEM(uid)
+	pubKeyPEM, err := i.Crypto.GetPublicKeyPEM(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
@@ -88,7 +88,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth 
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
-	keyExists, err := i.PrivateKeyExists(uid)
+	keyExists, err := i.Crypto.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
@@ -97,7 +97,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
+	csr, err := i.Crypto.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}

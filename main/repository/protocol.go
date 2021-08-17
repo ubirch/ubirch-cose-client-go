@@ -34,8 +34,21 @@ const (
 	maxDbConnAttempts = 5
 )
 
+//type Protocols interface {
+//	ContextManager
+//	StoreNewIdentity(id ent.Identity) error
+//	GetIdentity(uid uuid.UUID) (id ent.Identity, err error)
+//	fetchIdentityFromStorage(uid uuid.UUID) (id ent.Identity, err error)
+//	GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error)
+//	fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid uuid.UUID, err error)
+//	isInitialized(uid uuid.UUID) (initialized bool, err error)
+//}
+//
+//// Ensure Protocols implements the Protocol interface
+//var _ Protocols = (*Protocol)(nil)
+
 type Protocol struct {
-	ubirch.Crypto
+	Crypto ubirch.Crypto
 	ctxManager ContextManager
 
 	PwHasher       *pw.Argon2idKeyDerivator

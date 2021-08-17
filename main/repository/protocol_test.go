@@ -2,7 +2,10 @@ package repository
 
 import (
 	"bytes"
+	"github.com/golang/mock/gomock"
 	"github.com/ubirch/ubirch-cose-client-go/main/ent"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
+
 	"sync"
 	"testing"
 
@@ -10,7 +13,6 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestProtocol(t *testing.T) {
@@ -27,12 +29,12 @@ func TestProtocol(t *testing.T) {
 	}
 	defer p.Close()
 
-	err := p.GenerateKey(testUid)
+	err := p.Crypto.GenerateKey(testUid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyPEM(testUid)
+	pubKeyPEM, err := p.Crypto.GetPublicKeyPEM(testUid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,14 +271,18 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
 		Keystore: &test.MockKeystorer{},
 	}
+	by := make([]byte, 64)
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCtxMngr := test.NewMockContextManager(ctrl)
+
+	mockCtxMngr.EXPECT().GetUuidForPublicKey(by).Times(1).Return(uuid.Nil, ErrNotExist)
+	p := NewProtocol(cryptoCtx, mockCtxMngr, 10, &pw.Argon2idParams{})
 	defer p.Close()
 
-	_, err := p.GetUuidForPublicKey(make([]byte, 64))
-	if err == nil {
-		t.Error("GetUuidForPublicKey did not return error for invalid public key")
-	}
+	p.GetUuidForPublicKey(by)
 }
 
 type mockCtxMngr struct {
