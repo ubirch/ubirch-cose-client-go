@@ -282,4 +282,8 @@ func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
 	return m.id.Uid, nil
 }
 
+func (m *mockCtxMngr) IsRecoverable(error) bool {
+	return false
+}
+
 func (m *mockCtxMngr) Close() {}

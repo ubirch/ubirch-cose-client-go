@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	SkidLen           = 8
-	maxDbConnAttempts = 5
+	SkidLen             = 8
+	maxRecoveryAttempts = 1
 )
 
 type Protocol struct {
@@ -72,10 +72,10 @@ func (p *Protocol) StoreNewIdentity(id Identity) error {
 		return err
 	}
 
-	for i := 0; i < maxDbConnAttempts; i++ {
+	for i := 0; i <= maxRecoveryAttempts; i++ {
 		err = p.ctxManager.StoreNewIdentity(id)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("StoreNewIdentity connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+		if err != nil && p.ctxManager.IsRecoverable(err) {
+			log.Warnf("StoreNewIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
@@ -103,10 +103,10 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
 }
 
 func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err error) {
-	for i := 0; i < maxDbConnAttempts; i++ {
+	for i := 0; i <= maxRecoveryAttempts; i++ {
 		id, err = p.ctxManager.GetIdentity(uid)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("GetIdentity connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+		if err != nil && p.ctxManager.IsRecoverable(err) {
+			log.Warnf("GetIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
@@ -145,10 +145,10 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 }
 
 func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid uuid.UUID, err error) {
-	for i := 0; i < maxDbConnAttempts; i++ {
+	for i := 0; i <= maxRecoveryAttempts; i++ {
 		uid, err = p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("GetUuidForPublicKey connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+		if err != nil && p.ctxManager.IsRecoverable(err) {
+			log.Warnf("GetUuidForPublicKey error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
@@ -187,6 +187,10 @@ func checkIdentityAttributesNotNil(i *Identity) error {
 func getPubKeyID(publicKeyPEM []byte) string {
 	sum256 := sha256.Sum256(publicKeyPEM)
 	return base64.StdEncoding.EncodeToString(sum256[:])
+}
+
+func (p *Protocol) IsRecoverable(err error) bool {
+	return p.ctxManager.IsRecoverable(err)
 }
 
 func (p *Protocol) Close() {}

@@ -187,7 +187,17 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+	if err != nil {
+		return nil, err
+	}
+
+	return dm, nil
 }
 
 func cleanUpDB(t *testing.T, dm *DatabaseManager) {

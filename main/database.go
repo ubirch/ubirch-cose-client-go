@@ -17,6 +17,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -76,9 +77,6 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 	pg.SetMaxIdleConns(dbParams.MaxIdleConns)
 	pg.SetConnMaxLifetime(dbParams.ConnMaxLifetime)
 	pg.SetConnMaxIdleTime(dbParams.ConnMaxIdleTime)
-	if err = pg.Ping(); err != nil {
-		return nil, err
-	}
 
 	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
 	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
@@ -96,7 +94,8 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 
 	_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
 	if err != nil {
-		return nil, err
+		// if there is no connection to the database yet, continue anyway.
+		log.Warn(err)
 	}
 
 	return dm, nil
@@ -160,11 +159,22 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 	return uid, nil
 }
 
-func isConnectionNotAvailable(err error) bool {
+func (dm *DatabaseManager) IsRecoverable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(10 * time.Millisecond)
 		return true
 	}
+
+	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
+	if strings.Contains(err.Error(), tableDoesNotExistError) {
+		_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+		if err != nil {
+			log.Errorf("an error occured when trying to create DB table \"%s\": %v", dm.tableName, err)
+			return false
+		}
+		return true
+	}
+
 	return false
 }

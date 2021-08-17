@@ -140,7 +140,7 @@ func main() {
 	if err != nil {
 		// if setting up a session with the HSM fails now, continue anyway.
 		// the retry handler of the PKCS#11 crypto context will try to set up
-		// a session when the first signing request comes in.
+		// a session on every incoming signing request.
 		log.Warnf("unable to set up session with HSM: %v", err)
 	}
 	defer func() {
