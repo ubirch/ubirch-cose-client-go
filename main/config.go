@@ -57,7 +57,7 @@ const (
 	defaultKeyDerivationParamKeyLen      = 24
 	defaultKeyDerivationParamSaltLen     = 16
 
-	defaultRequestLimit        = 20
+	defaultRequestLimit        = 10
 	defaultRequestBacklogLimit = 5
 )
 
