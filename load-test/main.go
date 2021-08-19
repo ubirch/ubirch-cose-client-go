@@ -68,18 +68,23 @@ func main() {
 	wg := &sync.WaitGroup{}
 	start := time.Now()
 
+	i := 0
+	n := len(identities)
 	for uid, auth := range identities {
+		offset := time.Duration((i*1000)/n) * time.Millisecond
+		i += 1
+
 		wg.Add(1)
-		go sender.sendRequests(c.Url, uid, auth, wg)
+		go sender.sendRequests(c.Url, uid, auth, offset, wg)
 	}
 
 	wg.Wait()
 	end := time.Now()
 	duration := end.Sub(start)
-	log.Infof("[ %4d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
+	log.Infof("[ %5d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
 
 	for status, count := range sender.statusCounter {
-		log.Infof("[ %4d ] x %s", count, status)
+		log.Infof("[ %5d ] x %s", count, status)
 	}
 
 	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())

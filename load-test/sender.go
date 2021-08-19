@@ -75,13 +75,15 @@ func (s *Sender) register(clientBaseURL, id, auth, registerAuth string) error {
 	return nil
 }
 
-func (s *Sender) sendRequests(clientBaseURL, uid, auth string, wg *sync.WaitGroup) {
+func (s *Sender) sendRequests(clientBaseURL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	clientURL := clientBaseURL + uid + "/cbor/hash"
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
+
+	time.Sleep(offset)
 
 	for i := 0; i < numberOfRequestsPerID; i++ {
 		wg.Add(1)
