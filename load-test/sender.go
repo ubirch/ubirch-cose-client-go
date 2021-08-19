@@ -114,15 +114,16 @@ func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *
 		log.Error(err)
 		return
 	}
-
-	s.addTime(time.Since(start))
+	duration := time.Now().Sub(start)
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusOK {
+		s.addTime(duration)
+	} else {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
-		log.Errorf("%d: %s", resp.StatusCode, respBodyBytes)
+		log.Warnf("%d: %s", resp.StatusCode, respBodyBytes)
 	}
 
 	s.countStatus(resp.Status)
