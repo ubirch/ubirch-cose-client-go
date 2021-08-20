@@ -143,5 +143,8 @@ func (s *Sender) addTime(dur time.Duration) {
 }
 
 func (s *Sender) getAvgRequestDuration() time.Duration {
+	if s.requestCounter == 0 {
+		return 0
+	}
 	return s.requestTimer / time.Duration(s.requestCounter)
 }
