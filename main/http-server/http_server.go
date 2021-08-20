@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	GatewayTimeout  = 90 * time.Second // time after which a 504 response will be sent if no timely response could be produced
-	ShutdownTimeout = 25 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
+	GatewayTimeout  = 4 * time.Second  // time after which a 504 response will be sent if no timely response could be produced
+	ShutdownTimeout = 5 * time.Second  // time after which the server will be shut down forcefully if graceful shutdown did not happen before
 	ReadTimeout     = 1 * time.Second  // maximum duration for reading the entire request -> low since we only expect requests with small content
-	WriteTimeout    = 99 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
+	WriteTimeout    = 60 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
 	IdleTimeout     = 60 * time.Second // time to wait for the next request when keep-alives are enabled
 
 	UUIDKey          = "uuid"
