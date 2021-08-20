@@ -116,7 +116,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 
 	resp := coseSigner.Sign(msg)
 
-	if resp.StatusCode != http.StatusBadRequest {
+	if resp.StatusCode != http.StatusTooEarly {
 		t.Errorf("response status code: %d", resp.StatusCode)
 	}
 

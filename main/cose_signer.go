@@ -111,7 +111,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 	skid, err := c.GetSKID(msg.ID)
 	if err != nil {
 		log.Error(err)
-		return h.ErrorResponse(http.StatusBadRequest, err.Error())
+		return h.ErrorResponse(http.StatusTooEarly, err.Error())
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
