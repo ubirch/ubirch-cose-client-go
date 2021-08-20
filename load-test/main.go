@@ -81,10 +81,10 @@ func main() {
 	wg.Wait()
 	end := time.Now()
 	duration := end.Sub(start)
-	log.Infof("[ %5d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
+	log.Infof("[ %6d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
 
 	for status, count := range sender.statusCounter {
-		log.Infof("[ %5d ] x %s", count, status)
+		log.Infof("[ %6d ] x %s", count, status)
 	}
 
 	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
