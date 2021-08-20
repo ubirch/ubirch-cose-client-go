@@ -104,7 +104,6 @@ func PromMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func InitPromMetrics(router *chi.Mux) {
-	router.Use(PromMiddleware)
-	router.Method(http.MethodGet, "/metrics", promhttp.Handler())
+func Handler() http.Handler {
+	return promhttp.Handler()
 }

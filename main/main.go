@@ -18,6 +18,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path"
@@ -195,7 +196,7 @@ func main() {
 	}
 
 	// set up metrics
-	prom.InitPromMetrics(httpServer.Router)
+	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
 
 	// set up endpoint for identity registration
 	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/cors"
 
 	log "github.com/sirupsen/logrus"
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
@@ -60,6 +61,7 @@ type HTTPServer struct {
 
 func NewRouter(limit, backlogLimit int) *chi.Mux {
 	router := chi.NewMux()
+	router.Use(prom.PromMiddleware)
 	router.Use(middleware.Timeout(GatewayTimeout))
 	router.Use(middleware.ThrottleBacklog(limit, backlogLimit, 100*time.Millisecond))
 	return router
