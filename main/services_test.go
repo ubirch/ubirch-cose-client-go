@@ -26,9 +26,9 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
@@ -56,9 +56,9 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHashHex := "76e114443cd386716c0f8408ce99e0017d07e68fef22ade5b39966941b35881f"
@@ -87,9 +87,9 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHashBytes, _ := hex.DecodeString("76e114443cd386716c0f8408ce99e0017d07e68fef22ade5b39966941b35881f")
@@ -117,9 +117,9 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
@@ -147,9 +147,9 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
@@ -173,8 +173,8 @@ func TestCOSEService_HandleRequest_CantGetIdentity(t *testing.T) {
 	}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: mockGetIdentityReturnsErr,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
@@ -202,9 +202,9 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuthBad,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
@@ -232,9 +232,9 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g"
@@ -262,9 +262,9 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHashHex := "76e114443cd386716c0f8408ce99e0017d07e68fef22ade5b39966941b35881ff"
@@ -293,9 +293,9 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
@@ -323,9 +323,9 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	tooShortHash := "x/Ef/8VDEjvybn2gvxGeiA=="
@@ -353,9 +353,9 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	w := httptest.NewRecorder()
@@ -381,9 +381,9 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	badJSON := "absolutely not a json"
@@ -411,9 +411,9 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	testCBOR, _ := hex.DecodeString("a164746573746568656c6c6f")
@@ -441,9 +441,9 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	w := httptest.NewRecorder()
@@ -469,9 +469,9 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: ctxMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
+		Sign:        coseSigner.Sign,
 	}
 
 	w := httptest.NewRecorder()

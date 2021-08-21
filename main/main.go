@@ -181,9 +181,9 @@ func main() {
 	log.Warnf("USING MOCK SKID") // FIXME
 
 	service := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: protocol.GetIdentity,
 		CheckAuth:   protocol.pwHasher.CheckPassword,
+		Sign:        coseSigner.Sign,
 	}
 
 	// set up HTTP server

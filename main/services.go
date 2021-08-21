@@ -47,9 +47,9 @@ type HTTPRequest struct {
 }
 
 type COSEService struct {
-	*CoseSigner
 	GetIdentity func(uuid.UUID) (Identity, error)
 	CheckAuth   func(context.Context, string, string) (bool, error)
+	Sign        func(HTTPRequest) h.HTTPResponse
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
@@ -79,7 +79,6 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		auth := r.Header.Get(h.AuthHeader)
 
 		authOk, err := s.CheckAuth(ctx, auth, identity.Auth)
-
 		if err != nil {
 			log.Errorf("%s: password check failed: %v", uid, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
