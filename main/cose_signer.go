@@ -123,7 +123,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 
 	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
-		Header:     http.Header{},
+		Header:     http.Header{"Content-Type": {h.BinType}},
 		Content:    cose,
 	}
 }
