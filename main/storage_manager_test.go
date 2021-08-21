@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestGetCtxManagerDB(t *testing.T) {
+func TestGetStorageManagerDB(t *testing.T) {
 	dbConf, err := getDatabaseConfig()
 	if err != nil {
 		t.Fatal(err)
@@ -15,27 +15,27 @@ func TestGetCtxManagerDB(t *testing.T) {
 		dbParams:    dbConf.dbParams,
 	}
 
-	ctxMngr, err := GetCtxManager(conf)
+	storageMngr, err := GetStorageManager(conf)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, ok := ctxMngr.(*DatabaseManager)
+	_, ok := storageMngr.(*DatabaseManager)
 	if !ok {
-		t.Error("unexpected CtxManager type")
+		t.Error("unexpected StorageManager type")
 	}
 
-	ctxMngr.Close()
+	storageMngr.Close()
 }
 
-func TestGetCtxManagerFile(t *testing.T) {
+func TestGetStorageManagerFile(t *testing.T) {
 	conf := &Config{}
 
 	expectedErr := "file-based context management is not supported in the current version"
 
-	_, err := GetCtxManager(conf)
+	_, err := GetStorageManager(conf)
 	if err == nil {
-		t.Fatalf("GetCtxManager did not return expected error for file manager initialization: %s", expectedErr)
+		t.Fatalf("GetStorageManager did not return expected error for file manager initialization: %s", expectedErr)
 	}
 	if err.Error() != expectedErr {
 		t.Error(err)

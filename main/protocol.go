@@ -33,7 +33,7 @@ const (
 )
 
 type Protocol struct {
-	ContextManager
+	StorageManager
 
 	pwHasher       *pw.Argon2idKeyDerivator
 	pwHasherParams *pw.Argon2idParams
@@ -42,10 +42,10 @@ type Protocol struct {
 	uidCache      *sync.Map // {<pub>: <uid>}
 }
 
-// Ensure Protocol implements the ContextManager interface
-var _ ContextManager = (*Protocol)(nil)
+// Ensure Protocol implements the StorageManager interface
+var _ StorageManager = (*Protocol)(nil)
 
-func NewProtocol(ctxManager ContextManager, maxTotalMem uint32, argon2idParams *pw.Argon2idParams) *Protocol {
+func NewProtocol(storageManager StorageManager, maxTotalMem uint32, argon2idParams *pw.Argon2idParams) *Protocol {
 	params, err := json.Marshal(argon2idParams)
 	if err != nil {
 		log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
@@ -53,7 +53,7 @@ func NewProtocol(ctxManager ContextManager, maxTotalMem uint32, argon2idParams *
 	log.Debugf("initialize argon2id key derivation with parameters %s", params)
 
 	return &Protocol{
-		ContextManager: ctxManager,
+		StorageManager: storageManager,
 
 		pwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
 		pwHasherParams: argon2idParams,
@@ -70,8 +70,8 @@ func (p *Protocol) StoreNewIdentity(id Identity) error {
 	}
 
 	for i := 0; i <= maxRecoveryAttempts; i++ {
-		err = p.ContextManager.StoreNewIdentity(id)
-		if err != nil && p.ContextManager.IsRecoverable(err) {
+		err = p.StorageManager.StoreNewIdentity(id)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
 			log.Warnf("StoreNewIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
@@ -101,8 +101,8 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
 
 func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err error) {
 	for i := 0; i <= maxRecoveryAttempts; i++ {
-		id, err = p.ContextManager.GetIdentity(uid)
-		if err != nil && p.ContextManager.IsRecoverable(err) {
+		id, err = p.StorageManager.GetIdentity(uid)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
 			log.Warnf("GetIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
@@ -143,8 +143,8 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 
 func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid uuid.UUID, err error) {
 	for i := 0; i <= maxRecoveryAttempts; i++ {
-		uid, err = p.ContextManager.GetUuidForPublicKey(publicKeyBytes)
-		if err != nil && p.ContextManager.IsRecoverable(err) {
+		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyBytes)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
 			log.Warnf("GetUuidForPublicKey error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}

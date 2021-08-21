@@ -12,7 +12,7 @@ var (
 	ErrNotExist = errors.New("entry does not exist")
 )
 
-type ContextManager interface {
+type StorageManager interface {
 	StoreNewIdentity(id Identity) error
 	GetIdentity(uid uuid.UUID) (Identity, error)
 
@@ -22,7 +22,7 @@ type ContextManager interface {
 	Close()
 }
 
-func GetCtxManager(c *Config) (ContextManager, error) {
+func GetStorageManager(c *Config) (StorageManager, error) {
 	if len(c.PostgresDSN) != 0 {
 		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName, c.dbParams)
 	} else {

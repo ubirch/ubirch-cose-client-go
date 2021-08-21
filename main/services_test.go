@@ -21,12 +21,12 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -51,12 +51,12 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -82,12 +82,12 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -112,12 +112,12 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -142,12 +142,12 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: uuid.New(),
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -197,12 +197,12 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuthBad,
 		Sign:        coseSigner.Sign,
 	}
@@ -227,12 +227,12 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -257,12 +257,12 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -288,12 +288,12 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -318,12 +318,12 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -348,12 +348,12 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -376,12 +376,12 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -406,12 +406,12 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -436,12 +436,12 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}
@@ -464,12 +464,12 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid: test.Uuid,
 	}}
 
 	testCOSEService := &COSEService{
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
 		CheckAuth:   mockCheckAuth,
 		Sign:        coseSigner.Sign,
 	}

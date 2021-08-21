@@ -20,7 +20,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p := NewProtocol(&mockCtxMngr{}, 1, test.Argon2idParams)
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -74,7 +74,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p := NewProtocol(&mockCtxMngr{}, 1, test.Argon2idParams)
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -99,7 +99,7 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(&mockCtxMngr{}, 1, test.Argon2idParams)
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,

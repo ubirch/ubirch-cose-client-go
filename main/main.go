@@ -151,13 +151,13 @@ func main() {
 		}
 	}()
 
-	ctxManager, err := GetCtxManager(conf)
+	storageManager, err := GetStorageManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer ctxManager.Close()
+	defer storageManager.Close()
 
-	protocol := NewProtocol(ctxManager, conf.KdMaxTotalMemMiB, conf.kdParams)
+	protocol := NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.kdParams)
 
 	//client := &Client{
 	//	CertificateServerURL:       conf.CertificateServer,

@@ -30,7 +30,7 @@ func TestProtocol(t *testing.T) {
 	}
 
 	p := &Protocol{
-		ContextManager: &mockCtxMngr{},
+		StorageManager: &mockStorageMngr{},
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -109,7 +109,7 @@ func TestProtocolLoad(t *testing.T) {
 	defer cleanUpDB(t, dm)
 
 	p := &Protocol{
-		ContextManager: dm,
+		StorageManager: dm,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
@@ -149,7 +149,7 @@ func TestProtocolLoad(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
+	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
 
 	i := Identity{
 		Uid:          uuid.UUID{},
@@ -164,7 +164,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
+	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -179,7 +179,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilAuth(t *testing.T) {
-	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
+	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -196,7 +196,7 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
+	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
 
 	testIdentity := Identity{
 		Uid:          test.Uuid,
@@ -223,7 +223,7 @@ func TestProtocol_Cache(t *testing.T) {
 }
 
 func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
-	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
+	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
 
 	_, err := p.GetUuidForPublicKey(make([]byte, 64))
 	if err == nil {
@@ -231,33 +231,37 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	}
 }
 
-type mockCtxMngr struct {
+type mockStorageMngr struct {
 	id Identity
 }
 
-var _ ContextManager = (*mockCtxMngr)(nil)
+var _ StorageManager = (*mockStorageMngr)(nil)
 
-func (m *mockCtxMngr) StoreNewIdentity(id Identity) error {
+func (m *mockStorageMngr) StoreNewIdentity(id Identity) error {
 	m.id = id
 	return nil
 }
 
-func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (Identity, error) {
+func (m *mockStorageMngr) GetIdentity(uid uuid.UUID) (Identity, error) {
 	if m.id.Uid == uuid.Nil || m.id.Uid != uid {
 		return Identity{}, ErrNotExist
 	}
 	return m.id, nil
 }
 
-func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
+func (m *mockStorageMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
 	if m.id.PublicKeyPEM == nil || !bytes.Equal(m.id.PublicKeyPEM, pubKey) {
 		return uuid.Nil, ErrNotExist
 	}
 	return m.id.Uid, nil
 }
 
-func (m *mockCtxMngr) IsRecoverable(error) bool {
+func (m *mockStorageMngr) IsRecoverable(error) bool {
 	return false
 }
 
-func (m *mockCtxMngr) Close() {}
+func (m *mockStorageMngr) IsReady() bool {
+	return true
+}
+
+func (m *mockStorageMngr) Close() {}
