@@ -157,8 +157,7 @@ func main() {
 	}
 	defer ctxManager.Close()
 
-	protocol := NewProtocol(cryptoCtx, ctxManager, conf.KdMaxTotalMemMiB, conf.kdParams)
-	defer protocol.Close()
+	protocol := NewProtocol(ctxManager, conf.KdMaxTotalMemMiB, conf.kdParams)
 
 	//client := &Client{
 	//	CertificateServerURL:       conf.CertificateServer,
@@ -170,11 +169,13 @@ func main() {
 
 	idHandler := &IdentityHandler{
 		Protocol:            protocol,
+		Crypto:              cryptoCtx,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol.SignHash, getSKID) // FIXME
+	//coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
+	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, getSKID) // FIXME
 	if err != nil {
 		log.Fatal(err)
 	}

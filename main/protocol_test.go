@@ -15,25 +15,25 @@ import (
 func TestProtocol(t *testing.T) {
 	testUid := uuid.New()
 
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
+	}
+
+	err := cryptoCtx.GenerateKey(testUid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := cryptoCtx.GetPublicKeyPEM(testUid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	p := &Protocol{
-		Crypto: &ubirch.ECDSACryptoContext{
-			Keystore: &test.MockKeystorer{},
-		},
-		ctxManager: &mockCtxMngr{},
+		ContextManager: &mockCtxMngr{},
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
-	}
-	defer p.Close()
-
-	err := p.GenerateKey(testUid)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pubKeyPEM, err := p.GetPublicKeyPEM(testUid)
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	testIdentity := Identity{
@@ -109,12 +109,11 @@ func TestProtocolLoad(t *testing.T) {
 	defer cleanUpDB(t, dm)
 
 	p := &Protocol{
-		ctxManager: dm,
+		ContextManager: dm,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
 	}
-	defer p.Close()
 
 	// generate identities
 	var testIdentities []*Identity
@@ -150,12 +149,7 @@ func TestProtocolLoad(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
-	}
-
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
-	defer p.Close()
+	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
 
 	i := Identity{
 		Uid:          uuid.UUID{},
@@ -170,12 +164,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
-	}
-
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
-	defer p.Close()
+	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -190,12 +179,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilAuth(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
-	}
-
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
-	defer p.Close()
+	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -212,12 +196,7 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
-	}
-
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
-	defer p.Close()
+	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
 
 	testIdentity := Identity{
 		Uid:          test.Uuid,
@@ -244,12 +223,7 @@ func TestProtocol_Cache(t *testing.T) {
 }
 
 func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
-	}
-
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, &pw.Argon2idParams{})
-	defer p.Close()
+	p := NewProtocol(&mockCtxMngr{}, 0, &pw.Argon2idParams{})
 
 	_, err := p.GetUuidForPublicKey(make([]byte, 64))
 	if err == nil {
