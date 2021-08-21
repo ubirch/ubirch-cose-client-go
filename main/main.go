@@ -82,7 +82,8 @@ func main() {
 	)
 
 	var (
-		serverID = fmt.Sprintf("%s/%s", serviceName, Version)
+		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
+		readinessChecks []func() error
 	)
 
 	// parse commandline flags
@@ -150,12 +151,14 @@ func main() {
 			log.Error(err)
 		}
 	}()
+	readinessChecks = append(readinessChecks, cryptoCtx.IsReady)
 
 	storageManager, err := GetStorageManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer storageManager.Close()
+	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
 	protocol := NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.kdParams)
 
@@ -213,9 +216,9 @@ func main() {
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
 	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
 
-	// set up endpoints for liveliness and readiness checks
-	httpServer.Router.Get("/healtz", h.Health(serverID))
-	httpServer.Router.Get("/readiness", h.Health(serverID))
+	// set up endpoints for liveness and readiness checks
+	httpServer.Router.Get("/healthz", h.Healthz(serverID))
+	httpServer.Router.Get("/readyz", h.Readyz(serverID, readinessChecks))
 
 	// set up graceful shutdown handling
 	ctx, cancel := context.WithCancel(context.Background())

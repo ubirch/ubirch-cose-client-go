@@ -18,7 +18,8 @@ type StorageManager interface {
 
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 
-	IsRecoverable(err error) bool
+	IsRecoverable(error) bool
+	IsReady() error
 	Close()
 }
 

@@ -115,6 +115,8 @@ github.com/ubirch/go.crypto v0.1.2 h1:IYMOx19UgWt4+k7PydcOVtEWFiU10O8dHoof00j8IK
 github.com/ubirch/go.crypto v0.1.2/go.mod h1:aiZQ37CxSBS7cBLsFbTnDxGeg5RkH7Z5LKBYeNasIrw=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210816221225-21cf8e9ed467 h1:B60XgN3VpE9T+gm2e6Z9cmOZBVE0LFLOdHFayw70ZKs=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210816221225-21cf8e9ed467/go.mod h1:JG7PGWaipe8AGzr0QCwtS3aLvI43JCMyQAmWtJ3svwo=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210821183730-8c96b046ee81 h1:EBvZNhxhKjibUpeAQNEFTxL/5hRoJ6j7VsaZjGVnr6Y=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210821183730-8c96b046ee81/go.mod h1:JG7PGWaipe8AGzr0QCwtS3aLvI43JCMyQAmWtJ3svwo=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
 github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs=

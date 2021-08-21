@@ -260,8 +260,8 @@ func (m *mockStorageMngr) IsRecoverable(error) bool {
 	return false
 }
 
-func (m *mockStorageMngr) IsReady() bool {
-	return true
+func (m *mockStorageMngr) IsReady() error {
+	return nil
 }
 
 func (m *mockStorageMngr) Close() {}

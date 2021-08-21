@@ -112,6 +112,13 @@ func (dm *DatabaseManager) Close() {
 	}
 }
 
+func (dm *DatabaseManager) IsReady() error {
+	if err := dm.db.Ping(); err != nil {
+		return fmt.Errorf("database not ready: %v", err)
+	}
+	return nil
+}
+
 func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, public_key, auth) VALUES ($1, $2, $3);",
