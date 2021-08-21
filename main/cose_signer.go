@@ -129,31 +129,28 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 }
 
 func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
+	signature, err := c.getSignature(ctx, uid, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.getCOSE(kid, payload, signature)
+}
+
+func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash Sha256Sum) ([]byte, error) {
 	timerWait := prometheus.NewTimer(prom.SignatureCreationWithWaitDuration)
+	defer timerWait.ObserveDuration()
 
 	err := c.signSem.Acquire(ctx, 1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire semaphore for signing: %v", err)
 	}
+	defer c.signSem.Release(1)
 
 	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
+	defer timerSign.ObserveDuration()
 
-	signature, err := c.SignHash(uid, hash[:])
-
-	c.signSem.Release(1)
-	timerWait.ObserveDuration()
-	timerSign.ObserveDuration()
-
-	if err != nil {
-		return nil, err
-	}
-
-	coseBytes, err := c.getCOSE(kid, payload, signature)
-	if err != nil {
-		return nil, err
-	}
-
-	return coseBytes, nil
+	return c.SignHash(uid, hash[:])
 }
 
 // getCOSE creates a COSE Single Signer Data Object (COSE_Sign1)
