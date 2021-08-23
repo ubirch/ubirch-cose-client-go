@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-cose-client-go/main/ent"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
@@ -28,6 +29,7 @@ import (
 
 type IdentityHandler struct {
 	*Protocol
+	ubirch.Crypto
 	SubjectCountry      string
 	SubjectOrganization string
 }

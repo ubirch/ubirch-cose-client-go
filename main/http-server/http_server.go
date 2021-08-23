@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	repo "github.com/ubirch/ubirch-cose-client-go/main/repository"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
-	repo "github.com/ubirch/ubirch-cose-client-go/main/repository"
 	"net/http"
 	"path"
 	"time"
@@ -46,8 +46,9 @@ type HTTPServer struct {
 
 func NewRouter(limit, backlogLimit int) *chi.Mux {
 	router := chi.NewMux()
+	router.Use(prom.PromMiddleware)
 	router.Use(middleware.Timeout(h.GatewayTimeout))
-	router.Use(middleware.ThrottleBacklog(limit, backlogLimit, time.Second))
+	router.Use(middleware.ThrottleBacklog(limit, backlogLimit, 100*time.Millisecond))
 	return router
 }
 
@@ -118,8 +119,29 @@ func shutdownServer(cancelCtx context.Context, server *http.Server, shutdownCtx 
 
 func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol) HTTPServer {
 	// set up HTTP server
-	httpServer := HTTPServer{
-		Router:   NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
+	idHandler := &repo.IdentityHandler{
+		Protocol:            protocol,
+		Crypto:              cryptoCtx,
+		SubjectCountry:      conf.CSR_Country,
+		SubjectOrganization: conf.CSR_Organization,
+	}
+
+	//coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
+	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, getSKID) // FIXME
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Warnf("USING MOCK SKID") // FIXME
+
+	service := &COSEService{
+		GetIdentity: protocol.GetIdentity,
+		CheckAuth:   protocol.pwHasher.CheckPassword,
+		Sign:        coseSigner.Sign,
+	}
+
+	// set up HTTP server
+	httpServer := h.HTTPServer{
+		Router:   h.NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
@@ -127,51 +149,35 @@ func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol) HT
 	}
 
 	// set up metrics
-	prom.InitPromMetrics(httpServer.Router)
-
-	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(serverID))
-
-	idHandler := &repo.IdentityHandler{
-		Protocol:            protocol,
-		SubjectCountry:      conf.CSR_Country,
-		SubjectOrganization: conf.CSR_Organization,
-	}
-
-	coseSigner, err := repo.NewCoseSigner(protocol.Crypto.SignHash, getSKID) // FIXME
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	service := &repo.COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: protocol.GetIdentity,
-		CheckAuth:   protocol.PwHasher.CheckPassword,
-	}
+	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
 
 	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, Register(conf.RegisterAuth, idHandler.InitIdentity))
+	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
 
 	// set up endpoint for CSRs
-	fetchCSREndpoint := path.Join(UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
+	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
+	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := path.Join(UUIDPath, h.CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, service.HandleRequest(repo.GetUUIDFromURL, repo.GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
+	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
+	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(getUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
 
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, service.HandleRequest(repo.GetUUIDFromURL, repo.GetHashFromHashRequest()))
+	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
 
-	// set up endpoint for readiness checks
-	httpServer.Router.Get("/readiness", h.Health(serverID))
+	// set up endpoints for liveness and readiness checks
+	httpServer.Router.Get("/healthz", h.Healthz(serverID))
+	httpServer.Router.Get("/readyz", h.Readyz(serverID, readinessChecks))
+
+	// set up graceful shutdown handling
+	ctx, cancel := context.WithCancel(context.Background())
+	go shutdown(cancel)
 	log.Info("ready")
 
-	log.Warnf("USING MOCK SKID") // FIXME
 	return httpServer
 }
 
 func getSKID(uuid.UUID) ([]byte, error) {
-	log.Warnf("USING MOCK SKID")
 	return make([]byte, 8), nil
 }
+

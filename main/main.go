@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package repository
 
 import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/config"
 	http_server "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	"github.com/ubirch/ubirch-cose-client-go/main/repository"
 	"os"
 	"os/signal"
 	"runtime"
@@ -79,7 +78,8 @@ func main() {
 	)
 
 	var (
-		serverID = fmt.Sprintf("%s/%s", serviceName, Version)
+		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
+		readinessChecks []func() error
 	)
 
 	// parse commandline flags
@@ -129,15 +129,10 @@ func main() {
 	go shutdown(cancel)
 
 	// initialize COSE service
-	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(
-		conf.PKCS11Module,
-		conf.PKCS11ModulePin,
-		conf.PKCS11ModuleSlotNr,
-		true,
-		1,
-		50*time.Millisecond)
+	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(conf.PKCS11Module, conf.PKCS11ModulePin,
+		conf.PKCS11ModuleSlotNr, true, 1, 50*time.Millisecond)
 	if err != nil {
-		log.Fatalf("failed to initialize ECDSA PKCS#11 crypto context (HSM): %v", err)
+		log.Fatalf("failed to initialize PKCS#11 crypto context (HSM): %v", err)
 	}
 	defer func() {
 		err := cryptoCtx.Close()
@@ -146,13 +141,29 @@ func main() {
 		}
 	}()
 
-	ctxManager, err := repository.GetCtxManager(conf)
+	err = cryptoCtx.SetupSession()
+	if err != nil {
+		// if setting up a session with the HSM fails now, continue anyway.
+		// the retry handler of the PKCS#11 crypto context will try to set up
+		// a session on every incoming signing request.
+		log.Warnf("unable to set up session with HSM: %v", err)
+	}
+	defer func() {
+		err := cryptoCtx.TeardownSession()
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+	readinessChecks = append(readinessChecks, cryptoCtx.IsReady)
+
+	storageManager, err := repository.GetStorageManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer ctxManager.Close()
+	defer storageManager.Close()
+	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	protocol := repository.NewProtocol(cryptoCtx, ctxManager, conf.KdMaxTotalMemMiB, conf.KdParams)
+	protocol := NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.kdParams)
 	defer protocol.Close()
 
 	//client := &Client{
@@ -170,7 +181,4 @@ func main() {
 
 	log.Debug("shut down")
 }
-
-
-
 

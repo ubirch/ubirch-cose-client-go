@@ -19,19 +19,18 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 
 	log "github.com/sirupsen/logrus"
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
-	SkidLen           = 8
-	maxDbConnAttempts = 5
+	SkidLen             = 8
+	maxRecoveryAttempts = 1
 )
 
 type ProtocolsS struct {
@@ -40,7 +39,7 @@ type ProtocolsS struct {
 }
 
 type Protocols interface {
-	ContextManager
+	StorageManager
 	StoreNewIdentity(id ent.Identity) error
 	GetIdentity(uid uuid.UUID) (id ent.Identity, err error)
 	fetchIdentityFromStorage(uid uuid.UUID) (id ent.Identity, err error)
@@ -53,8 +52,7 @@ type Protocols interface {
 var _ Protocols = (*Protocol)(nil)
 
 type Protocol struct {
-	Crypto ubirch.Crypto
-	ctxManager ContextManager
+	StorageManager
 
 	PwHasher       *pw.Argon2idKeyDerivator
 	pwHasherParams *pw.Argon2idParams
@@ -63,10 +61,10 @@ type Protocol struct {
 	uidCache      *sync.Map // {<pub>: <uid>}
 }
 
-// Ensure Protocol implements the ContextManager interface
-var _ ContextManager = (*Protocol)(nil)
+// Ensure Protocol implements the StorageManager interface
+var _ StorageManager = (*Protocol)(nil)
 
-func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, maxTotalMem uint32, argon2idParams *pw.Argon2idParams) *Protocol {
+func NewProtocol(storageManager StorageManager, maxTotalMem uint32, argon2idParams *pw.Argon2idParams) *Protocol {
 	params, err := json.Marshal(argon2idParams)
 	if err != nil {
 		log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
@@ -74,8 +72,7 @@ func NewProtocol(crypto ubirch.Crypto, ctxManager ContextManager, maxTotalMem ui
 	log.Debugf("initialize argon2id key derivation with parameters %s", params)
 
 	return &Protocol{
-		Crypto:     crypto,
-		ctxManager: ctxManager,
+		StorageManager: storageManager,
 
 		PwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
 		pwHasherParams: argon2idParams,
@@ -91,10 +88,10 @@ func (p *Protocol) StoreNewIdentity(id ent.Identity) error {
 		return err
 	}
 
-	for i := 0; i < maxDbConnAttempts; i++ {
-		err = p.ctxManager.StoreNewIdentity(id)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("StoreNewIdentity connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+	for i := 0; i <= maxRecoveryAttempts; i++ {
+		err = p.StorageManager.StoreNewIdentity(id)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
+			log.Warnf("StoreNewIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
@@ -122,10 +119,10 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id ent.Identity, err error) {
 }
 
 func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id ent.Identity, err error) {
-	for i := 0; i < maxDbConnAttempts; i++ {
-		id, err = p.ctxManager.GetIdentity(uid)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("GetIdentity connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+	for i := 0; i <= maxRecoveryAttempts; i++ {
+		id, err = p.StorageManager.GetIdentity(uid)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
+			log.Warnf("GetIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
@@ -164,10 +161,10 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 }
 
 func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid uuid.UUID, err error) {
-	for i := 0; i < maxDbConnAttempts; i++ {
-		uid, err = p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("GetUuidForPublicKey connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+	for i := 0; i <= maxRecoveryAttempts; i++ {
+		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyBytes)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
+			log.Warnf("GetUuidForPublicKey error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
@@ -207,5 +204,3 @@ func getPubKeyID(publicKeyPEM []byte) string {
 	sum256 := sha256.Sum256(publicKeyPEM)
 	return base64.StdEncoding.EncodeToString(sum256[:])
 }
-
-func (p *Protocol) Close() {}

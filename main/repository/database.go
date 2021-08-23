@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"github.com/ubirch/ubirch-cose-client-go/main/ent"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ type DatabaseManager struct {
 }
 
 // Ensure Database implements the ContextManager interface
-var _ ContextManager = (*DatabaseManager)(nil)
+var _ StorageManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
@@ -58,9 +59,6 @@ func NewSqlDatabaseInfo(postgresDSN, tableName string, dbParams *config.Database
 	pg.SetMaxIdleConns(dbParams.MaxIdleConns)
 	pg.SetConnMaxLifetime(dbParams.ConnMaxLifetime)
 	pg.SetConnMaxIdleTime(dbParams.ConnMaxIdleTime)
-	if err = pg.Ping(); err != nil {
-		return nil, err
-	}
 
 	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
 	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
@@ -76,13 +74,15 @@ func NewSqlDatabaseInfo(postgresDSN, tableName string, dbParams *config.Database
 		tableName: tableName,
 	}
 
-	//_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
-	//TODO: change schema
-	err = RunMigrations("file://./migration", postgresDSN, "public")
-	if err != nil {
-		return nil, err
+	if err = pg.Ping(); err != nil {
+		// if there is no connection to the database yet, continue anyway.
+		log.Warnf("connection to the database could not yet be established: %v", err)
+	} else {
+		err = RunMigrations("file://./migration", postgresDSN, "public")
+		if err != nil {
+			return nil, err
+		}
 	}
-
 	return dm, nil
 }
 
@@ -91,6 +91,13 @@ func (dm *DatabaseManager) Close() {
 	if err != nil {
 		log.Errorf("failed to close database: %v", err)
 	}
+}
+
+func (dm *DatabaseManager) IsReady() error {
+	if err := dm.db.Ping(); err != nil {
+		return fmt.Errorf("database not ready: %v", err)
+	}
+	return nil
 }
 
 func (dm *DatabaseManager) StoreNewIdentity(id ent.Identity) error {
@@ -144,11 +151,22 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 	return uid, nil
 }
 
-func isConnectionNotAvailable(err error) bool {
+func (dm *DatabaseManager) IsRecoverable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(10 * time.Millisecond)
 		return true
 	}
+
+	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
+	if strings.Contains(err.Error(), tableDoesNotExistError) {
+		_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+		if err != nil {
+			log.Errorf("an error occured when trying to create DB table \"%s\": %v", dm.tableName, err)
+			return false
+		}
+		return true
+	}
+
 	return false
 }

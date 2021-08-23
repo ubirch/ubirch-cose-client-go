@@ -15,6 +15,7 @@
 package repository
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
 
 	log "github.com/sirupsen/logrus"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
@@ -72,6 +74,7 @@ type GetSKID func(uid uuid.UUID) ([]byte, error)
 type CoseSigner struct {
 	encMode         cbor.EncMode
 	protectedHeader []byte
+	signSem         *semaphore.Weighted
 	SignHash
 	GetSKID
 }
@@ -96,6 +99,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	return &CoseSigner{
 		encMode:         encMode,
 		protectedHeader: protectedHeaderAlgES256CBOR,
+		signSem:         semaphore.NewWeighted(1),
 		SignHash:        sign,
 		GetSKID:         skid,
 	}, nil
@@ -107,10 +111,10 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 	skid, err := c.GetSKID(msg.ID)
 	if err != nil {
 		log.Error(err)
-		return h.ErrorResponse(http.StatusBadRequest, err.Error())
+		return h.ErrorResponse(http.StatusTooEarly, err.Error())
 	}
 
-	cose, err := c.createSignedCOSE(msg.ID, msg.Hash, skid, msg.Payload)
+	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
 		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
 		return h.ErrorResponse(http.StatusInternalServerError, "")
@@ -119,25 +123,34 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 
 	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
-		Header:     http.Header{},
+		Header:     http.Header{"Content-Type": {h.BinType}},
 		Content:    cose,
 	}
 }
 
-func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
-	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
-	signature, err := c.SignHash(uid, hash[:])
-	timer.ObserveDuration()
+func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
+	signature, err := c.getSignature(ctx, uid, hash)
 	if err != nil {
 		return nil, err
 	}
 
-	coseBytes, err := c.getCOSE(kid, payload, signature)
-	if err != nil {
-		return nil, err
-	}
+	return c.getCOSE(kid, payload, signature)
+}
 
-	return coseBytes, nil
+func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash Sha256Sum) ([]byte, error) {
+	timerWait := prometheus.NewTimer(prom.SignatureCreationWithWaitDuration)
+	defer timerWait.ObserveDuration()
+
+	err := c.signSem.Acquire(ctx, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire semaphore for signing: %v", err)
+	}
+	defer c.signSem.Release(1)
+
+	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
+	defer timerSign.ObserveDuration()
+
+	return c.SignHash(uid, hash[:])
 }
 
 // getCOSE creates a COSE Single Signer Data Object (COSE_Sign1)

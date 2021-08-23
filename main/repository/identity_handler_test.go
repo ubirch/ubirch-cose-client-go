@@ -7,7 +7,6 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -16,25 +15,18 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	argon2idParams := &pw.Argon2idParams{
-		Time:    1,
-		Memory:  1024,
-		Threads: 1,
-		KeyLen:  8,
+	err := cryptoCtx.GenerateKey(test.Uuid)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, argon2idParams)
-	defer p.Close()
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
+		Crypto:              cryptoCtx,
 		SubjectCountry:      "AA",
 		SubjectOrganization: "test GmbH",
-	}
-
-	err := p.Crypto.GenerateKey(test.Uuid)
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	_, err = idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
@@ -57,12 +49,12 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 
 	data := []byte("test")
 
-	signature, err := p.Crypto.Sign(test.Uuid, data)
+	signature, err := cryptoCtx.Sign(test.Uuid, data)
 	if err != nil {
 		t.Fatalf("signing failed: %v", err)
 	}
 
-	verified, err := p.Crypto.Verify(test.Uuid, data, signature)
+	verified, err := cryptoCtx.Verify(test.Uuid, data, signature)
 	if err != nil {
 		t.Fatalf("verification failed: %v", err)
 	}
@@ -77,25 +69,18 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	argon2idParams := &pw.Argon2idParams{
-		Time:    1,
-		Memory:  1024,
-		Threads: 1,
-		KeyLen:  8,
+	err := cryptoCtx.GenerateKey(test.Uuid)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, argon2idParams)
-	defer p.Close()
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
+		Crypto:              cryptoCtx,
 		SubjectCountry:      "AA",
 		SubjectOrganization: "test GmbH",
-	}
-
-	err := p.Crypto.GenerateKey(test.Uuid)
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	_, err = idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
@@ -114,18 +99,11 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	argon2idParams := &pw.Argon2idParams{
-		Time:    1,
-		Memory:  1024,
-		Threads: 1,
-		KeyLen:  8,
-	}
-
-	p := NewProtocol(cryptoCtx, &mockCtxMngr{}, 10, argon2idParams)
-	defer p.Close()
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
+		Crypto:              cryptoCtx,
 		SubjectCountry:      "AA",
 		SubjectOrganization: "test GmbH",
 	}

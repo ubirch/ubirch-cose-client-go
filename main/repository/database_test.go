@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
-	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 	"math/rand"
 	"os"
 	"sync"
@@ -158,10 +157,17 @@ func getDatabaseConfig() (*dbConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer fileHandle.Close()
 
 	c := &dbConfig{}
 	err = json.NewDecoder(fileHandle).Decode(c)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			fmt.Print(fileCloseErr)
+		}
+		return nil, err
+	}
+
+	err = fileHandle.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -209,16 +215,16 @@ func generateRandomIdentity() *ent.Identity {
 	}
 }
 
-func storeIdentity(ctxMngr ContextManager, id *ent.Identity, wg *sync.WaitGroup) error {
+func storeIdentity(storageMngr StorageManager, id *ent.Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	return ctxMngr.StoreNewIdentity(*id)
+	return storageMngr.StoreNewIdentity(*id)
 }
 
-func checkIdentity(ctxMngr ContextManager, id *ent.Identity, wg *sync.WaitGroup) error {
+func checkIdentity(storageMngr StorageManager, id *ent.Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	idFromCtx, err := ctxMngr.GetIdentity(id.Uid)
+	idFromCtx, err := storageMngr.GetIdentity(id.Uid)
 	if err != nil {
 		return err
 	}
@@ -232,7 +238,7 @@ func checkIdentity(ctxMngr ContextManager, id *ent.Identity, wg *sync.WaitGroup)
 		return fmt.Errorf("GetIdentity returned unexpected Auth value")
 	}
 
-	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKeyPEM)
+	uid, err := storageMngr.GetUuidForPublicKey(id.PublicKeyPEM)
 	if err != nil {
 		return err
 	}

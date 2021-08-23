@@ -49,39 +49,45 @@ var httpDuration = promauto.NewHistogramVec(
 	[]string{"path"},
 )
 
-var UpstreamResponseDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "upstream_response_duration",
-	Help:    "Duration of HTTP responses from upstream server.",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
+var IdentityCreationCounter = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: "identity_creation_success",
+		Help: "Number of identities which have been successfully created and stored.",
+	})
 
-var SignatureCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "signature_creation_duration",
-	Help:    "Duration of the creation of a signed object",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
+var SignatureCreationCounter = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: "signature_creation_success",
+		Help: "Number of successfully created signatures",
+	})
 
-var SignatureCreationCounter = promauto.NewCounter(prometheus.CounterOpts{
-	Name: "signature_creation_success",
-	Help: "Number of successfully created signatures",
-})
+var SignatureCreationDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "signature_creation_duration",
+		Help:    "Duration of the creation of a signed object",
+		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1, .25, .5, 1},
+	})
 
-var IdentityCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "identity_creation_duration",
-	Help:    "Duration of the identity being created, registered and stored.",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
+var SignatureCreationWithWaitDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "signature_creation_with_wait_duration",
+		Help:    "Duration of the creation of a signed object including waiting time for semaphore",
+		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1, .25, .5, 1},
+	})
 
-var IdentityCreationCounter = promauto.NewCounter(prometheus.CounterOpts{
-	Name: "identity_creation_success",
-	Help: "Number of identities which have been successfully created and stored.",
-})
+var AuthCheckDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "auth_check_duration",
+		Help:    "Duration of the auth token being checked for validity.",
+		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1, .25, .5, 1},
+	})
 
-var AuthCheckDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "auth_check_duration",
-	Help:    "Duration of the auth token being checked for validity.",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
+var AuthCheckWithWaitDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "auth_check_with_wait_duration",
+		Help:    "Duration of the auth token being checked for validity including waiting time for semaphore.",
+		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1, .25, .5, 1},
+	})
 
 func PromMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +104,6 @@ func PromMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func InitPromMetrics(router *chi.Mux) {
-	router.Use(PromMiddleware)
-	router.Method(http.MethodGet, "/metrics", promhttp.Handler())
+func Handler() http.Handler {
+	return promhttp.Handler()
 }

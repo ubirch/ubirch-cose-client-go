@@ -20,16 +20,15 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"github.com/ubirch/ubirch-cose-client-go/main/ent"
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
@@ -45,12 +44,13 @@ type HTTPRequest struct {
 	ID      uuid.UUID
 	Hash    Sha256Sum
 	Payload []byte
+	Ctx     context.Context
 }
 
 type COSEService struct {
-	*CoseSigner
 	GetIdentity func(uuid.UUID) (ent.Identity, error)
 	CheckAuth   func(context.Context, string, string) (bool, error)
+	Sign        func(HTTPRequest) h.HTTPResponse
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
@@ -79,10 +79,7 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 		ctx := r.Context()
 		auth := r.Header.Get(h.AuthHeader)
 
-		timer := prometheus.NewTimer(prom.AuthCheckDuration)
 		authOk, err := s.CheckAuth(ctx, auth, identity.Auth)
-		timer.ObserveDuration()
-
 		if err != nil {
 			log.Errorf("%s: password check failed: %v", uid, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -94,7 +91,7 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		msg := HTTPRequest{ID: uid}
+		msg := HTTPRequest{ID: uid, Ctx: ctx}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {

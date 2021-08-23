@@ -2,8 +2,8 @@ package repository
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ubirch/ubirch-cose-client-go/main/client"
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 	"os"
 	"sync"
 	"testing"
@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 var testUUIDs []uuid.UUID
@@ -169,9 +171,16 @@ func mockGetCertificateList() ([]client.Certificate, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer fileHandle.Close()
 
 		err = json.NewDecoder(fileHandle).Decode(&certs)
+		if err != nil {
+			if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+				fmt.Print(fileCloseErr)
+			}
+			return nil, err
+		}
+
+		err = fileHandle.Close()
 		if err != nil {
 			return nil, err
 		}

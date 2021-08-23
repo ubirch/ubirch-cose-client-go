@@ -8,6 +8,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -67,6 +69,30 @@ func TestArgon2idKeyDerivator_NotEqual(t *testing.T) {
 	}
 }
 
+func TestDecode(t *testing.T) {
+	testHash := []byte("hash......")
+	testSalt := []byte("salt...")
+	testParams := &Argon2idParams{
+		Memory:  4 * 1024,
+		Time:    2,
+		Threads: 8,
+		KeyLen:  uint32(len(testHash)),
+		SaltLen: uint32(len(testSalt)),
+	}
+
+	encodedPasswordHash := encodePasswordHash(testParams, testSalt, testHash)
+
+	params, salt, hash, err := decodePasswordHash(encodedPasswordHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	asserter := assert.New(t)
+	asserter.Equal(params, testParams)
+	asserter.Equal(salt, testSalt)
+	asserter.Equal(hash, testHash)
+}
+
 func BenchmarkArgon2idKeyDerivator_Default(b *testing.B) {
 	kd := &Argon2idKeyDerivator{}
 	params := kd.DefaultParams()
@@ -89,8 +115,8 @@ func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
 	kd := &Argon2idKeyDerivator{}
 
 	params := &Argon2idParams{
+		Memory:  37 * 1024,
 		Time:    1,
-		Memory:  64 * 1024,
 		Threads: 4,
 		KeyLen:  24,
 		SaltLen: 16,

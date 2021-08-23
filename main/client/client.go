@@ -120,6 +120,7 @@ func (c *Client) getWithCertPinning(url string) ([]byte, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	client.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
+			MinVersion:       tls.VersionTLS12,
 			VerifyConnection: NewConnectionVerifier(tlsCertFingerprint),
 		},
 	}

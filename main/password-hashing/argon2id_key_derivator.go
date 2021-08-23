@@ -9,8 +9,11 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/sync/semaphore"
+
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const stdEncodingFormat = "$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s"
@@ -26,8 +29,8 @@ func NewArgon2idKeyDerivator(maxTotalMemMiB uint32) *Argon2idKeyDerivator {
 }
 
 type Argon2idParams struct {
-	Time    uint32 // the time parameter specifies the number of passes over the memory
 	Memory  uint32 // the memory parameter specifies the size of the memory in KiB
+	Time    uint32 // the time parameter specifies the number of passes over the memory
 	Threads uint8  // the threads parameter specifies the number of threads and can be adjusted to the numbers of available CPUs
 	KeyLen  uint32 // the length of the resulting derived key in byte
 	SaltLen uint32 // the length of the random salt in byte
@@ -35,8 +38,8 @@ type Argon2idParams struct {
 
 func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
 	return &Argon2idParams{
-		Time:    1,                           // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-argon2-03#section-9.3
-		Memory:  32 * 1024,                   // 32 MB
+		Memory:  15 * 1024, // https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
+		Time:    2,
 		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
 		KeyLen:  24,
 		SaltLen: 16,
@@ -73,6 +76,8 @@ func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck str
 	}
 
 	if kd.sem != nil {
+		timerWait := prometheus.NewTimer(prom.AuthCheckWithWaitDuration)
+		defer timerWait.ObserveDuration()
 		err = kd.sem.Acquire(ctx, int64(p.Memory))
 		if err != nil {
 			return false, fmt.Errorf("failed to acquire semaphore for key derivation: %v", err)
@@ -80,6 +85,8 @@ func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck str
 		defer kd.sem.Release(int64(p.Memory))
 	}
 
+	timerAuth := prometheus.NewTimer(prom.AuthCheckDuration)
+	defer timerAuth.ObserveDuration()
 	hashToCheck := argon2.IDKey([]byte(pwToCheck), salt, p.Time, p.Memory, p.Threads, p.KeyLen)
 
 	return bytes.Equal(hash, hashToCheck), nil

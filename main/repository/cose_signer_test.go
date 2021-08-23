@@ -15,6 +15,7 @@
 package repository
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
@@ -64,7 +65,9 @@ func TestCoseSigner(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	coseBytes, err := coseSigner.createSignedCOSE(test.Uuid, hash, test.Uuid[:], payloadCBOR)
+	ctx := context.Background()
+
+	coseBytes, err := coseSigner.createSignedCOSE(ctx, test.Uuid, hash, test.Uuid[:], payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +116,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 
 	resp := coseSigner.Sign(msg)
 
-	if resp.StatusCode != http.StatusBadRequest {
+	if resp.StatusCode != http.StatusTooEarly {
 		t.Errorf("response status code: %d", resp.StatusCode)
 	}
 
