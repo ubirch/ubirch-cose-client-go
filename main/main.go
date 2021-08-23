@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package repository
+package main
 
 import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	http_server "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	repo "github.com/ubirch/ubirch-cose-client-go/main/repository"
 	"os"
 	"os/signal"
 	"runtime"
@@ -156,14 +157,14 @@ func main() {
 	}()
 	readinessChecks = append(readinessChecks, cryptoCtx.IsReady)
 
-	storageManager, err := repository.GetStorageManager(conf)
+	storageManager, err := repo.GetStorageManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer storageManager.Close()
 	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	protocol := NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.kdParams)
+	protocol := repo.NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.KdParams)
 	defer protocol.Close()
 
 	//client := &Client{
@@ -174,7 +175,7 @@ func main() {
 	//
 	//skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
-	httpServer := http_server.NewServer(conf, serverID, protocol)
+	httpServer := http_server.NewServer(conf, serverID, protocol, cryptoCtx, readinessChecks)
 
 	// start HTTP server
 	httpServer.Serve(ctx)

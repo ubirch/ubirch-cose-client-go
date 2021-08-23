@@ -39,9 +39,10 @@ const (
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options   *sql.TxOptions
-	db        *sql.DB
-	tableName string
+	postgresDSN string
+	options     *sql.TxOptions
+	db          *sql.DB
+	tableName   string
 }
 
 // Ensure Database implements the ContextManager interface
@@ -66,6 +67,7 @@ func NewSqlDatabaseInfo(postgresDSN, tableName string, dbParams *config.Database
 	log.Debugf("ConnMaxIdleTime: %s", dbParams.ConnMaxIdleTime.String())
 
 	dm := &DatabaseManager{
+		postgresDSN: postgresDSN,
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
@@ -160,7 +162,7 @@ func (dm *DatabaseManager) IsRecoverable(err error) bool {
 
 	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
 	if strings.Contains(err.Error(), tableDoesNotExistError) {
-		_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+		err = RunMigrations("file://./migration", dm.postgresDSN, "public")
 		if err != nil {
 			log.Errorf("an error occured when trying to create DB table \"%s\": %v", dm.tableName, err)
 			return false

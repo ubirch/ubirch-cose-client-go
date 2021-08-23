@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
-	repo "github.com/ubirch/ubirch-cose-client-go/main/repository"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
+	repo "github.com/ubirch/ubirch-cose-client-go/main/repository"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"net/http"
 	"path"
 	"time"
@@ -117,7 +118,7 @@ func shutdownServer(cancelCtx context.Context, server *http.Server, shutdownCtx 
 	}
 }
 
-func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol) HTTPServer {
+func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol, cryptoCtx *ubirch.ECDSAPKCS11CryptoContext, readinessChecks []func() error) HTTPServer {
 	// set up HTTP server
 	idHandler := &repo.IdentityHandler{
 		Protocol:            protocol,
@@ -127,21 +128,21 @@ func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol) HT
 	}
 
 	//coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
-	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, getSKID) // FIXME
+	coseSigner, err := repo.NewCoseSigner(cryptoCtx.SignHash, getSKID) // FIXME
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Warnf("USING MOCK SKID") // FIXME
 
-	service := &COSEService{
+	service := &repo.COSEService{
 		GetIdentity: protocol.GetIdentity,
-		CheckAuth:   protocol.pwHasher.CheckPassword,
+		CheckAuth:   protocol.PwHasher.CheckPassword,
 		Sign:        coseSigner.Sign,
 	}
 
 	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
+	httpServer := HTTPServer{
+		Router:   NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
@@ -152,26 +153,24 @@ func NewServer(conf *config.Config, serverID string, protocol *repo.Protocol) HT
 	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
 
 	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
+	httpServer.Router.Put(h.RegisterEndpoint, Register(conf.RegisterAuth, idHandler.InitIdentity))
 
 	// set up endpoint for CSRs
-	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
+	fetchCSREndpoint := path.Join(UUIDPath, h.CSREndpoint) // /<uuid>/csr
+	httpServer.Router.Get(fetchCSREndpoint, FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(getUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
+	directUuidEndpoint := path.Join(UUIDPath, h.CBORPath) // /<uuid>/cbor
+	httpServer.Router.Post(directUuidEndpoint, service.HandleRequest(repo.GetUUIDFromURL, repo.GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
 
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
+	httpServer.Router.Post(directUuidHashEndpoint, service.HandleRequest(repo.GetUUIDFromURL, repo.GetHashFromHashRequest()))
 
-	// set up endpoints for liveness and readiness checks
+	// set up endpoints for liveness and readiness readinessChecks
 	httpServer.Router.Get("/healthz", h.Healthz(serverID))
 	httpServer.Router.Get("/readyz", h.Readyz(serverID, readinessChecks))
 
 	// set up graceful shutdown handling
-	ctx, cancel := context.WithCancel(context.Background())
-	go shutdown(cancel)
 	log.Info("ready")
 
 	return httpServer

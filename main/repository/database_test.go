@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	"github.com/ubirch/ubirch-cose-client-go/main/ent"
 	"math/rand"
 	"os"
 	"sync"
