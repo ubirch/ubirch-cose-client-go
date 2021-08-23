@@ -29,7 +29,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
+	_, err = idHandler.InitIdentity(context.Background(), test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,12 +83,12 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
+	_, err = idHandler.InitIdentity(context.Background(), test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
+	_, err = idHandler.InitIdentity(context.Background(), test.Uuid)
 	if err != h.ErrAlreadyInitialized {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrAlreadyInitialized)
 	}
@@ -108,7 +108,7 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err := idHandler.InitIdentity(context.Background(), test.Uuid, test.Auth)
+	_, err := idHandler.InitIdentity(context.Background(), test.Uuid)
 	if err != h.ErrUnknown {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}

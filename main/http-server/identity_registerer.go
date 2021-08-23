@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+
 	log "github.com/sirupsen/logrus"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
@@ -17,12 +18,12 @@ var (
 	ErrUnknown            = errors.New("unknown identity")
 )
 
-type IdentityPayload struct {
-	Uid string `json:"uuid"`
-	Pwd string `json:"password"`
+type RegistrationPayload struct {
+	Uid uuid.UUID `json:"uuid"`
+	Pwd string    `json:"password"`
 }
 
-type InitializeIdentity func(ctx context.Context, uid uuid.UUID, auth string) (csr []byte, err error)
+type InitializeIdentity func(ctx context.Context, uid uuid.UUID) (csr []byte, err error)
 
 func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -39,23 +40,18 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 			return
 		}
 
-		uid, err := uuid.Parse(idPayload.Uid)
-		if err != nil {
-			log.Warnf("%s: %v", idPayload.Uid, err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+		uid := idPayload.Uid
 
-		csr, err := initialize(r.Context(), uid, idPayload.Pwd)
+		csr, err := initialize(r.Context(), uid)
 		if err != nil {
-			errMsg := fmt.Errorf("identity registration failed: %v", err)
+			log.Warnf("%s: identity registration failed: %v", uid, err)
 			switch err {
 			case ErrAlreadyInitialized:
-				Error(uid, w, errMsg, http.StatusConflict)
+				http.Error(w, err.Error(), http.StatusConflict)
 			case ErrUnknown:
-				Error(uid, w, errMsg, http.StatusNotFound)
+				http.Error(w, err.Error(), http.StatusNotFound)
 			default:
-				Error(uid, w, errMsg, http.StatusInternalServerError)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
 		}
@@ -72,22 +68,22 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 	}
 }
 
-func identityFromBody(r *http.Request) (IdentityPayload, error) {
+func identityFromBody(r *http.Request) (RegistrationPayload, error) {
 	contentType := ContentType(r.Header)
 	if contentType != JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
+		return RegistrationPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
 	}
 
-	var payload IdentityPayload
+	var payload RegistrationPayload
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&payload); err != nil {
-		return IdentityPayload{}, err
+		return RegistrationPayload{}, err
 	}
-	if len(payload.Uid) == 0 {
-		return IdentityPayload{}, fmt.Errorf("empty uuid")
+	if payload.Uid == uuid.Nil {
+		return RegistrationPayload{}, fmt.Errorf("empty uuid")
 	}
-	if len(payload.Pwd) == 0 {
-		return IdentityPayload{}, fmt.Errorf("empty password")
+	if len(payload.Pwd) != 0 {
+		return RegistrationPayload{}, fmt.Errorf("setting password is not longer supported. password will be generated and registered automatically")
 	}
 	return payload, nil
 }
