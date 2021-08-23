@@ -126,6 +126,10 @@ func (s *SkidHandler) loadSKIDs() {
 		}
 		//log.Debugf("%s: public key certificate match", kid)
 
+		//TODO: certific
+		if certificate.NotAfter.After(time.Now()) {
+			continue
+		}
 		tempSkidStore[uid] = cert.Kid
 	}
 
