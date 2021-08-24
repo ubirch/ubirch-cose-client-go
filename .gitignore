@@ -31,6 +31,8 @@
 build/
 *.bck
 config.json
+main
 
 /venv/
 /main/cpu.prof
+

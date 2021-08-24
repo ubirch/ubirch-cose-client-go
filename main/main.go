@@ -18,22 +18,19 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/http"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	http_server "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	repo "github.com/ubirch/ubirch-cose-client-go/main/repository"
 	"os"
 	"os/signal"
-	"path"
 	"runtime"
 	"runtime/pprof"
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
-	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 // handle graceful shutdown
@@ -94,7 +91,7 @@ func main() {
 	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
-	conf := &Config{}
+	conf := &config.Config{}
 	err := conf.Load(*configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
@@ -125,6 +122,13 @@ func main() {
 		runtime.SetBlockProfileRate(1)
 	}
 
+	// create a waitgroup that contains all asynchronous operations
+	// a cancellable context is used to stop the operations gracefully
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// set up graceful shutdown handling
+	go shutdown(cancel)
+
 	// initialize COSE service
 	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(conf.PKCS11Module, conf.PKCS11ModulePin,
 		conf.PKCS11ModuleSlotNr, true, 1, 50*time.Millisecond)
@@ -153,14 +157,15 @@ func main() {
 	}()
 	readinessChecks = append(readinessChecks, cryptoCtx.IsReady)
 
-	storageManager, err := GetStorageManager(conf)
+	storageManager, err := repo.GetStorageManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer storageManager.Close()
 	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	protocol := NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.kdParams)
+	protocol := repo.NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.KdParams)
+	defer protocol.Close()
 
 	//client := &Client{
 	//	CertificateServerURL:       conf.CertificateServer,
@@ -170,68 +175,11 @@ func main() {
 	//
 	//skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
-	idHandler := &IdentityHandler{
-		Protocol:            protocol,
-		Crypto:              cryptoCtx,
-		subjectCountry:      conf.CSR_Country,
-		subjectOrganization: conf.CSR_Organization,
-	}
+	httpServer := http_server.NewServer(conf, serverID, protocol, cryptoCtx, readinessChecks)
 
-	//coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
-	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, getSKID) // FIXME
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Warnf("USING MOCK SKID") // FIXME
-
-	service := &COSEService{
-		GetIdentity: protocol.GetIdentity,
-		CheckAuth:   protocol.pwHasher.CheckPassword,
-		Sign:        coseSigner.Sign,
-	}
-
-	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
-
-	// set up metrics
-	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
-
-	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
-
-	// set up endpoint for CSRs
-	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
-
-	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(getUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
-
-	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
-
-	// set up endpoints for liveness and readiness checks
-	httpServer.Router.Get("/healthz", h.Healthz(serverID))
-	httpServer.Router.Get("/readyz", h.Readyz(serverID, readinessChecks))
-
-	// set up graceful shutdown handling
-	ctx, cancel := context.WithCancel(context.Background())
-	go shutdown(cancel)
-
-	// start HTTP server (blocks)
-	if err = httpServer.Serve(ctx); err != nil {
-		log.Error(err)
-	}
+	// start HTTP server
+	httpServer.Serve(ctx)
 
 	log.Debug("shut down")
 }
 
-func getSKID(uuid.UUID) ([]byte, error) {
-	return make([]byte, 8), nil
-}

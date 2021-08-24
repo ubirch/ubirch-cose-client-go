@@ -3,8 +3,8 @@ package http_server
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server/helper"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -12,10 +12,7 @@ import (
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
-var (
-	ErrAlreadyInitialized = errors.New("identity already registered")
-	ErrUnknown            = errors.New("unknown identity")
-)
+
 
 type IdentityPayload struct {
 	Uid string `json:"uuid"`
@@ -26,7 +23,7 @@ type InitializeIdentity func(ctx context.Context, uid uuid.UUID, auth string) (c
 
 func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(AuthHeader) != auth {
+		if r.Header.Get(h.AuthHeader) != auth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
@@ -50,32 +47,32 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 		if err != nil {
 			errMsg := fmt.Errorf("identity registration failed: %v", err)
 			switch err {
-			case ErrAlreadyInitialized:
-				Error(uid, w, errMsg, http.StatusConflict)
-			case ErrUnknown:
-				Error(uid, w, errMsg, http.StatusNotFound)
+			case h.ErrAlreadyInitialized:
+				h.Error(uid, w, errMsg, http.StatusConflict)
+			case h.ErrUnknown:
+				h.Error(uid, w, errMsg, http.StatusNotFound)
 			default:
-				Error(uid, w, errMsg, http.StatusInternalServerError)
+				h.Error(uid, w, errMsg, http.StatusInternalServerError)
 			}
 			return
 		}
 
-		resp := HTTPResponse{
+		resp := h.HTTPResponse{
 			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": {BinType}},
+			Header:     http.Header{"Content-Type": {h.BinType}},
 			Content:    csr,
 		}
 
-		SendResponse(w, resp)
+		h.SendResponse(w, resp)
 
 		prom.IdentityCreationCounter.Inc()
 	}
 }
 
 func identityFromBody(r *http.Request) (IdentityPayload, error) {
-	contentType := ContentType(r.Header)
-	if contentType != JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
+	contentType := h.ContentType(r.Header)
+	if contentType != h.JSONType {
+		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
 	}
 
 	var payload IdentityPayload
