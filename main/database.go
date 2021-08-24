@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -119,12 +120,34 @@ func (dm *DatabaseManager) IsReady() error {
 	return nil
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(id Identity) error {
+func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+	return dm.db.BeginTx(ctx, dm.options)
+}
+
+func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	if commit {
+		return tx.Commit()
+	} else {
+		return tx.Rollback()
+	}
+}
+
+func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, public_key, auth) VALUES ($1, $2, $3);",
 		dm.tableName)
 
-	_, err := dm.db.Exec(query,
+	_, err := tx.Exec(query,
 		&id.Uid,
 		&id.PublicKeyPEM,
 		&id.Auth)

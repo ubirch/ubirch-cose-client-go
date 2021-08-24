@@ -16,6 +16,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 
@@ -30,11 +32,14 @@ import (
 type IdentityHandler struct {
 	*Protocol
 	ubirch.Crypto
+	Register            registerAuth
 	subjectCountry      string
 	subjectOrganization string
 }
 
-func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth string) ([]byte, error) {
+type registerAuth func(uid uuid.UUID, auth string) error
+
+func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]byte, error) {
 	log.Infof("initializing identity %s", uid)
 
 	initialized, err := i.isInitialized(uid)
@@ -67,7 +72,12 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth 
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
-	pwHash, err := i.pwHasher.GeneratePasswordHash(ctx, auth, i.pwHasherParams)
+	pw, err := generatePassword()
+	if err != nil {
+		return nil, err
+	}
+
+	pwHash, err := i.pwHasher.GeneratePasswordHash(ctx, pw, i.pwHasherParams)
 	if err != nil {
 		return nil, err
 	}
@@ -78,9 +88,27 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth 
 		Auth:         pwHash,
 	}
 
-	err = i.StoreNewIdentity(identity)
+	ctxForTransaction, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := i.StartTransaction(ctxForTransaction)
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.StoreNewIdentity(tx, identity)
 	if err != nil {
 		return nil, fmt.Errorf("could not store new identity: %v", err)
+	}
+
+	err = i.Register(uid, pw)
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.CloseTransaction(tx, Commit)
+	if err != nil {
+		return nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
 	}
 
 	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)
@@ -107,4 +135,16 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
 	return csrPEM, nil
+}
+
+// generatePassword generates the base64 string representation of 32 random bytes
+// which were created with the Read function of the "crypto/rand" package
+func generatePassword() (string, error) {
+	pwBytes := make([]byte, 32)
+	_, err := rand.Read(pwBytes)
+	if err != nil {
+		return "", fmt.Errorf("could not generate a random password: %v", err)
+	}
+
+	return base64.RawStdEncoding.EncodeToString(pwBytes), nil
 }

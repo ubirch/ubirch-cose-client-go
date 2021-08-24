@@ -11,7 +11,7 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 		t.Fatalf("loading TLS certificates failed: %v", err)
 	}
 
-	client := &Client{
+	client := &CertificateServerClient{
 		CertificateServerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
 		CertificateServerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
 		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,

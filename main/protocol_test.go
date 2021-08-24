@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"sync"
 	"testing"
 
@@ -61,7 +62,21 @@ func TestProtocol(t *testing.T) {
 		t.Error("GetUuidForPublicKey did not return ErrNotExist")
 	}
 
-	err = p.StoreNewIdentity(testIdentity)
+	// store identity
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.StoreNewIdentity(tx, testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.CloseTransaction(tx, Commit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +172,15 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 		Auth:         test.Auth,
 	}
 
-	err := p.StoreNewIdentity(i)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.StoreNewIdentity(tx, i)
 	if err == nil {
 		t.Error("StoreNewIdentity did not return error for invalid UUID")
 	}
@@ -172,7 +195,15 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 		Auth:         test.Auth,
 	}
 
-	err := p.StoreNewIdentity(i)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.StoreNewIdentity(tx, i)
 	if err == nil {
 		t.Error("StoreNewIdentity did not return error for invalid public key")
 	}
@@ -187,7 +218,15 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 		Auth:         "",
 	}
 
-	err := p.StoreNewIdentity(i)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.StoreNewIdentity(tx, i)
 	if err == nil {
 		t.Error("StoreNewIdentity did not return error for invalid auth token")
 	}
@@ -204,7 +243,20 @@ func TestProtocol_Cache(t *testing.T) {
 		Auth:         test.Auth,
 	}
 
-	err := p.StoreNewIdentity(testIdentity)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.StoreNewIdentity(tx, testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.CloseTransaction(tx, Commit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +289,15 @@ type mockStorageMngr struct {
 
 var _ StorageManager = (*mockStorageMngr)(nil)
 
-func (m *mockStorageMngr) StoreNewIdentity(id Identity) error {
+func (m *mockStorageMngr) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+	return nil, nil
+}
+
+func (m *mockStorageMngr) CloseTransaction(transactionCtx interface{}, commit bool) error {
+	return nil
+}
+
+func (m *mockStorageMngr) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
 	m.id = id
 	return nil
 }

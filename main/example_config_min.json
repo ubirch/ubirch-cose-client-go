@@ -3,5 +3,7 @@
   "env": "test",
   "certificateServer": "https://www.example.cert.server.com",
   "certificateServerPubKey": "https://www.example.cert.server.com/pubkey.pem",
+  "certifyApiUrl": "http://localhost:8090",
+  "certifyApiAuth": "12345",
   "pkcs11ModulePin": "1234"
 }

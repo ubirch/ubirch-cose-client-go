@@ -162,17 +162,23 @@ func main() {
 
 	protocol := NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.kdParams)
 
-	//client := &Client{
+	//certClient := &CertificateServerClient{
 	//	CertificateServerURL:       conf.CertificateServer,
 	//	CertificateServerPubKeyURL: conf.CertificateServerPubKey,
 	//	ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
 	//}
 	//
-	//skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
+	//skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
+
+	certifyApiClient := &CertifyApiClient{
+		CertifyApiURL:  conf.CertifyApiUrl,
+		CertifyApiAuth: conf.CertifyApiAuth,
+	}
 
 	idHandler := &IdentityHandler{
 		Protocol:            protocol,
 		Crypto:              cryptoCtx,
+		Register:            certifyApiClient.RegisterSeal,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
