@@ -34,7 +34,7 @@ import (
 	urlpkg "net/url"
 )
 
-type Client struct {
+type CertificateServerClient struct {
 	CertificateServerURL       string
 	CertificateServerPubKeyURL string
 	ServerTLSCertFingerprints  map[string][32]byte
@@ -55,7 +55,7 @@ type Certificate struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
-func (c *Client) RequestCertificateList() ([]Certificate, error) {
+func (c *CertificateServerClient) RequestCertificateList() ([]Certificate, error) {
 	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key certificate list failed: %v", err)
@@ -96,7 +96,7 @@ func (c *Client) RequestCertificateList() ([]Certificate, error) {
 	return newTrustList.Certificates, nil
 }
 
-func (c *Client) RequestCertificateListPublicKey() ([]byte, error) {
+func (c *CertificateServerClient) RequestCertificateListPublicKey() ([]byte, error) {
 	resp, err := c.getWithCertPinning(c.CertificateServerPubKeyURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key for certificate list verification failed: %v", err)
@@ -105,7 +105,7 @@ func (c *Client) RequestCertificateListPublicKey() ([]byte, error) {
 	return resp, nil
 }
 
-func (c *Client) getWithCertPinning(url string) ([]byte, error) {
+func (c *CertificateServerClient) getWithCertPinning(url string) ([]byte, error) {
 	// get TLS certificate fingerprint for host
 	u, err := urlpkg.Parse(url)
 	if err != nil {
@@ -173,7 +173,7 @@ const (
 	nistp256SignatureLength = nistp256RLength + nistp256SLength //Bytes, Signature = concatenate(R,S)
 )
 
-func (c *Client) verifySignature(pubKeyPEM []byte, data []byte, signature []byte) (bool, error) {
+func (c *CertificateServerClient) verifySignature(pubKeyPEM []byte, data []byte, signature []byte) (bool, error) {
 	if len(data) == 0 {
 		return false, fmt.Errorf("empty data cannot be verified")
 	}
