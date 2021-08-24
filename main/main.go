@@ -170,9 +170,15 @@ func main() {
 	//
 	//skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
+	certifyApiClient := &CertifyApiClient{
+		CertifyApiURL:  conf.CertifyApiUrl,
+		CertifyApiAuth: conf.CertifyApiAuth,
+	}
+
 	idHandler := &IdentityHandler{
 		Protocol:            protocol,
 		Crypto:              cryptoCtx,
+		Register:            certifyApiClient.RegisterSeal,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
