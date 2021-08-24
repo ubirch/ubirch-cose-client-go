@@ -17,6 +17,8 @@
   "certificateServer": "https://www.test.cert.server.com",
   "certificateServerPubKey": "https://www.test.cert.server.com/pubkey.pem",
   "reloadCertsEveryMinute": true,
+  "certifyApiUrl": "http://localhost:8090",
+  "certifyApiAuth": "12345",
   "pkcs11ModulePin": "1234",
   "kdMaxTotalMemMiB": 10,
   "kdParamMemMiB": 1,
