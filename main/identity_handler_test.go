@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -22,9 +23,12 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 
 	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
 
+	client := &mockRegistrationClient{}
+
 	idHandler := &IdentityHandler{
 		Protocol:            p,
 		Crypto:              cryptoCtx,
+		Register:            client.registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -39,12 +43,21 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := p.pwHasher.CheckPassword(context.Background(), test.Auth, initializedIdentity.Auth)
+	ok, err := p.pwHasher.CheckPassword(context.Background(), client.Auth, initializedIdentity.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ok {
 		t.Error("initializedIdentity unexpected password")
+	}
+
+	pub, err := cryptoCtx.GetPublicKeyPEM(test.Uuid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(initializedIdentity.PublicKeyPEM, pub) {
+		t.Error("initializedIdentity unexpected public key")
 	}
 
 	data := []byte("test")
@@ -79,6 +92,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	idHandler := &IdentityHandler{
 		Protocol:            p,
 		Crypto:              cryptoCtx,
+		Register:            (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -104,6 +118,7 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 	idHandler := &IdentityHandler{
 		Protocol:            p,
 		Crypto:              cryptoCtx,
+		Register:            (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -112,4 +127,48 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 	if err != h.ErrUnknown {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}
+
+	_, err = p.GetIdentity(test.Uuid)
+	if err != ErrNotExist {
+		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
+	}
+}
+
+func TestIdentityHandler_initIdentity_BadRegistration(t *testing.T) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
+
+	idHandler := &IdentityHandler{
+		Protocol:            p,
+		Crypto:              cryptoCtx,
+		Register:            (&mockRegistrationClient{}).registerAuthBad,
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
+	}
+
+	_, err := idHandler.InitIdentity(context.Background(), test.Uuid)
+	if err == nil {
+		t.Errorf("no error after failed registration")
+	}
+
+	_, err = p.GetIdentity(test.Uuid)
+	if err != ErrNotExist {
+		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
+	}
+}
+
+type mockRegistrationClient struct {
+	Auth string
+}
+
+func (m *mockRegistrationClient) registerAuth(auth string) error {
+	m.Auth = auth
+	return nil
+}
+
+func (m *mockRegistrationClient) registerAuthBad(auth string) error {
+	return test.Error
 }
