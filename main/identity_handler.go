@@ -37,7 +37,7 @@ type IdentityHandler struct {
 	subjectOrganization string
 }
 
-type registerAuth func(auth string) error
+type registerAuth func(uid uuid.UUID, auth string) error
 
 func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]byte, error) {
 	log.Infof("initializing identity %s", uid)
@@ -101,7 +101,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]by
 		return nil, fmt.Errorf("could not store new identity: %v", err)
 	}
 
-	err = i.Register(pw)
+	err = i.Register(uid, pw)
 	if err != nil {
 		return nil, err
 	}

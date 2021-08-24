@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
@@ -164,11 +165,11 @@ type mockRegistrationClient struct {
 	Auth string
 }
 
-func (m *mockRegistrationClient) registerAuth(auth string) error {
+func (m *mockRegistrationClient) registerAuth(uid uuid.UUID, auth string) error {
 	m.Auth = auth
 	return nil
 }
 
-func (m *mockRegistrationClient) registerAuthBad(auth string) error {
+func (m *mockRegistrationClient) registerAuthBad(uid uuid.UUID, auth string) error {
 	return test.Error
 }
