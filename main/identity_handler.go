@@ -32,9 +32,12 @@ import (
 type IdentityHandler struct {
 	*Protocol
 	ubirch.Crypto
+	Register            registerAuth
 	subjectCountry      string
 	subjectOrganization string
 }
+
+type registerAuth func(auth string) error
 
 func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]byte, error) {
 	log.Infof("initializing identity %s", uid)
@@ -85,9 +88,27 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]by
 		Auth:         pwHash,
 	}
 
-	err = i.StoreNewIdentity(identity)
+	ctxForTransaction, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := i.StartTransaction(ctxForTransaction)
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.StoreNewIdentity(tx, identity)
 	if err != nil {
 		return nil, fmt.Errorf("could not store new identity: %v", err)
+	}
+
+	err = i.Register(pw)
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.CloseTransaction(tx, Commit)
+	if err != nil {
+		return nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
 	}
 
 	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)

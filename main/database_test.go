@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -40,7 +41,20 @@ func TestDatabaseManager(t *testing.T) {
 	}
 
 	// store identity
-	err = dm.StoreNewIdentity(*testIdentity)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dm.StoreNewIdentity(tx, *testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dm.CloseTransaction(tx, Commit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,13 +93,30 @@ func TestStoreExisting(t *testing.T) {
 	testIdentity := generateRandomIdentity()
 
 	// store identity
-	err = dm.StoreNewIdentity(*testIdentity)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dm.StoreNewIdentity(tx, *testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dm.CloseTransaction(tx, Commit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// store same identity again
-	err = dm.StoreNewIdentity(*testIdentity)
+	tx2, err := dm.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = dm.StoreNewIdentity(tx2, *testIdentity)
 	if err == nil {
 		t.Fatal("existing identity was overwritten")
 	}
@@ -227,7 +258,20 @@ func generateRandomIdentity() *Identity {
 func storeIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	return storageMngr.StoreNewIdentity(*id)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := storageMngr.StartTransaction(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = storageMngr.StoreNewIdentity(tx, *id)
+	if err != nil {
+		return err
+	}
+
+	return storageMngr.CloseTransaction(tx, Commit)
 }
 
 func checkIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup) error {

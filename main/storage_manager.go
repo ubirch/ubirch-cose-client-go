@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+)
+
+const (
+	Commit   = true
+	Rollback = false
 )
 
 var (
@@ -13,7 +19,10 @@ var (
 )
 
 type StorageManager interface {
-	StoreNewIdentity(id Identity) error
+	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
+	CloseTransaction(transactionCtx interface{}, commit bool) error
+
+	StoreNewIdentity(transactionCtx interface{}, id Identity) error
 	GetIdentity(uid uuid.UUID) (Identity, error)
 
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -29,7 +30,7 @@ import (
 
 const (
 	SkidLen             = 8
-	maxRecoveryAttempts = 1
+	maxRecoveryAttempts = 2
 )
 
 type Protocol struct {
@@ -63,14 +64,26 @@ func NewProtocol(storageManager StorageManager, maxTotalMem uint32, argon2idPara
 	}
 }
 
-func (p *Protocol) StoreNewIdentity(id Identity) error {
+func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+	for i := 0; i <= maxRecoveryAttempts; i++ {
+		transactionCtx, err = p.StorageManager.StartTransaction(ctx)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
+			log.Warnf("StartTransaction error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
+			continue
+		}
+		break
+	}
+	return transactionCtx, err
+}
+
+func (p *Protocol) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
 	err := checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
 	}
 
 	for i := 0; i <= maxRecoveryAttempts; i++ {
-		err = p.StorageManager.StoreNewIdentity(id)
+		err = p.StorageManager.StoreNewIdentity(transactionCtx, id)
 		if err != nil && p.StorageManager.IsRecoverable(err) {
 			log.Warnf("StoreNewIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
