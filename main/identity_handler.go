@@ -50,7 +50,6 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error)
 	if initialized {
 		return nil, h.ErrAlreadyInitialized
 	}
-	log.Infof("initializing new identity %s", uid)
 
 	// generate a new new pair
 	privKeyPEM, err := i.Protocol.GenerateKey()
