@@ -18,14 +18,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
@@ -34,10 +34,9 @@ const (
 )
 
 type Protocol struct {
+	ubirch.Crypto
 	StorageManager
-
-	pwHasher       *pw.Argon2idKeyDerivator
-	pwHasherParams *pw.Argon2idParams
+	keyEncrypter *encrypters.KeyEncrypter
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
@@ -46,22 +45,24 @@ type Protocol struct {
 // Ensure Protocol implements the StorageManager interface
 var _ StorageManager = (*Protocol)(nil)
 
-func NewProtocol(storageManager StorageManager, maxTotalMem uint32, argon2idParams *pw.Argon2idParams) *Protocol {
-	params, err := json.Marshal(argon2idParams)
+func NewProtocol(storageManager StorageManager, secret []byte) (*Protocol, error) {
+	crypto := &ubirch.ECDSACryptoContext{}
+
+	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
 	if err != nil {
-		log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
+		return nil, err
 	}
-	log.Debugf("initialize argon2id key derivation with parameters %s", params)
 
-	return &Protocol{
+	p := &Protocol{
+		Crypto:         crypto,
 		StorageManager: storageManager,
-
-		pwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
-		pwHasherParams: argon2idParams,
+		keyEncrypter:   enc,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},
 	}
+
+	return p, nil
 }
 
 func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
@@ -78,6 +79,18 @@ func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interfa
 
 func (p *Protocol) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
 	err := checkIdentityAttributesNotNil(&id)
+	if err != nil {
+		return err
+	}
+
+	// encrypt private key
+	id.PrivateKey, err = p.keyEncrypter.Encrypt(id.PrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// store public key raw bytes
+	id.PublicKey, err = p.Crypto.PublicKeyPEMToBytes(id.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -125,6 +138,16 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 		return id, err
 	}
 
+	id.PrivateKey, err = p.keyEncrypter.Decrypt(id.PrivateKey)
+	if err != nil {
+		return id, err
+	}
+
+	id.PublicKey, err = p.Crypto.PublicKeyBytesToPEM(id.PublicKey)
+	if err != nil {
+		return id, err
+	}
+
 	err = checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return id, err
@@ -143,7 +166,12 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 	}
 
 	if !found {
-		uid, err = p.fetchUuidForPublicKeyFromStorage(publicKeyPEM)
+		publicKeyBytes, err := p.Crypto.PublicKeyPEMToBytes(publicKeyPEM)
+		if err != nil {
+			return uuid.Nil, err
+		}
+
+		uid, err = p.fetchUuidForPublicKeyFromStorage(publicKeyBytes)
 		if err != nil {
 			return uuid.Nil, err
 		}
@@ -183,12 +211,16 @@ func checkIdentityAttributesNotNil(i *Identity) error {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
 
-	if len(i.PublicKeyPEM) == 0 {
+	if len(i.PrivateKey) == 0 {
+		return fmt.Errorf("empty private key")
+	}
+
+	if len(i.PublicKey) == 0 {
 		return fmt.Errorf("empty public key")
 	}
 
-	if len(i.Auth) == 0 {
-		return fmt.Errorf("empty auth")
+	if len(i.AuthToken) == 0 {
+		return fmt.Errorf("empty auth token")
 	}
 
 	return nil

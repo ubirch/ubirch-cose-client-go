@@ -7,8 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
@@ -25,8 +23,6 @@ var (
 	Auth = "password1234!"
 
 	Error = errors.New("test error")
-
-	Argon2idParams = &pw.Argon2idParams{Time: 1, Memory: 1, Threads: 1, KeyLen: 1}
 )
 
 type MockKeystorer struct {

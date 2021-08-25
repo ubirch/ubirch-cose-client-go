@@ -23,26 +23,26 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
+type SubmitKeyRegistration func(uid uuid.UUID, cert []byte, auth string) error
+type SubmitCSR func(uid uuid.UUID, csr []byte) error
+type RegisterAuth func(uid uuid.UUID, auth string) error
+
 type IdentityHandler struct {
-	*Protocol
-	ubirch.Crypto
-	Register            registerAuth
+	Protocol *Protocol
+	SubmitKeyRegistration
+	SubmitCSR
+	RegisterAuth
 	subjectCountry      string
 	subjectOrganization string
 }
 
-type registerAuth func(uid uuid.UUID, auth string) error
-
-func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]byte, error) {
-	log.Infof("initializing identity %s", uid)
-
-	initialized, err := i.isInitialized(uid)
+func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error) {
+	initialized, err := i.Protocol.isInitialized(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
 	}
@@ -50,26 +50,17 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]by
 	if initialized {
 		return nil, h.ErrAlreadyInitialized
 	}
+	log.Infof("initializing new identity %s", uid)
 
-	keyExists, err := i.PrivateKeyExists(uid)
+	// generate a new new pair
+	privKeyPEM, err := i.Protocol.GenerateKey()
 	if err != nil {
-		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
+		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
 
-	if !keyExists {
-		return nil, h.ErrUnknown
-	}
-
-	csr, err := i.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	pubKeyPEM, err := i.Protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
-		return nil, fmt.Errorf("could not generate CSR: %v", err)
-	}
-
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
-
-	pubKeyPEM, err := i.GetPublicKeyPEM(uid)
-	if err != nil {
-		return nil, fmt.Errorf("could not get public key: %v", err)
+		return nil, err
 	}
 
 	pw, err := generatePassword()
@@ -77,36 +68,41 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]by
 		return nil, err
 	}
 
-	pwHash, err := i.pwHasher.GeneratePasswordHash(ctx, pw, i.pwHasherParams)
-	if err != nil {
-		return nil, err
-	}
-
-	identity := Identity{
-		Uid:          uid,
-		PublicKeyPEM: pubKeyPEM,
-		Auth:         pwHash,
+	newIdentity := Identity{
+		Uid:        uid,
+		PrivateKey: privKeyPEM,
+		PublicKey:  pubKeyPEM,
+		AuthToken:  pw,
 	}
 
 	ctxForTransaction, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := i.StartTransaction(ctxForTransaction)
+	tx, err := i.Protocol.StartTransaction(ctxForTransaction)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.StoreNewIdentity(tx, identity)
+	err = i.Protocol.StoreNewIdentity(tx, newIdentity)
 	if err != nil {
 		return nil, fmt.Errorf("could not store new identity: %v", err)
 	}
 
-	err = i.Register(uid, pw)
+	// register public key at the ubirch backend
+	csr, err := i.registerPublicKey(privKeyPEM, uid)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.CloseTransaction(tx, Commit)
+	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+
+	// register auth token at the certify api
+	err = i.RegisterAuth(uid, pw)
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.Protocol.CloseTransaction(tx, Commit)
 	if err != nil {
 		return nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
 	}
@@ -117,24 +113,53 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]by
 	return csrPEM, nil
 }
 
-func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
-	keyExists, err := i.PrivateKeyExists(uid)
+func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
+	id, err := i.Protocol.GetIdentity(uid)
+	if err == ErrNotExist {
+		return nil, h.ErrUnknown
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
 
-	if !keyExists {
-		return nil, h.ErrUnknown
-	}
-
-	csr, err := i.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Protocol.GetCSR(id.PrivateKey, uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}
 
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
 	return csrPEM, nil
+}
+
+func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {
+	keyRegistration, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
+	if err != nil {
+		return nil, fmt.Errorf("error creating public key certificate: %v", err)
+	}
+	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
+
+	csr, err = i.Protocol.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
+	if err != nil {
+		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
+	}
+	log.Debugf("%s: CSR [der]: %x", uid, csr)
+
+	err = i.SubmitKeyRegistration(uid, keyRegistration, "")
+	if err != nil {
+		return nil, fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
+	}
+
+	go i.submitCSROrLogError(uid, csr)
+
+	return csr, nil
+}
+
+func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
+	err := i.SubmitCSR(uid, csr)
+	if err != nil {
+		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
+	}
 }
 
 // generatePassword generates the base64 string representation of 32 random bytes

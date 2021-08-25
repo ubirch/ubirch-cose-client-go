@@ -17,23 +17,29 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
 
 	log "github.com/sirupsen/logrus"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
-	ProdStage = "prod"
+	secretLength = 32
 
-	tlsCertsFileName = "%s_ubirch_tls_certs.json"
+	PROD_STAGE = "prod"
+
+	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
+	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+
+	TLSCertsFileName = "%s_ubirch_tls_certs.json"
 
 	defaultCSRCountry      = "DE"
 	defaultCSROrganization = "ubirch GmbH"
@@ -47,26 +53,12 @@ const (
 	defaultDbMaxIdleConns    = 10
 	defaultDbConnMaxLifetime = 10
 	defaultDbConnMaxIdleTime = 1
-
-	defaultPKCS11Module = "libcs_pkcs11_R3.so"
-
-	defaultKeyDerivationMaxTotalMemory   = 64
-	defaultKeyDerivationParamMemory      = 16
-	defaultKeyDerivationParamTime        = 2
-	defaultKeyDerivationParamParallelism = 8
-	defaultKeyDerivationParamKeyLen      = 24
-	defaultKeyDerivationParamSaltLen     = 16
-
-	defaultRequestLimit        = 10
-	defaultRequestBacklogLimit = 5
 )
 
 type Config struct {
+	SecretBase64              string `json:"secret32" envconfig:"SECRET32"`                                 // 32 byte secret used to encrypt the key store (mandatory)
 	RegisterAuth              string `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
 	Env                       string `json:"env" envconfig:"ENV"`                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	PKCS11Module              string `json:"pkcs11Module" envconfig:"PKCS11_MODULE"`                        //
-	PKCS11ModulePin           string `json:"pkcs11ModulePin" envconfig:"PKCS11_MODULE_PIN"`                 //
-	PKCS11ModuleSlotNr        int    `json:"pkcs11ModuleSlotNr" envconfig:"PKCS11_MODULE_SLOT_NR"`          //
 	PostgresDSN               string `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
 	DbMaxOpenConns            string `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                  // maximum number of open connections to the database
 	DbMaxIdleConns            string `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                  // maximum number of connections in the idle connection pool
@@ -83,17 +75,13 @@ type Config struct {
 	CertificateServer         string `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
 	CertificateServerPubKey   string `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
-	CertifyApiUrl             string `json:"certifyApiUrl" envconfig:"CERTIFY_API_URL"`                     // URL of the certify API
-	CertifyApiAuth            string `json:"certifyApiAuth" envconfig:"CERTIFY_API_AUTH"`                   // auth token for the seal registration endpoint of the certify API
-	KdMaxTotalMemMiB          uint32 `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`             // maximal total memory to use for key derivation at a time in MiB
-	KdParamMemMiB             uint32 `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                    // memory parameter for key derivation, specifies the size of the memory in MiB
-	KdParamTime               uint32 `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`                         // time parameter for key derivation, specifies the number of passes over the memory
-	KdParamParallelism        uint8  `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"`           // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
-	RequestLimit              int    `json:"requestLimit" envconfig:"REQUEST_LIMIT"`                        // limits number of currently processed (incoming) requests at a time
-	RequestBacklogLimit       int    `json:"requestBacklogLimit" envconfig:"REQUEST_BACKLOG_LIMIT"`         // backlog for holding a finite number of pending requests
+	KeyService                string // key service URL
+	IdentityService           string // identity service URL
+	CertifyApiUrl             string `json:"certifyApiUrl" envconfig:"CERTIFY_API_URL"`   // URL of the certify API
+	CertifyApiAuth            string `json:"certifyApiAuth" envconfig:"CERTIFY_API_AUTH"` // auth token for the seal registration endpoint of the certify API
 	serverTLSCertFingerprints map[string][32]byte
+	secretBytes               []byte // the decoded key store secret
 	dbParams                  *DatabaseParams
-	kdParams                  *pw.Argon2idParams
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -117,21 +105,24 @@ func (c *Config) Load(configDir, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
+	c.secretBytes, err = base64.StdEncoding.DecodeString(c.SecretBase64)
+	if err != nil {
+		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
+	}
+
 	err = c.checkMandatory()
 	if err != nil {
 		return err
 	}
 
-	err = c.loadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env)))
+	err = c.loadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(TLSCertsFileName, c.Env)))
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
-	c.setDefaultHSM()
 	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
-	c.setDefaultRequestLimits()
-	c.setKeyDerivationParams()
+	c.setDefaultURLs()
 	return c.setDbParams()
 }
 
@@ -145,7 +136,7 @@ func (c *Config) loadEnv() error {
 func (c *Config) loadFile(filename string) error {
 	log.Infof("loading configuration from file: %s", filename)
 
-	fileHandle, err := os.Open(filename)
+	fileHandle, err := os.Open(filepath.Clean(filename))
 	if err != nil {
 		return err
 	}
@@ -162,6 +153,10 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
+	if len(c.secretBytes) != secretLength {
+		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
+	}
+
 	if len(c.RegisterAuth) == 0 {
 		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
 	}
@@ -182,21 +177,7 @@ func (c *Config) checkMandatory() error {
 		return fmt.Errorf("missing 'certifyApiAuth' in configuration")
 	}
 
-	if len(c.PKCS11ModulePin) == 0 {
-		return fmt.Errorf("missing 'pkcs11ModulePin / UBIRCH_PKCS11_MODULE_PIN' in configuration")
-	}
-
-	if len(c.Env) == 0 {
-		c.Env = ProdStage
-	}
-
 	return nil
-}
-
-func (c *Config) setDefaultHSM() {
-	if len(c.PKCS11Module) == 0 {
-		c.PKCS11Module = defaultPKCS11Module
-	}
 }
 
 func (c *Config) setDefaultCSR() {
@@ -234,41 +215,21 @@ func (c *Config) setDefaultTLS(configDir string) {
 	}
 }
 
-func (c *Config) setDefaultRequestLimits() {
-	if c.RequestLimit == 0 {
-		c.RequestLimit = defaultRequestLimit
-	}
-	log.Debugf("limit to currently processed requests at a time: %d", c.RequestLimit)
-
-	if c.RequestBacklogLimit == 0 {
-		c.RequestBacklogLimit = defaultRequestBacklogLimit
-	}
-	log.Debugf("limit to pending requests at a time: %d", c.RequestBacklogLimit)
-}
-
-func (c *Config) setKeyDerivationParams() {
-	if c.KdMaxTotalMemMiB == 0 {
-		c.KdMaxTotalMemMiB = defaultKeyDerivationMaxTotalMemory
+func (c *Config) setDefaultURLs() {
+	if c.Env == "" {
+		c.Env = PROD_STAGE
 	}
 
-	if c.KdParamMemMiB == 0 {
-		c.KdParamMemMiB = defaultKeyDerivationParamMemory
+	log.Infof("UBIRCH backend environment: %s", c.Env)
+
+	if c.KeyService == "" {
+		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
+	} else {
+		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
 	}
 
-	if c.KdParamTime == 0 {
-		c.KdParamTime = defaultKeyDerivationParamTime
-	}
-
-	if c.KdParamParallelism == 0 {
-		c.KdParamParallelism = defaultKeyDerivationParamParallelism
-	}
-
-	c.kdParams = &pw.Argon2idParams{
-		Memory:  c.KdParamMemMiB * 1024,
-		Time:    c.KdParamTime,
-		Threads: c.KdParamParallelism,
-		KeyLen:  defaultKeyDerivationParamKeyLen,
-		SaltLen: defaultKeyDerivationParamSaltLen,
+	if c.IdentityService == "" {
+		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
 	}
 }
 
@@ -319,7 +280,7 @@ func (c *Config) setDbParams() error {
 }
 
 func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
-	fileHandle, err := os.Open(serverTLSCertFile)
+	fileHandle, err := os.Open(filepath.Clean(serverTLSCertFile))
 	if err != nil {
 		return err
 	}

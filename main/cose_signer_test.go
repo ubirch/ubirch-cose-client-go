@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
@@ -28,13 +27,20 @@ import (
 )
 
 var (
+	testKey, _ = base64.StdEncoding.DecodeString("YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM=")
+
 	payloadJSON = "{\"test\": \"hello\"}"
 )
 
 func TestCoseSigner(t *testing.T) {
-	c := setupCryptoCtx(t, test.Uuid)
+	c, privKeyPEM := setupCryptoCtx(t)
 
-	pubKeyBytes, err := c.GetPublicKeyBytes(test.Uuid)
+	pubKeyPEM, err := c.GetPublicKeyFromPrivateKey(privKeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyBytes, err := c.PublicKeyPEMToBytes(pubKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,9 +71,7 @@ func TestCoseSigner(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	ctx := context.Background()
-
-	coseBytes, err := coseSigner.createSignedCOSE(ctx, test.Uuid, hash, test.Uuid[:], payloadCBOR)
+	coseBytes, err := coseSigner.createSignedCOSE(hash, privKeyPEM, test.Uuid[:], payloadCBOR)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +80,7 @@ func TestCoseSigner(t *testing.T) {
 }
 
 func TestCoseSign(t *testing.T) {
-	c := setupCryptoCtx(t, test.Uuid)
+	c, privKeyPEM := setupCryptoCtx(t)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
@@ -89,7 +93,7 @@ func TestCoseSign(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg)
+	resp := coseSigner.Sign(msg, privKeyPEM)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -101,7 +105,7 @@ func TestCoseSign(t *testing.T) {
 }
 
 func TestCoseSignBadSkid(t *testing.T) {
-	c := setupCryptoCtx(t, test.Uuid)
+	c, privateKeyPEM := setupCryptoCtx(t)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKIDReturnsErr)
 	if err != nil {
@@ -114,7 +118,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg)
+	resp := coseSigner.Sign(msg, privateKeyPEM)
 
 	if resp.StatusCode != http.StatusTooEarly {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -126,7 +130,9 @@ func TestCoseSignBadSkid(t *testing.T) {
 }
 
 func TestCoseSignBadKey(t *testing.T) {
-	coseSigner, err := NewCoseSigner(mockSignReturnsError, mockGetSKID)
+	c, _ := setupCryptoCtx(t)
+
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +143,7 @@ func TestCoseSignBadKey(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg)
+	resp := coseSigner.Sign(msg, nil)
 
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -160,7 +166,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg)
+	resp := coseSigner.Sign(msg, nil)
 
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -172,9 +178,9 @@ func TestCoseSignBadSignature(t *testing.T) {
 }
 
 func TestCoseBadGetCBORFromJSON(t *testing.T) {
-	c := setupCryptoCtx(t, test.Uuid)
+	c, _ := setupCryptoCtx(t)
 
-	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKIDReturnsErr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,17 +191,15 @@ func TestCoseBadGetCBORFromJSON(t *testing.T) {
 	}
 }
 
-func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
-	cryptoCtx = &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
-	}
+func setupCryptoCtx(t *testing.T) (cryptoCtx ubirch.Crypto, privKeyPEM []byte) {
+	cryptoCtx = &ubirch.ECDSACryptoContext{}
 
-	err := cryptoCtx.SetKey(uid, test.Key)
+	privKeyPEM, err := cryptoCtx.PrivateKeyBytesToPEM(testKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return cryptoCtx
+	return cryptoCtx, privKeyPEM
 }
 
 func mockGetSKID(uuid.UUID) ([]byte, error) {
@@ -206,14 +210,10 @@ func mockGetSKIDReturnsErr(uuid.UUID) ([]byte, error) {
 	return nil, test.Error
 }
 
-func mockSign(uuid.UUID, []byte) ([]byte, error) {
+func mockSign([]byte, []byte) ([]byte, error) {
 	return make([]byte, 64), nil
 }
 
-func mockSignReturnsError(uuid.UUID, []byte) ([]byte, error) {
-	return nil, test.Error
-}
-
-func mockSignReturnsNilSignature(uuid.UUID, []byte) ([]byte, error) {
+func mockSignReturnsNilSignature([]byte, []byte) ([]byte, error) {
 	return nil, nil
 }

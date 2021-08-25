@@ -41,7 +41,6 @@ type CertificateServerClient struct {
 }
 
 type trustList struct {
-	//SignatureHEX string         `json:"signature"`
 	Certificates []Certificate `json:"certificates"`
 }
 

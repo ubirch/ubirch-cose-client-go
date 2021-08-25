@@ -29,7 +29,7 @@ import (
 
 const (
 	PostgreSql                  string = "postgres"
-	PostgreSqlIdentityTableName string = "cose_identity_hsm"
+	PostgreSqlIdentityTableName string = "cose_identity"
 )
 
 const (
@@ -39,8 +39,9 @@ const (
 var create = map[int]string{
 	PostgresIdentity: "CREATE TABLE IF NOT EXISTS %s(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
-		"public_key VARCHAR(255) NOT NULL, " +
-		"auth VARCHAR(255) NOT NULL);",
+		"private_key BYTEA NOT NULL, " +
+		"public_key BYTEA NOT NULL, " +
+		"auth_token VARCHAR(255) NOT NULL);",
 }
 
 func CreateTable(tableType int, tableName string) string {
@@ -144,13 +145,10 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, id Ident
 	}
 
 	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, public_key, auth) VALUES ($1, $2, $3);",
+		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
 		dm.tableName)
 
-	_, err := tx.Exec(query,
-		&id.Uid,
-		&id.PublicKeyPEM,
-		&id.Auth)
+	_, err := tx.Exec(query, &id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
 	if err != nil {
 		return err
 	}
@@ -163,10 +161,7 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid).Scan(
-		&id.Uid,
-		&id.PublicKeyPEM,
-		&id.Auth)
+	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return id, ErrNotExist

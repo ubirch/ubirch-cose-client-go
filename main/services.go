@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
@@ -43,13 +43,11 @@ type HTTPRequest struct {
 	ID      uuid.UUID
 	Hash    Sha256Sum
 	Payload []byte
-	Ctx     context.Context
 }
 
 type COSEService struct {
 	GetIdentity func(uuid.UUID) (Identity, error)
-	CheckAuth   func(context.Context, string, string) (bool, error)
-	Sign        func(HTTPRequest) h.HTTPResponse
+	Sign        func(HTTPRequest, []byte) h.HTTPResponse
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
@@ -74,23 +72,13 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-
-		ctx := r.Context()
-		auth := r.Header.Get(h.AuthHeader)
-
-		authOk, err := s.CheckAuth(ctx, auth, identity.Auth)
+		err = checkAuth(r, identity.AuthToken)
 		if err != nil {
-			log.Errorf("%s: password check failed: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			h.Error(uid, w, err, http.StatusUnauthorized)
 			return
 		}
 
-		if !authOk {
-			h.Error(uid, w, fmt.Errorf(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
-			return
-		}
-
-		msg := HTTPRequest{ID: uid, Ctx: ctx}
+		msg := HTTPRequest{ID: uid}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {
@@ -98,8 +86,11 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		resp := s.Sign(msg)
+		timer := prometheus.NewTimer(prom.SignatureCreationDuration)
+		resp := s.Sign(msg, identity.PrivateKey)
+		timer.ObserveDuration()
 
+		ctx := r.Context()
 		select {
 		case <-ctx.Done():
 			log.Warnf("signing response can not be sent: http request %s", ctx.Err())
@@ -124,6 +115,15 @@ func getUUIDFromURL(r *http.Request) (uuid.UUID, error) {
 		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
 	}
 	return uid, nil
+}
+
+// checkAuth checks the auth token from the request header
+// Returns error if auth token is not correct
+func checkAuth(r *http.Request, correctAuthToken string) error {
+	if r.Header.Get(h.AuthHeader) != correctAuthToken {
+		return fmt.Errorf("invalid auth token")
+	}
+	return nil
 }
 
 func GetHashFromHashRequest() GetPayloadAndHash {

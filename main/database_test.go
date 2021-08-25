@@ -35,7 +35,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetIdentity did not return ErrNotExist")
 	}
 
-	_, err = dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
+	_, err = dm.GetUuidForPublicKey(testIdentity.PublicKey)
 	if err != ErrNotExist {
 		t.Error("GetUuidForPublicKey did not return ErrNotExist")
 	}
@@ -64,17 +64,20 @@ func TestDatabaseManager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !bytes.Equal(idFromDb.PrivateKey, testIdentity.PrivateKey) {
+		t.Error("GetIdentity returned unexpected PrivateKey value")
+	}
+	if !bytes.Equal(idFromDb.PublicKey, testIdentity.PublicKey) {
+		t.Error("GetIdentity returned unexpected PublicKey value")
+	}
+	if idFromDb.AuthToken != testIdentity.AuthToken {
+		t.Error("GetIdentity returned unexpected AuthToken value")
+	}
 	if !bytes.Equal(idFromDb.Uid[:], testIdentity.Uid[:]) {
 		t.Error("GetIdentity returned unexpected Uid value")
 	}
-	if !bytes.Equal(idFromDb.PublicKeyPEM, testIdentity.PublicKeyPEM) {
-		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
-	}
-	if idFromDb.Auth != testIdentity.Auth {
-		t.Error("GetIdentity returned unexpected Auth value")
-	}
 
-	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
+	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +119,7 @@ func TestStoreExisting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	err = dm.StoreNewIdentity(tx2, *testIdentity)
 	if err == nil {
 		t.Fatal("existing identity was overwritten")
@@ -242,16 +246,20 @@ func cleanUpDB(t *testing.T, dm *DatabaseManager) {
 }
 
 func generateRandomIdentity() *Identity {
+	priv := make([]byte, 32)
+	rand.Read(priv)
+
 	pub := make([]byte, 64)
 	rand.Read(pub)
 
-	auth := make([]byte, 32)
+	auth := make([]byte, 16)
 	rand.Read(auth)
 
 	return &Identity{
-		Uid:          uuid.New(),
-		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
-		Auth:         base64.StdEncoding.EncodeToString(auth),
+		Uid:        uuid.New(),
+		PrivateKey: priv,
+		PublicKey:  pub,
+		AuthToken:  base64.StdEncoding.EncodeToString(auth),
 	}
 }
 
@@ -263,15 +271,20 @@ func storeIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup)
 
 	tx, err := storageMngr.StartTransaction(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("StartTransaction: %v", err)
 	}
 
 	err = storageMngr.StoreNewIdentity(tx, *id)
 	if err != nil {
-		return err
+		return fmt.Errorf("StoreNewIdentity: %v", err)
 	}
 
-	return storageMngr.CloseTransaction(tx, Commit)
+	err = storageMngr.CloseTransaction(tx, Commit)
+	if err != nil {
+		return fmt.Errorf("CloseTransaction: %v", err)
+	}
+
+	return nil
 }
 
 func checkIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup) error {
@@ -281,17 +294,20 @@ func checkIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup)
 	if err != nil {
 		return err
 	}
+	if !bytes.Equal(idFromCtx.PrivateKey, id.PrivateKey) {
+		return fmt.Errorf("GetIdentity returned unexpected PrivateKey value")
+	}
+	if !bytes.Equal(idFromCtx.PublicKey, id.PublicKey) {
+		return fmt.Errorf("GetIdentity returned unexpected PublicKey value")
+	}
+	if idFromCtx.AuthToken != id.AuthToken {
+		return fmt.Errorf("GetIdentity returned unexpected AuthToken value")
+	}
 	if !bytes.Equal(idFromCtx.Uid[:], id.Uid[:]) {
 		return fmt.Errorf("GetIdentity returned unexpected Uid value")
 	}
-	if !bytes.Equal(idFromCtx.PublicKeyPEM, id.PublicKeyPEM) {
-		return fmt.Errorf("GetIdentity returned unexpected PublicKeyPEM value")
-	}
-	if idFromCtx.Auth != id.Auth {
-		return fmt.Errorf("GetIdentity returned unexpected Auth value")
-	}
 
-	uid, err := storageMngr.GetUuidForPublicKey(id.PublicKeyPEM)
+	uid, err := storageMngr.GetUuidForPublicKey(id.PublicKey)
 	if err != nil {
 		return err
 	}

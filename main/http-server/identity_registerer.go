@@ -1,7 +1,6 @@
 package http_server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,7 +22,7 @@ type RegistrationPayload struct {
 	Pwd string    `json:"password"`
 }
 
-type InitializeIdentity func(ctx context.Context, uid uuid.UUID) (csr []byte, err error)
+type InitializeIdentity func(uid uuid.UUID) (csr []byte, err error)
 
 func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +41,7 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 
 		uid := idPayload.Uid
 
-		csr, err := initialize(r.Context(), uid)
+		csr, err := initialize(uid)
 		if err != nil {
 			log.Warnf("%s: identity registration failed: %v", uid, err)
 			switch err {

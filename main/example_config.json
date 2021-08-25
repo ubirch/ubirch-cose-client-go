@@ -1,4 +1,5 @@
 {
+  "secret32": "4qo9HvXPFX3DWJQAa0ljHbGx+hnsyTF0rFmAdDMGjXE=",
   "registerAuth": "S3GyUaoZ8CuElP8NM/NzSTPdO3ABREIsJT1Hie8esb8=",
   "env": "test",
   "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
@@ -17,12 +18,8 @@
   "certificateServer": "https://www.test.cert.server.com",
   "certificateServerPubKey": "https://www.test.cert.server.com/pubkey.pem",
   "reloadCertsEveryMinute": true,
+  "KeyService": "www.test.keys.com",
+  "IdentityService": "www.test.identities.com",
   "certifyApiUrl": "http://localhost:8090",
-  "certifyApiAuth": "12345",
-  "pkcs11ModulePin": "1234",
-  "kdMaxTotalMemMiB": 10,
-  "kdParamMemMiB": 1,
-  "kdParamTime": 100,
-  "requestLimit": 200,
-  "requestBacklogLimit": 50
+  "certifyApiAuth": "12345"
 }
