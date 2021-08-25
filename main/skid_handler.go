@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -128,16 +129,19 @@ func (s *SkidHandler) loadSKIDs() {
 		tempSkidStore[uid] = cert.Kid
 	}
 
-	skids, _ := json.Marshal(tempSkidStore)
-	log.Infof("loaded %d matching certificates from server: %s", len(tempSkidStore), skids)
-
 	s.setSkidStore(tempSkidStore)
 }
 
 func (s *SkidHandler) setSkidStore(newSkidStore map[uuid.UUID][]byte) {
 	s.skidStoreMutex.Lock()
+	prevSKIDs, _ := json.Marshal(s.skidStore)
 	s.skidStore = newSkidStore
 	s.skidStoreMutex.Unlock()
+
+	newSKIDs, _ := json.Marshal(newSkidStore)
+	if !bytes.Equal(prevSKIDs, newSKIDs) {
+		log.Infof("loaded %d matching certificates from server: %s", len(newSkidStore), newSKIDs)
+	}
 }
 
 func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, error) {
