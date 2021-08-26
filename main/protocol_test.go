@@ -190,7 +190,6 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
 
 	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
@@ -223,7 +222,6 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
 
 	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
@@ -256,7 +254,6 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
 
 	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
@@ -289,7 +286,6 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
 
 	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
