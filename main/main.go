@@ -26,7 +26,6 @@ import (
 	"runtime/pprof"
 	"syscall"
 
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
@@ -148,18 +147,11 @@ func main() {
 		CertifyApiAuth: conf.CertifyApiAuth,
 	}
 
-	ubirchClient := clients.Client{
-		KeyServiceURL:      conf.KeyService,
-		IdentityServiceURL: conf.IdentityService,
-	}
-
 	idHandler := &IdentityHandler{
-		Protocol:              protocol,
-		SubmitKeyRegistration: ubirchClient.SubmitKeyRegistration,
-		SubmitCSR:             ubirchClient.SubmitCSR,
-		RegisterAuth:          certifyApiClient.RegisterSeal,
-		subjectCountry:        conf.CSR_Country,
-		subjectOrganization:   conf.CSR_Organization,
+		Protocol:            protocol,
+		RegisterAuth:        certifyApiClient.RegisterSeal,
+		subjectCountry:      conf.CSR_Country,
+		subjectOrganization: conf.CSR_Organization,
 	}
 
 	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)

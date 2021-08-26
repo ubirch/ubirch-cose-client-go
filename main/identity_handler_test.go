@@ -21,12 +21,10 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 	registrationClient := &mockRegistrationClient{}
 
 	idHandler := &IdentityHandler{
-		Protocol:              p,
-		SubmitKeyRegistration: mockSubmitKeyRegistration,
-		SubmitCSR:             mockSubmitCSR,
-		RegisterAuth:          registrationClient.registerAuth,
-		subjectCountry:        "AA",
-		subjectOrganization:   "test GmbH",
+		Protocol:            p,
+		RegisterAuth:        registrationClient.registerAuth,
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
 	}
 
 	_, err = idHandler.InitIdentity(test.Uuid)
@@ -60,30 +58,6 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 	}
 }
 
-func TestIdentityHandler_initIdentityBad(t *testing.T) {
-	secret := make([]byte, 32)
-	rand.Read(secret)
-
-	p, err := NewProtocol(&mockStorageMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	idHandler := &IdentityHandler{
-		Protocol:              p,
-		SubmitKeyRegistration: mockSubmitKeyRegistrationBad,
-		SubmitCSR:             mockSubmitCSR,
-		RegisterAuth:          (&mockRegistrationClient{}).registerAuth,
-		subjectCountry:        "AA",
-		subjectOrganization:   "test GmbH",
-	}
-
-	_, err = idHandler.InitIdentity(test.Uuid)
-	if err == nil {
-		t.Error("no error returned")
-	}
-}
-
 func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
@@ -94,12 +68,10 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	}
 
 	idHandler := &IdentityHandler{
-		Protocol:              p,
-		SubmitKeyRegistration: mockSubmitKeyRegistration,
-		SubmitCSR:             mockSubmitCSR,
-		RegisterAuth:          (&mockRegistrationClient{}).registerAuth,
-		subjectCountry:        "AA",
-		subjectOrganization:   "test GmbH",
+		Protocol:            p,
+		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
 	}
 
 	_, err = idHandler.InitIdentity(test.Uuid)
@@ -123,12 +95,10 @@ func TestIdentityHandler_initIdentity_BadRegistration(t *testing.T) {
 	}
 
 	idHandler := &IdentityHandler{
-		Protocol:              p,
-		SubmitKeyRegistration: mockSubmitKeyRegistration,
-		SubmitCSR:             mockSubmitCSR,
-		RegisterAuth:          (&mockRegistrationClient{}).registerAuthBad,
-		subjectCountry:        "AA",
-		subjectOrganization:   "test GmbH",
+		Protocol:            p,
+		RegisterAuth:        (&mockRegistrationClient{}).registerAuthBad,
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
 	}
 
 	_, err = idHandler.InitIdentity(test.Uuid)
@@ -153,16 +123,4 @@ func (m *mockRegistrationClient) registerAuth(uid uuid.UUID, auth string) error 
 
 func (m *mockRegistrationClient) registerAuthBad(uuid.UUID, string) error {
 	return test.Error
-}
-
-func mockSubmitKeyRegistration(uuid.UUID, []byte, string) error {
-	return nil
-}
-
-func mockSubmitKeyRegistrationBad(uuid.UUID, []byte, string) error {
-	return test.Error
-}
-
-func mockSubmitCSR(uuid.UUID, []byte) error {
-	return nil
 }

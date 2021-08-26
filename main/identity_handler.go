@@ -24,18 +24,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
-	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
-type SubmitKeyRegistration func(uid uuid.UUID, cert []byte, auth string) error
-type SubmitCSR func(uid uuid.UUID, csr []byte) error
 type RegisterAuth func(uid uuid.UUID, auth string) error
 
 type IdentityHandler struct {
 	Protocol *Protocol
-	SubmitKeyRegistration
-	SubmitCSR
 	RegisterAuth
 	subjectCountry      string
 	subjectOrganization string
@@ -62,6 +57,13 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error)
 		return nil, err
 	}
 
+	csr, err := i.Protocol.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
+	if err != nil {
+		return nil, fmt.Errorf("could not generate CSR: %v", err)
+	}
+
+	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+
 	pw, err := generatePassword()
 	if err != nil {
 		return nil, err
@@ -86,14 +88,6 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error)
 	if err != nil {
 		return nil, fmt.Errorf("could not store new identity: %v", err)
 	}
-
-	// register public key at the ubirch backend
-	csr, err := i.registerPublicKey(privKeyPEM, uid)
-	if err != nil {
-		return nil, err
-	}
-
-	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
 	// register auth token at the certify api
 	err = i.RegisterAuth(uid, pw)
@@ -129,36 +123,6 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
 	return csrPEM, nil
-}
-
-func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID) (csr []byte, err error) {
-	keyRegistration, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
-	if err != nil {
-		return nil, fmt.Errorf("error creating public key certificate: %v", err)
-	}
-	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
-
-	csr, err = i.Protocol.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
-	if err != nil {
-		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
-	}
-	log.Debugf("%s: CSR [der]: %x", uid, csr)
-
-	err = i.SubmitKeyRegistration(uid, keyRegistration, "")
-	if err != nil {
-		return nil, fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
-	}
-
-	go i.submitCSROrLogError(uid, csr)
-
-	return csr, nil
-}
-
-func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
-	err := i.SubmitCSR(uid, csr)
-	if err != nil {
-		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
-	}
 }
 
 // generatePassword generates the base64 string representation of 32 random bytes
