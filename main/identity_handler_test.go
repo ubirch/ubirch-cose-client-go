@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"math/rand"
 	"testing"
 
@@ -10,7 +12,7 @@ import (
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
-func TestIdentityHandler_initIdentity(t *testing.T) {
+func TestIdentityHandler_InitIdentity(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
@@ -59,7 +61,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 	}
 }
 
-func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
+func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
@@ -86,7 +88,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	}
 }
 
-func TestIdentityHandler_initIdentity_BadRegistration(t *testing.T) {
+func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
@@ -110,6 +112,67 @@ func TestIdentityHandler_initIdentity_BadRegistration(t *testing.T) {
 	_, err = p.GetIdentity(test.Uuid)
 	if err != ErrNotExist {
 		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
+	}
+}
+
+func TestIdentityHandler_CreateCSR(t *testing.T) {
+	secret := make([]byte, 32)
+	rand.Read(secret)
+
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	idHandler := &IdentityHandler{
+		Protocol:            p,
+		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
+	}
+
+	_, err = idHandler.InitIdentity(test.Uuid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	csrPEM, err := idHandler.CreateCSR(test.Uuid)
+	if err != nil {
+		t.Error(err)
+	}
+
+	block, rest := pem.Decode(csrPEM)
+	if block == nil || block.Type != "CERTIFICATE REQUEST" {
+		t.Error("failed to decode PEM block containing CSR")
+	}
+	if len(rest) != 0 {
+		t.Errorf("rest: %q", rest)
+	}
+
+	_, err = x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
+	secret := make([]byte, 32)
+	rand.Read(secret)
+
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	idHandler := &IdentityHandler{
+		Protocol:            p,
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
+	}
+
+	_, err = idHandler.CreateCSR(test.Uuid)
+	if err != h.ErrUnknown {
+		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}
 }
 
