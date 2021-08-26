@@ -22,8 +22,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"runtime"
-	"runtime/pprof"
 	"syscall"
 
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
@@ -42,21 +40,6 @@ func shutdown(cancel context.CancelFunc) {
 	sig := <-signals
 	log.Infof("shutting down after receiving: %v", sig)
 
-	//write the blocking profile at the moment of shutdown (if enabled by flag)
-	if *blockprofile != "" {
-		log.Infof("writing blocking profile data to file: %s", *blockprofile)
-		f, err := os.Create(*blockprofile)
-		if err != nil {
-			log.Fatal("could not create blocking profile file: ", err)
-		}
-		if err := pprof.Lookup("block").WriteTo(f, 0); err != nil {
-			log.Fatal("could not write blocking profile: ", err)
-		}
-		if err := f.Close(); err != nil {
-			log.Fatal("error when closing blocking profile file: ", err)
-		}
-	}
-
 	// cancel the go routines contexts
 	cancel()
 }
@@ -67,9 +50,7 @@ var (
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
 	// declare flags
-	cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to `file`")
-	blockprofile = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
-	configDir    = flag.String("configdirectory", "", "configuration `directory` to use")
+	configDir = flag.String("configdirectory", "", "configuration `directory` to use")
 )
 
 func main() {
@@ -95,31 +76,6 @@ func main() {
 	err := conf.Load(*configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
-	}
-
-	// set up CPU profiling if enabled by flag
-	if *cpuprofile != "" {
-		log.Infof("enabling CPU profiling to file: %s", *cpuprofile)
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			log.Fatalf("could not create CPU profile file: %s", err)
-		}
-		defer func(myF *os.File) {
-			err := myF.Close()
-			if err != nil {
-				log.Fatalf("error when closing CPU profile file: %s", err)
-			}
-		}(f)
-		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatalf("could not start CPU profile: %s", err)
-		}
-		defer pprof.StopCPUProfile()
-	}
-
-	// print info if memory profiling is enabled
-	if *blockprofile != "" {
-		log.Warn("blocking profiling enabled, this will affect performance, file: ", *blockprofile)
-		runtime.SetBlockProfileRate(1)
 	}
 
 	storageManager, err := GetStorageManager(conf)
