@@ -22,7 +22,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
+	"github.com/ubirch/ubirch-cose-client-go/main/encryption"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
@@ -36,7 +36,7 @@ const (
 type Protocol struct {
 	ubirch.Crypto
 	StorageManager
-	keyEncrypter *encrypters.KeyEncrypter
+	keyEncrypter *encrypters.PKCS8KeyEncrypter
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
@@ -48,7 +48,7 @@ var _ StorageManager = (*Protocol)(nil)
 func NewProtocol(storageManager StorageManager, secret []byte) (*Protocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
-	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
+	enc, err := encrypters.NewPKCS8KeyEncrypter(secret, crypto)
 	if err != nil {
 		return nil, err
 	}
