@@ -161,7 +161,7 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
+	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return id, ErrNotExist
