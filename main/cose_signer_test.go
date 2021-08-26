@@ -130,9 +130,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 }
 
 func TestCoseSignBadKey(t *testing.T) {
-	c, _ := setupCryptoCtx(t)
-
-	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
+	coseSigner, err := NewCoseSigner(mockSignReturnsError, mockGetSKID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +141,7 @@ func TestCoseSignBadKey(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg, nil)
+	resp := coseSigner.Sign(msg, testKey)
 
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -166,7 +164,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 		Payload: []byte("test"),
 	}
 
-	resp := coseSigner.Sign(msg, nil)
+	resp := coseSigner.Sign(msg, testKey)
 
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("response status code: %d", resp.StatusCode)
@@ -212,6 +210,10 @@ func mockGetSKIDReturnsErr(uuid.UUID) ([]byte, error) {
 
 func mockSign([]byte, []byte) ([]byte, error) {
 	return make([]byte, 64), nil
+}
+
+func mockSignReturnsError([]byte, []byte) ([]byte, error) {
+	return nil, test.Error
 }
 
 func mockSignReturnsNilSignature([]byte, []byte) ([]byte, error) {
