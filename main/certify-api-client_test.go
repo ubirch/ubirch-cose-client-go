@@ -53,3 +53,23 @@ func TestCertifyApiClient_RegisterSeal_AlreadyRegistered(t *testing.T) {
 		t.Error("no error returned")
 	}
 }
+
+func TestCertifyApiClient_RegisterSeal_Fail(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	httpmock.RegisterResponder(
+		http.MethodPost,
+		mockCertifyApiURL+registerPath,
+		httpmock.NewStringResponder(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError)),
+	)
+
+	client := &CertifyApiClient{
+		CertifyApiURL:  mockCertifyApiURL,
+		CertifyApiAuth: mockCertifyApiAuth,
+	}
+
+	err := client.RegisterSeal(test.Uuid, test.Auth)
+	if err == nil {
+		t.Error("no error returned")
+	}
+}
