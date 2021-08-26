@@ -96,7 +96,7 @@ func main() {
 		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
 	}
 
-	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
+	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.Crypto.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	certifyApiClient := &CertifyApiClient{
 		CertifyApiURL:  conf.CertifyApiUrl,
@@ -110,7 +110,7 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)
+	coseSigner, err := NewCoseSigner(protocol.Crypto.SignHash, skidHandler.GetSKID)
 	if err != nil {
 		log.Fatal(err)
 	}

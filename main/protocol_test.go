@@ -21,12 +21,12 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,12 +134,12 @@ func TestProtocolLoad(t *testing.T) {
 	for i := 0; i < testLoad/10; i++ {
 		testId := generateRandomIdentity()
 
-		testId.PrivateKey, err = p.GenerateKey()
+		testId.PrivateKey, err = p.Crypto.GenerateKey()
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		testId.PublicKey, err = p.GetPublicKeyFromPrivateKey(testId.PrivateKey)
+		testId.PublicKey, err = p.Crypto.GetPublicKeyFromPrivateKey(testId.PrivateKey)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,12 +192,12 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	}
 	defer p.Close()
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,12 +225,12 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 	}
 	defer p.Close()
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,12 +258,12 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 	}
 	defer p.Close()
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 	}
 	defer p.Close()
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +318,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,12 +345,12 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,12 +379,12 @@ func TestProtocol_Cache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}

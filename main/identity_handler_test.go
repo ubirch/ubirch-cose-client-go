@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
@@ -18,11 +19,11 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	registrationClient := &mockRegistrationClient{}
+	client := &mockRegistrationClient{}
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		RegisterAuth:        registrationClient.registerAuth,
+		RegisterAuth:        client.registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -37,18 +38,18 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if initializedIdentity.AuthToken != registrationClient.Auth {
+	if client.Auth != initializedIdentity.AuthToken {
 		t.Error("initializedIdentity unexpected AuthToken")
 	}
 
 	data := []byte("test")
 
-	signature, err := p.Sign(initializedIdentity.PrivateKey, data)
+	signature, err := p.Crypto.Sign(initializedIdentity.PrivateKey, data)
 	if err != nil {
 		t.Fatalf("signing failed: %v", err)
 	}
 
-	verified, err := p.Verify(initializedIdentity.PublicKey, data, signature)
+	verified, err := p.Crypto.Verify(initializedIdentity.PublicKey, data, signature)
 	if err != nil {
 		t.Fatalf("verification failed: %v", err)
 	}
@@ -103,7 +104,7 @@ func TestIdentityHandler_initIdentity_BadRegistration(t *testing.T) {
 
 	_, err = idHandler.InitIdentity(test.Uuid)
 	if err != test.Error {
-		t.Errorf("no error after failed registration")
+		t.Errorf("unexpected error: %v, expected: %v", err, test.Error)
 	}
 
 	_, err = p.GetIdentity(test.Uuid)

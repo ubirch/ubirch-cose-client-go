@@ -34,8 +34,9 @@ const (
 )
 
 type Protocol struct {
-	ubirch.Crypto
 	StorageManager
+
+	Crypto       ubirch.Crypto
 	keyEncrypter *encrypters.PKCS8KeyEncrypter
 
 	identityCache *sync.Map // {<uid>: <*identity>}
@@ -46,17 +47,18 @@ type Protocol struct {
 var _ StorageManager = (*Protocol)(nil)
 
 func NewProtocol(storageManager StorageManager, secret []byte) (*Protocol, error) {
-	crypto := &ubirch.ECDSACryptoContext{}
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
 
-	enc, err := encrypters.NewPKCS8KeyEncrypter(secret, crypto)
+	enc, err := encrypters.NewPKCS8KeyEncrypter(secret, cryptoCtx)
 	if err != nil {
 		return nil, err
 	}
 
 	p := &Protocol{
-		Crypto:         crypto,
 		StorageManager: storageManager,
-		keyEncrypter:   enc,
+
+		Crypto:       cryptoCtx,
+		keyEncrypter: enc,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},

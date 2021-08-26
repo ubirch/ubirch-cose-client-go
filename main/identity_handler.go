@@ -47,17 +47,17 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error)
 	}
 
 	// generate a new new pair
-	privKeyPEM, err := i.Protocol.GenerateKey()
+	privKeyPEM, err := i.Protocol.Crypto.GenerateKey()
 	if err != nil {
 		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
 
-	pubKeyPEM, err := i.Protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
+	pubKeyPEM, err := i.Protocol.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		return nil, err
 	}
 
-	csr, err := i.Protocol.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Protocol.Crypto.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}
@@ -69,7 +69,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error)
 		return nil, err
 	}
 
-	newIdentity := Identity{
+	identity := Identity{
 		Uid:        uid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
@@ -84,12 +84,11 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error)
 		return nil, err
 	}
 
-	err = i.Protocol.StoreNewIdentity(tx, newIdentity)
+	err = i.Protocol.StoreNewIdentity(tx, identity)
 	if err != nil {
 		return nil, fmt.Errorf("could not store new identity: %v", err)
 	}
 
-	// register auth token at the certify api
 	err = i.RegisterAuth(uid, pw)
 	if err != nil {
 		return nil, err
@@ -115,7 +114,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
 
-	csr, err := i.Protocol.GetCSR(id.PrivateKey, uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Protocol.Crypto.GetCSR(id.PrivateKey, uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}
