@@ -44,12 +44,12 @@ func TestProtocol(t *testing.T) {
 		t.Error("GetIdentity did not return ErrNotExist")
 	}
 
-	exists, err := p.isInitialized(testIdentity.Uid)
+	exists, err := p.IsInitialized(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
 	}
 	if exists {
-		t.Error("isInitialized returned TRUE")
+		t.Error("IsInitialized returned TRUE")
 	}
 
 	_, err = p.GetUuidForPublicKey(testIdentity.PublicKey)
@@ -77,12 +77,12 @@ func TestProtocol(t *testing.T) {
 	}
 
 	// check exists
-	exists, err = p.isInitialized(testIdentity.Uid)
+	exists, err = p.IsInitialized(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
 	}
 	if !exists {
-		t.Error("isInitialized returned FALSE")
+		t.Error("IsInitialized returned FALSE")
 	}
 
 	storedIdentity, err := p.GetIdentity(testIdentity.Uid)

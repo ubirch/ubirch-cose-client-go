@@ -37,7 +37,7 @@ type IdentityHandler struct {
 }
 
 func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error) {
-	initialized, err := i.Protocol.isInitialized(uid)
+	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
 	}
