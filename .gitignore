@@ -8,11 +8,8 @@
 *.exe
 *.exe~
 *.dll
-*.dylib
-
 *.so
-# .. except for the one for the HSM
-!hsm/*.so
+*.dylib
 
 # Test binary, built with `go test -c`
 *.test
@@ -33,4 +30,3 @@ build/
 config.json
 
 /venv/
-/main/cpu.prof
