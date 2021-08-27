@@ -30,9 +30,21 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid)
+	csrPEM, err := idHandler.InitIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	block, rest := pem.Decode(csrPEM)
+	if block == nil || block.Type != "CERTIFICATE REQUEST" {
+		t.Error("failed to decode PEM block containing CSR")
+	}
+	if len(rest) != 0 {
+		t.Errorf("rest: %q", rest)
+	}
+	_, err = x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		t.Error(err)
 	}
 
 	initializedIdentity, err := p.GetIdentity(test.Uuid)
