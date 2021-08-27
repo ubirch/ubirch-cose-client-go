@@ -27,6 +27,12 @@ func TestDatabaseManager(t *testing.T) {
 	}
 	defer cleanUpDB(t, dm)
 
+	// check DB is ready
+	err = dm.IsReady()
+	if err != nil {
+		t.Error(err)
+	}
+
 	testIdentity := generateRandomIdentity()
 
 	// check not exists
@@ -83,6 +89,43 @@ func TestDatabaseManager(t *testing.T) {
 	}
 	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
 		t.Error("GetUuidForPublicKey returned unexpected value")
+	}
+}
+
+func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
+	c, err := getDatabaseConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// use DSN that is valid, but not reachable
+	c.PostgresDSN = "postgres://nousr:nopwd@localhost:0000/nodatabase"
+
+	// we expect no error here
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dm.Close()
+
+	err = dm.IsReady()
+	if err == nil {
+		t.Error("IsReady() returned no error for unreachable database")
+	}
+}
+
+func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
+	c, err := getDatabaseConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// use invalid DSN
+	c.PostgresDSN = "this is not a DSN"
+
+	_, err = NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
+	if err == nil {
+		t.Fatal("no error returned for invalid DSN")
 	}
 }
 
