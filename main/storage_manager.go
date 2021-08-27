@@ -8,29 +8,25 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	Commit   = true
-	Rollback = false
-)
-
 var (
-	ErrExists   = errors.New("entry already exists")
 	ErrNotExist = errors.New("entry does not exist")
 )
 
-type ContextManager interface {
+type StorageManager interface {
 	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	CloseTransaction(transactionCtx interface{}, commit bool) error
+	CommitTransaction(transactionCtx interface{}) error
 
-	StoreNewIdentity(tx interface{}, id Identity) error
+	StoreNewIdentity(transactionCtx interface{}, id Identity) error
 	GetIdentity(uid uuid.UUID) (Identity, error)
 
 	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 
+	IsRecoverable(error) bool
+	IsReady() error
 	Close()
 }
 
-func GetCtxManager(c *Config) (ContextManager, error) {
+func GetStorageManager(c *Config) (StorageManager, error) {
 	if len(c.PostgresDSN) != 0 {
 		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName, c.dbParams)
 	} else {

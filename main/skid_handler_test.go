@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 var testUUIDs []uuid.UUID
@@ -78,7 +80,33 @@ func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
 	}
 }
 
-func TestNewSkidHandler_BadGetCertificateList(t *testing.T) {
+func TestSkidHandler_LoadSKIDs(t *testing.T) {
+	c := &ubirch.ECDSACryptoContext{}
+
+	s := &SkidHandler{
+		skidStore:      map[uuid.UUID][]byte{},
+		skidStoreMutex: &sync.RWMutex{},
+
+		certLoadFailCounter:  0,
+		maxCertLoadFailCount: 3,
+
+		getCerts:  mockGetCertificateListReturnsFewerCertsAfterFirstCall,
+		getUuid:   mockGetUuid,
+		encPubKey: c.EncodePublicKey,
+	}
+
+	s.loadSKIDs()
+
+	len1 := len(s.skidStore)
+
+	s.loadSKIDs()
+
+	if len(s.skidStore) == len1 {
+		t.Errorf("SKIDs were not overwritten")
+	}
+}
+
+func TestSkidHandler_LoadSKIDs_BadGetCertificateList(t *testing.T) {
 	s := &SkidHandler{
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -100,7 +128,7 @@ func TestNewSkidHandler_BadGetCertificateList(t *testing.T) {
 	}
 }
 
-func TestNewSkidHandler_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T) {
+func TestSkidHandler_LoadSKIDs_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T) {
 	s := &SkidHandler{
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -111,12 +139,13 @@ func TestNewSkidHandler_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T)
 		getCerts: mockBadGetCertificateList,
 	}
 
-	s.skidStore[uuid.New()] = make([]byte, 8)
-	s.skidStore[uuid.New()] = make([]byte, 8)
-	s.skidStore[uuid.New()] = make([]byte, 8)
+	testSkidStoreLen := 2
+	for i := 1; i <= testSkidStoreLen; i++ {
+		s.skidStore[uuid.New()] = make([]byte, 8)
+	}
 
 	for i := 1; i <= s.maxCertLoadFailCount; i++ {
-		if len(s.skidStore) != 3 {
+		if len(s.skidStore) != testSkidStoreLen {
 			t.Errorf("SKIDs were cleared before maxCertLoadFailCount")
 		}
 
@@ -132,40 +161,54 @@ func TestNewSkidHandler_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T)
 	}
 }
 
+var certs []Certificate
+
 func mockGetCertificateList() ([]Certificate, error) {
-	filename := "test-cert-list.json"
-	fileHandle, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	var certs []Certificate
-	err = json.NewDecoder(fileHandle).Decode(&certs)
-	if err != nil {
-		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
-			fmt.Print(fileCloseErr)
+	if len(certs) == 0 {
+		filename := "test-cert-list.json"
+		fileHandle, err := os.Open(filename)
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
-	}
 
-	err = fileHandle.Close()
-	if err != nil {
-		return nil, err
+		err = json.NewDecoder(fileHandle).Decode(&certs)
+		if err != nil {
+			if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+				fmt.Print(fileCloseErr)
+			}
+			return nil, err
+		}
+
+		err = fileHandle.Close()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return certs, nil
 }
 
-func mockBadGetCertificateList() ([]Certificate, error) {
-	return nil, fmt.Errorf("test error")
+var alreadyCalled bool
+
+func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, error) {
+	if !alreadyCalled {
+		alreadyCalled = true
+		return mockGetCertificateList()
+	} else {
+		return certs[:1], nil
+	}
 }
 
-func mockGetUuid(pubKey []byte) (uuid.UUID, error) {
+func mockBadGetCertificateList() ([]Certificate, error) {
+	return nil, test.Error
+}
+
+func mockGetUuid([]byte) (uuid.UUID, error) {
 	newUUID := uuid.New()
 	testUUIDs = append(testUUIDs, newUUID)
 	return newUUID, nil
 }
 
-func mockGetUuidFindsNothing(pubKey []byte) (uuid.UUID, error) {
+func mockGetUuidFindsNothing([]byte) (uuid.UUID, error) {
 	return uuid.Nil, ErrNotExist
 }

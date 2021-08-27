@@ -20,4 +20,4 @@ USER 65534:65534
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder app/main/main cose-client
 ENTRYPOINT ["/cose-client"]
-CMD ["/data"]
+CMD ["-configdirectory", "/data"]

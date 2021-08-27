@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
@@ -34,12 +33,9 @@ import (
 const (
 	secretLength = 32
 
-	PROD_STAGE = "prod"
+	ProdStage = "prod"
 
-	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
-	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
-
-	TLSCertsFileName = "%s_ubirch_tls_certs.json"
+	tlsCertsFileName = "%s_ubirch_tls_certs.json"
 
 	defaultCSRCountry      = "DE"
 	defaultCSROrganization = "ubirch GmbH"
@@ -58,7 +54,7 @@ const (
 type Config struct {
 	SecretBase64              string `json:"secret32" envconfig:"SECRET32"`                                 // 32 byte secret used to encrypt the key store (mandatory)
 	RegisterAuth              string `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
-	Env                       string `json:"env"`                                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	Env                       string `json:"env" envconfig:"ENV"`                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	PostgresDSN               string `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
 	DbMaxOpenConns            string `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                  // maximum number of open connections to the database
 	DbMaxIdleConns            string `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                  // maximum number of connections in the idle connection pool
@@ -75,24 +71,21 @@ type Config struct {
 	CertificateServer         string `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
 	CertificateServerPubKey   string `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
-	KeyService                string // key service URL
-	IdentityService           string // identity service URL
+	CertifyApiUrl             string `json:"certifyApiUrl" envconfig:"CERTIFY_API_URL"`                     // URL of the certify API
+	CertifyApiAuth            string `json:"certifyApiAuth" envconfig:"CERTIFY_API_AUTH"`                   // auth token for the seal registration endpoint of the certify API
 	serverTLSCertFingerprints map[string][32]byte
-	configDir                 string // directory where config and protocol ctx are stored
 	secretBytes               []byte // the decoded key store secret
 	dbParams                  *DatabaseParams
 }
 
 func (c *Config) Load(configDir, filename string) error {
-	c.configDir = configDir
-
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
-	if os.Getenv("UBIRCH_SECRET32") != "" {
+	if os.Getenv("UBIRCH_REGISTERAUTH") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(filename)
+		err = c.loadFile(filepath.Join(configDir, filename))
 	}
 	if err != nil {
 		return err
@@ -116,15 +109,13 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	c.setDefaultCSR()
-	c.setDefaultTLS()
-	c.setDefaultURLs()
-
-	err = c.loadServerTLSCertificates()
+	err = c.loadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env)))
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
+	c.setDefaultCSR()
+	c.setDefaultTLS(configDir)
 	return c.setDbParams()
 }
 
@@ -136,10 +127,9 @@ func (c *Config) loadEnv() error {
 
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
-	configFile := filepath.Join(c.configDir, filename)
-	log.Infof("loading configuration from file: %s", configFile)
+	log.Infof("loading configuration from file: %s", filename)
 
-	fileHandle, err := os.Open(configFile)
+	fileHandle, err := os.Open(filepath.Clean(filename))
 	if err != nil {
 		return err
 	}
@@ -164,12 +154,24 @@ func (c *Config) checkMandatory() error {
 		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
 	}
 
-	if c.CertificateServer == "" {
+	if len(c.CertificateServer) == 0 {
 		return fmt.Errorf("missing 'certificateServer' in configuration")
 	}
 
-	if c.CertificateServerPubKey == "" {
+	if len(c.CertificateServerPubKey) == 0 {
 		return fmt.Errorf("missing 'certificateServerPubKey' in configuration")
+	}
+
+	if len(c.CertifyApiUrl) == 0 {
+		return fmt.Errorf("missing 'certifyApiUrl' in configuration")
+	}
+
+	if len(c.CertifyApiAuth) == 0 {
+		return fmt.Errorf("missing 'certifyApiAuth' in configuration")
+	}
+
+	if len(c.Env) == 0 {
+		c.Env = ProdStage
 	}
 
 	return nil
@@ -187,7 +189,7 @@ func (c *Config) setDefaultCSR() {
 	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
 
-func (c *Config) setDefaultTLS() {
+func (c *Config) setDefaultTLS(configDir string) {
 	if c.TCP_addr == "" {
 		c.TCP_addr = defaultTCPAddr
 	}
@@ -199,32 +201,14 @@ func (c *Config) setDefaultTLS() {
 		if c.TLS_CertFile == "" {
 			c.TLS_CertFile = defaultTLSCertFile
 		}
-		c.TLS_CertFile = filepath.Join(c.configDir, c.TLS_CertFile)
+		c.TLS_CertFile = filepath.Join(configDir, c.TLS_CertFile)
 		log.Debugf(" - Cert: %s", c.TLS_CertFile)
 
 		if c.TLS_KeyFile == "" {
 			c.TLS_KeyFile = defaultTLSKeyFile
 		}
-		c.TLS_KeyFile = filepath.Join(c.configDir, c.TLS_KeyFile)
+		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
-	}
-}
-
-func (c *Config) setDefaultURLs() {
-	if c.Env == "" {
-		c.Env = PROD_STAGE
-	}
-
-	log.Infof("UBIRCH backend environment: %s", c.Env)
-
-	if c.KeyService == "" {
-		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
-	} else {
-		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
-	}
-
-	if c.IdentityService == "" {
-		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
 	}
 }
 
@@ -274,10 +258,8 @@ func (c *Config) setDbParams() error {
 	return nil
 }
 
-func (c *Config) loadServerTLSCertificates() error {
-	serverTLSCertFile := filepath.Join(c.configDir, fmt.Sprintf(TLSCertsFileName, c.Env))
-
-	fileHandle, err := os.Open(serverTLSCertFile)
+func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
+	fileHandle, err := os.Open(filepath.Clean(serverTLSCertFile))
 	if err != nil {
 		return err
 	}

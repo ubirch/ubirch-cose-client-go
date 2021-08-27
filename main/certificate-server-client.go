@@ -16,27 +16,25 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
-
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	urlpkg "net/url"
 )
 
-type Verify func(pubKeyPEM []byte, data []byte, signature []byte) (bool, error)
-
-type ExtendedClient struct {
-	clients.Client
-	verify                     Verify
+type CertificateServerClient struct {
 	CertificateServerURL       string
 	CertificateServerPubKeyURL string
 	ServerTLSCertFingerprints  map[string][32]byte
@@ -56,7 +54,7 @@ type Certificate struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
-func (c *ExtendedClient) RequestCertificateList() ([]Certificate, error) {
+func (c *CertificateServerClient) RequestCertificateList() ([]Certificate, error) {
 	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key certificate list failed: %v", err)
@@ -80,7 +78,7 @@ func (c *ExtendedClient) RequestCertificateList() ([]Certificate, error) {
 
 	certList := []byte(respContent[1])
 
-	ok, err := c.verify(pubKeyPEM, certList, signature)
+	ok, err := c.verifySignature(pubKeyPEM, certList, signature)
 	if err != nil {
 		return nil, fmt.Errorf("unable to verify signature for public key certificate list: %v", err)
 	}
@@ -97,7 +95,7 @@ func (c *ExtendedClient) RequestCertificateList() ([]Certificate, error) {
 	return newTrustList.Certificates, nil
 }
 
-func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
+func (c *CertificateServerClient) RequestCertificateListPublicKey() ([]byte, error) {
 	resp, err := c.getWithCertPinning(c.CertificateServerPubKeyURL)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving public key for certificate list verification failed: %v", err)
@@ -106,7 +104,7 @@ func (c *ExtendedClient) RequestCertificateListPublicKey() ([]byte, error) {
 	return resp, nil
 }
 
-func (c *ExtendedClient) getWithCertPinning(url string) ([]byte, error) {
+func (c *CertificateServerClient) getWithCertPinning(url string) ([]byte, error) {
 	// get TLS certificate fingerprint for host
 	u, err := urlpkg.Parse(url)
 	if err != nil {
@@ -118,7 +116,7 @@ func (c *ExtendedClient) getWithCertPinning(url string) ([]byte, error) {
 	}
 
 	// set up TLS certificate verification
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	client.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion:       tls.VersionTLS12,
@@ -166,4 +164,47 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 
 		return nil
 	}
+}
+
+const (
+	nistp256RLength         = 32                                //Bytes
+	nistp256SLength         = 32                                //Bytes
+	nistp256SignatureLength = nistp256RLength + nistp256SLength //Bytes, Signature = concatenate(R,S)
+)
+
+func (c *CertificateServerClient) verifySignature(pubKeyPEM []byte, data []byte, signature []byte) (bool, error) {
+	if len(data) == 0 {
+		return false, fmt.Errorf("empty data cannot be verified")
+	}
+	if len(signature) != nistp256SignatureLength {
+		return false, fmt.Errorf("wrong signature length: expected: %d, got: %d", nistp256SignatureLength, len(signature))
+	}
+
+	pub, err := decodeECDSAPublicKey(pubKeyPEM)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode ECDSA public key: %v", err)
+	}
+
+	r, s := &big.Int{}, &big.Int{}
+	r.SetBytes(signature[:nistp256RLength])
+	s.SetBytes(signature[nistp256SLength:])
+
+	hash := sha256.Sum256(data)
+	return ecdsa.Verify(pub, hash[:], r, s), nil
+}
+
+func decodeECDSAPublicKey(pemEncoded []byte) (*ecdsa.PublicKey, error) {
+	block, _ := pem.Decode(pemEncoded)
+	if block == nil {
+		return nil, fmt.Errorf("unable to parse PEM block")
+	}
+	genericPublicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	ecdsaPublicKey, ok := genericPublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("unexpected key type")
+	}
+	return ecdsaPublicKey, nil
 }

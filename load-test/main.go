@@ -1,7 +1,9 @@
 package main
 
 import (
+	"flag"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -9,22 +11,42 @@ import (
 )
 
 const (
-	numberOfTestIDs        = 1
-	numberOfRequestsPerID  = 1
+	numberOfTestIDs        = 100
+	numberOfRequestsPerID  = 10
 	requestsPerSecondPerID = 1
 )
 
-var configFile = "config.json"
+var (
+	defaultConfigFile = "config.json"
+	configFile        = flag.String("config", "", "file name of the configuration file. if omitted, configuration is read from \"config.json\".")
+	outFile           = flag.String("out", "", "file name for output. if omitted, output is written to std out.")
+)
 
 func main() {
 	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 
-	if len(os.Args) > 1 {
-		configFile = os.Args[1]
+	flag.Parse()
+
+	if len(*outFile) != 0 {
+		fileHandle, err := os.OpenFile(filepath.Clean(*outFile), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer func() {
+			_, _ = fileHandle.WriteString("\n========================================================================================================================\n\n")
+			if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+				log.Error(fileCloseErr)
+			}
+		}()
+		log.SetOutput(fileHandle)
+	}
+
+	if len(*configFile) == 0 {
+		*configFile = defaultConfigFile
 	}
 
 	c := Config{}
-	err := c.Load(configFile)
+	err := c.Load(*configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
@@ -46,17 +68,28 @@ func main() {
 	wg := &sync.WaitGroup{}
 	start := time.Now()
 
+	i := 0
+	n := len(identities)
 	for uid, auth := range identities {
+		offset := time.Duration((i*1000)/n) * time.Millisecond
+		i += 1
+
 		wg.Add(1)
-		go sender.sendRequests(c.Url, uid, auth, wg)
+		go sender.sendRequests(c.Url, uid, auth, offset, wg)
 	}
 
 	wg.Wait()
-	log.Infof("[ %4d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, time.Since(start).Seconds())
+	end := time.Now()
+	duration := end.Sub(start)
+	log.Infof("[ %6d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
 
 	for status, count := range sender.statusCounter {
-		log.Infof("[ %4d ] x %s", count, status)
+		log.Infof("[ %6d ] x %s", count, status)
 	}
 
 	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
+	avgReqsPerSec := float64(len(identities)*numberOfRequestsPerID) / duration.Seconds()
+	log.Infof("avg total throughput: %7.3f requests/second", avgReqsPerSec)
+	avgReqsPerSecSuccess := float64(sender.statusCounter["200 OK"]) / duration.Seconds()
+	log.Infof("avg successful throughput: %7.3f requests/second", avgReqsPerSecSuccess)
 }

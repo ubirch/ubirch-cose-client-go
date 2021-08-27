@@ -18,6 +18,6 @@
   "certificateServer": "https://www.test.cert.server.com",
   "certificateServerPubKey": "https://www.test.cert.server.com/pubkey.pem",
   "reloadCertsEveryMinute": true,
-  "KeyService": "www.test.keys.com",
-  "IdentityService": "www.test.identities.com"
+  "certifyApiUrl": "http://localhost:8090",
+  "certifyApiAuth": "12345"
 }

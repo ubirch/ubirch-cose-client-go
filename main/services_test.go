@@ -3,16 +3,15 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-)
 
-var (
-	testAuth = "1234"
+	"github.com/google/uuid"
+
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
@@ -21,22 +20,22 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
-	r.Header.Set("Content-Type", TextType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.TextType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -51,23 +50,23 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHashHex := "76e114443cd386716c0f8408ce99e0017d07e68fef22ade5b39966941b35881f"
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHashHex))
-	r.Header.Set("Content-Type", TextType)
+	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -82,22 +81,22 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHashBytes, _ := hex.DecodeString("76e114443cd386716c0f8408ce99e0017d07e68fef22ade5b39966941b35881f")
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(testHashBytes))
-	r.Header.Set("Content-Type", BinType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.BinType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -112,22 +111,22 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
-	r.Header.Set("Content-Type", TextType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.TextType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(getUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -142,22 +141,22 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
+	storageMngr := mockStorageMngr{id: Identity{
 		Uid:       uuid.New(),
-		AuthToken: testAuth,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
-	r.Header.Set("Content-Type", TextType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.TextType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -173,16 +172,16 @@ func TestCOSEService_HandleRequest_CantGetIdentity(t *testing.T) {
 	}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
 		GetIdentity: mockGetIdentityReturnsErr,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
-	r.Header.Set("Content-Type", TextType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.TextType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -197,27 +196,27 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
-	r.Header.Set("Content-Type", TextType)
-	r.Header.Set(AuthHeader, "12345")
+	r.Header.Set("Content-Type", h.TextType)
+	r.Header.Set(h.AuthHeader, "12345")
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	if w.Code != http.StatusUnauthorized {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
+		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusUnauthorized)
 	}
 }
 
@@ -227,22 +226,22 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g"
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
-	r.Header.Set("Content-Type", TextType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.TextType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -257,23 +256,23 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHashHex := "76e114443cd386716c0f8408ce99e0017d07e68fef22ade5b39966941b35881ff"
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHashHex))
-	r.Header.Set("Content-Type", TextType)
+	r.Header.Set("Content-Type", h.TextType)
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -288,14 +287,14 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
@@ -303,7 +302,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
 	r.Header.Set("Content-Type", "wrong content type")
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -318,22 +317,22 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	tooShortHash := "x/Ef/8VDEjvybn2gvxGeiA=="
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tooShortHash))
-	r.Header.Set("Content-Type", TextType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.TextType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
@@ -348,20 +347,20 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(payloadJSON)))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.JSONType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -376,22 +375,22 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	badJSON := "absolutely not a json"
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(badJSON)))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.JSONType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -406,22 +405,22 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	testCBOR, _ := hex.DecodeString("a164746573746568656c6c6f")
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(testCBOR))
-	r.Header.Set("Content-Type", CBORType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.CBORType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -436,20 +435,20 @@ func TestCOSEService_HandleRequest_DataRequest_BadCBOR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(nil))
-	r.Header.Set("Content-Type", CBORType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.CBORType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -464,20 +463,20 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctxMngr := mockCtxMngr{id: Identity{
-		Uid:       testUuid,
-		AuthToken: testAuth,
+	storageMngr := mockStorageMngr{id: Identity{
+		Uid:       test.Uuid,
+		AuthToken: test.Auth,
 	}}
 
 	testCOSEService := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: ctxMngr.GetIdentity,
+		GetIdentity: storageMngr.GetIdentity,
+		Sign:        coseSigner.Sign,
 	}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(payloadJSON)))
-	r.Header.Set("Content-Type", TextType)
-	r.Header.Set(AuthHeader, testAuth)
+	r.Header.Set("Content-Type", h.TextType)
+	r.Header.Set(h.AuthHeader, test.Auth)
 
 	testCOSEService.handleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes))(w, r)
 
@@ -487,26 +486,26 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 }
 
 func TestSendResponse(t *testing.T) {
-	h := http.Header{}
-	h.Set("Content-Type", TextType)
-	h.Set("some-other-header", "i am some other header")
+	header := http.Header{}
+	header.Set("Content-Type", h.TextType)
+	header.Set("some-other-header", "i am some other header")
 
-	resp := HTTPResponse{
+	resp := h.HTTPResponse{
 		StatusCode: http.StatusTeapot,
-		Header:     h,
+		Header:     header,
 		Content:    []byte("hello world"),
 	}
 
 	w := httptest.NewRecorder()
 
-	sendResponse(w, resp)
+	h.SendResponse(w, resp)
 
 	if w.Code != resp.StatusCode {
 		t.Errorf("unexpected status: %d, expected: %d", w.Code, resp.StatusCode)
 	}
 
-	if w.Header().Get("Content-Type") != TextType {
-		t.Errorf("unexpected Content-Type: %s, expected: %s", w.Header().Get("Content-Type"), TextType)
+	if w.Header().Get("Content-Type") != h.TextType {
+		t.Errorf("unexpected Content-Type: %s, expected: %s", w.Header().Get("Content-Type"), h.TextType)
 	}
 
 	if w.Header().Get("some-other-header") != "i am some other header" {
@@ -520,9 +519,9 @@ func TestSendResponse(t *testing.T) {
 }
 
 func mockGetUUIDFromURL(*http.Request) (uuid.UUID, error) {
-	return testUuid, nil
+	return test.Uuid, nil
 }
 
-func mockGetIdentityReturnsErr(uid uuid.UUID) (Identity, error) {
-	return Identity{}, fmt.Errorf("test error")
+func mockGetIdentityReturnsErr(uuid.UUID) (Identity, error) {
+	return Identity{}, test.Error
 }

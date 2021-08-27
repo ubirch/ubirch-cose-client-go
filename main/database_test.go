@@ -3,15 +3,18 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"math/rand"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -24,7 +27,13 @@ func TestDatabaseManager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanUp(t, dm)
+	defer cleanUpDB(t, dm)
+
+	// check DB is ready
+	err = dm.IsReady()
+	if err != nil {
+		t.Error(err)
+	}
 
 	testIdentity := generateRandomIdentity()
 
@@ -53,7 +62,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = dm.CloseTransaction(tx, Commit)
+	err = dm.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +70,7 @@ func TestDatabaseManager(t *testing.T) {
 	// check exists
 	idFromDb, err := dm.GetIdentity(testIdentity.Uid)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if !bytes.Equal(idFromDb.PrivateKey, testIdentity.PrivateKey) {
 		t.Error("GetIdentity returned unexpected PrivateKey value")
@@ -78,10 +87,82 @@ func TestDatabaseManager(t *testing.T) {
 
 	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKey)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
 		t.Error("GetUuidForPublicKey returned unexpected value")
+	}
+}
+
+func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
+	// use DSN that is valid, but not reachable
+	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
+
+	// we expect no error here
+	dm, err := NewSqlDatabaseInfo(unreachableDSN, testTableName, &DatabaseParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dm.Close()
+
+	err = dm.IsReady()
+	if err == nil {
+		t.Error("IsReady() returned no error for unreachable database")
+	}
+}
+
+func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
+	c, err := getDatabaseConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// use invalid DSN
+	c.PostgresDSN = "this is not a DSN"
+
+	_, err = NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
+	if err == nil {
+		t.Fatal("no error returned for invalid DSN")
+	}
+}
+
+func TestDatabaseManager_IsReady(t *testing.T) {
+	c, err := getDatabaseConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dm := &DatabaseManager{
+		options: &sql.TxOptions{
+			Isolation: sql.LevelReadCommitted,
+			ReadOnly:  false,
+		},
+		db:        pg,
+		tableName: testTableName,
+	}
+	defer cleanUpDB(t, dm)
+
+	// table does not exist yet
+	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
+
+	_, err = dm.GetIdentity(uuid.New())
+	if !strings.Contains(err.Error(), tableDoesNotExistError) {
+		t.Fatalf("unexpected error: %v, expected: %v", err, tableDoesNotExistError)
+	}
+
+	err = dm.IsReady()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = dm.GetIdentity(uuid.New())
+	if err != ErrNotExist {
+		t.Error("GetIdentity did not return ErrNotExist")
 	}
 }
 
@@ -90,14 +171,14 @@ func TestStoreExisting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanUp(t, dm)
+	defer cleanUpDB(t, dm)
 
 	testIdentity := generateRandomIdentity()
 
+	// store identity
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// store identity
 	tx, err := dm.StartTransaction(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +189,7 @@ func TestStoreExisting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = dm.CloseTransaction(tx, Commit)
+	err = dm.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,6 +206,38 @@ func TestStoreExisting(t *testing.T) {
 	}
 }
 
+func TestDatabaseManager_CancelTransaction(t *testing.T) {
+	dm, err := initDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanUpDB(t, dm)
+
+	// store identity, but cancel context, so transaction will be rolled back
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testIdentity := generateRandomIdentity()
+
+	err = dm.StoreNewIdentity(tx, *testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cancel()
+
+	// check not exists
+	_, err = dm.GetIdentity(testIdentity.Uid)
+	if err != ErrNotExist {
+		t.Error("GetIdentity did not return ErrNotExist")
+	}
+}
+
 func TestDatabaseLoad(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
@@ -132,7 +245,7 @@ func TestDatabaseLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanUp(t, dm)
+	defer cleanUpDB(t, dm)
 
 	// generate identities
 	var testIdentities []*Identity
@@ -221,10 +334,20 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+	if err != nil {
+		return nil, err
+	}
+
+	return dm, nil
 }
 
-func cleanUp(t *testing.T, dm *DatabaseManager) {
+func cleanUpDB(t *testing.T, dm *DatabaseManager) {
 	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", testTableName)
 	_, err := dm.db.Exec(dropTableQuery)
 	if err != nil {
@@ -252,34 +375,34 @@ func generateRandomIdentity() *Identity {
 	}
 }
 
-func storeIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
+func storeIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := ctxMngr.StartTransaction(ctx)
+	tx, err := storageMngr.StartTransaction(ctx)
 	if err != nil {
 		return fmt.Errorf("StartTransaction: %v", err)
 	}
 
-	err = ctxMngr.StoreNewIdentity(tx, *id)
+	err = storageMngr.StoreNewIdentity(tx, *id)
 	if err != nil {
 		return fmt.Errorf("StoreNewIdentity: %v", err)
 	}
 
-	err = ctxMngr.CloseTransaction(tx, Commit)
+	err = storageMngr.CommitTransaction(tx)
 	if err != nil {
-		return fmt.Errorf("CloseTransaction: %v", err)
+		return fmt.Errorf("CommitTransaction: %v", err)
 	}
 
 	return nil
 }
 
-func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) error {
+func checkIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	idFromCtx, err := ctxMngr.GetIdentity(id.Uid)
+	idFromCtx, err := storageMngr.GetIdentity(id.Uid)
 	if err != nil {
 		return err
 	}
@@ -296,7 +419,7 @@ func checkIdentity(ctxMngr ContextManager, id *Identity, wg *sync.WaitGroup) err
 		return fmt.Errorf("GetIdentity returned unexpected Uid value")
 	}
 
-	uid, err := ctxMngr.GetUuidForPublicKey(id.PublicKey)
+	uid, err := storageMngr.GetUuidForPublicKey(id.PublicKey)
 	if err != nil {
 		return err
 	}

@@ -16,45 +16,48 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
+	"github.com/ubirch/ubirch-cose-client-go/main/encryption"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	SkidLen           = 8
-	maxDbConnAttempts = 5
+	SkidLen             = 8
+	maxRecoveryAttempts = 2
 )
 
 type Protocol struct {
-	ubirch.Crypto
-	ctxManager   ContextManager
-	keyEncrypter *encrypters.KeyEncrypter
+	StorageManager
+
+	Crypto       ubirch.Crypto
+	keyEncrypter *encrypters.PKCS8KeyEncrypter
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
 }
 
-// Ensure Protocol implements the ContextManager interface
-var _ ContextManager = (*Protocol)(nil)
+// Ensure Protocol implements the StorageManager interface
+var _ StorageManager = (*Protocol)(nil)
 
-func NewProtocol(ctxManager ContextManager, secret []byte) (*Protocol, error) {
-	crypto := &ubirch.ECDSACryptoContext{}
+func NewProtocol(storageManager StorageManager, secret []byte) (*Protocol, error) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
 
-	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
+	enc, err := encrypters.NewPKCS8KeyEncrypter(secret, cryptoCtx)
 	if err != nil {
 		return nil, err
 	}
 
 	p := &Protocol{
-		Crypto:       crypto,
-		ctxManager:   ctxManager,
+		StorageManager: storageManager,
+
+		Crypto:       cryptoCtx,
 		keyEncrypter: enc,
 
 		identityCache: &sync.Map{},
@@ -65,24 +68,19 @@ func NewProtocol(ctxManager ContextManager, secret []byte) (*Protocol, error) {
 }
 
 func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	for i := 0; i < maxDbConnAttempts; i++ {
-		transactionCtx, err = p.ctxManager.StartTransaction(ctx)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("StartTransaction connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+	for i := 0; i <= maxRecoveryAttempts; i++ {
+		transactionCtx, err = p.StorageManager.StartTransaction(ctx)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
+			log.Warnf("StartTransaction error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
 	}
-
 	return transactionCtx, err
 }
 
-func (p *Protocol) CloseTransaction(tx interface{}, commit bool) error {
-	return p.ctxManager.CloseTransaction(tx, commit)
-}
-
-func (p *Protocol) StoreNewIdentity(tx interface{}, id Identity) error {
-	err := p.checkIdentityAttributesNotNil(id)
+func (p *Protocol) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
+	err := checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
 	}
@@ -94,12 +92,20 @@ func (p *Protocol) StoreNewIdentity(tx interface{}, id Identity) error {
 	}
 
 	// store public key raw bytes
-	id.PublicKey, err = p.PublicKeyPEMToBytes(id.PublicKey)
+	id.PublicKey, err = p.Crypto.PublicKeyPEMToBytes(id.PublicKey)
 	if err != nil {
 		return err
 	}
 
-	return p.ctxManager.StoreNewIdentity(tx, id)
+	for i := 0; i <= maxRecoveryAttempts; i++ {
+		err = p.StorageManager.StoreNewIdentity(transactionCtx, id)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
+			log.Warnf("StoreNewIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
+			continue
+		}
+		break
+	}
+	return err
 }
 
 func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
@@ -122,10 +128,10 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
 }
 
 func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err error) {
-	for i := 0; i < maxDbConnAttempts; i++ {
-		id, err = p.ctxManager.GetIdentity(uid)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("GetIdentity connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+	for i := 0; i <= maxRecoveryAttempts; i++ {
+		id, err = p.StorageManager.GetIdentity(uid)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
+			log.Warnf("GetIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
@@ -139,12 +145,12 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 		return id, err
 	}
 
-	id.PublicKey, err = p.PublicKeyBytesToPEM(id.PublicKey)
+	id.PublicKey, err = p.Crypto.PublicKeyBytesToPEM(id.PublicKey)
 	if err != nil {
 		return id, err
 	}
 
-	err = p.checkIdentityAttributesNotNil(id)
+	err = checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return id, err
 	}
@@ -153,36 +159,36 @@ func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err err
 }
 
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
-	publicKeyBytes, err := p.PublicKeyPEMToBytes(publicKeyPEM)
-	if err != nil {
-		return uuid.Nil, err
-	}
+	pubKeyID := getPubKeyID(publicKeyPEM)
 
-	publicKeyBytesBase64 := base64.StdEncoding.EncodeToString(publicKeyBytes)
-
-	_uid, found := p.uidCache.Load(publicKeyBytesBase64)
+	_uid, found := p.uidCache.Load(pubKeyID)
 
 	if found {
 		uid, found = _uid.(uuid.UUID)
 	}
 
 	if !found {
+		publicKeyBytes, err := p.Crypto.PublicKeyPEMToBytes(publicKeyPEM)
+		if err != nil {
+			return uuid.Nil, err
+		}
+
 		uid, err = p.fetchUuidForPublicKeyFromStorage(publicKeyBytes)
 		if err != nil {
 			return uuid.Nil, err
 		}
 
-		p.uidCache.Store(publicKeyBytesBase64, uid)
+		p.uidCache.Store(pubKeyID, uid)
 	}
 
 	return uid, nil
 }
 
 func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid uuid.UUID, err error) {
-	for i := 0; i < maxDbConnAttempts; i++ {
-		uid, err = p.ctxManager.GetUuidForPublicKey(publicKeyBytes)
-		if err != nil && isConnectionNotAvailable(err) {
-			log.Debugf("GetUuidForPublicKey connectionNotAvailable (%d of %d): %s", i+1, maxDbConnAttempts, err.Error())
+	for i := 0; i <= maxRecoveryAttempts; i++ {
+		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyBytes)
+		if err != nil && p.StorageManager.IsRecoverable(err) {
+			log.Warnf("GetUuidForPublicKey error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
 		}
 		break
@@ -190,7 +196,7 @@ func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid 
 	return uid, err
 }
 
-func (p *Protocol) Exists(uid uuid.UUID) (exists bool, err error) {
+func (p *Protocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
 	_, err = p.GetIdentity(uid)
 	if err == ErrNotExist {
 		return false, nil
@@ -202,7 +208,7 @@ func (p *Protocol) Exists(uid uuid.UUID) (exists bool, err error) {
 	return true, nil
 }
 
-func (p *Protocol) checkIdentityAttributesNotNil(i Identity) error {
+func checkIdentityAttributesNotNil(i *Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
@@ -222,4 +228,7 @@ func (p *Protocol) checkIdentityAttributesNotNil(i Identity) error {
 	return nil
 }
 
-func (p *Protocol) Close() {}
+func getPubKeyID(publicKeyPEM []byte) string {
+	sum256 := sha256.Sum256(publicKeyPEM)
+	return base64.StdEncoding.EncodeToString(sum256[:])
+}

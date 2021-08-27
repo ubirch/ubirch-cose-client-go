@@ -16,19 +16,19 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path"
 	"syscall"
 
-	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
-	"github.com/ubirch/ubirch-client-go/main/auditlogger"
-	"golang.org/x/sync/errgroup"
+	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 // handle graceful shutdown
@@ -49,6 +49,8 @@ var (
 	Version = "local build"
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
+	// declare flags
+	configDir = flag.String("configdirectory", "", "configuration `directory` to use")
 )
 
 func main() {
@@ -58,13 +60,12 @@ func main() {
 	)
 
 	var (
-		configDir string
-		serverID  = fmt.Sprintf("%s/%s", serviceName, Version)
+		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
+		readinessChecks []func() error
 	)
 
-	if len(os.Args) > 1 {
-		configDir = os.Args[1]
-	}
+	// parse commandline flags
+	flag.Parse()
 
 	log.SetFormatter(&log.JSONFormatter{})
 	log.Printf("UBIRCH COSE client (version=%s, revision=%s)", Version, Revision)
@@ -72,100 +73,89 @@ func main() {
 
 	// read configuration
 	conf := &Config{}
-	err := conf.Load(configDir, configFile)
+	err := conf.Load(*configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// create a waitgroup that contains all asynchronous operations
-	// a cancellable context is used to stop the operations gracefully
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
+	storageManager, err := GetStorageManager(conf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer storageManager.Close()
+	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	// set up graceful shutdown handling
-	go shutdown(cancel)
+	protocol, err := NewProtocol(storageManager, conf.secretBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	certClient := &CertificateServerClient{
+		CertificateServerURL:       conf.CertificateServer,
+		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
+		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
+	}
+
+	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.Crypto.EncodePublicKey, conf.ReloadCertsEveryMinute)
+
+	certifyApiClient := &CertifyApiClient{
+		CertifyApiURL:  conf.CertifyApiUrl,
+		CertifyApiAuth: conf.CertifyApiAuth,
+	}
+
+	idHandler := &IdentityHandler{
+		Protocol:            protocol,
+		RegisterAuth:        certifyApiClient.RegisterSeal,
+		subjectCountry:      conf.CSR_Country,
+		subjectOrganization: conf.CSR_Organization,
+	}
+
+	coseSigner, err := NewCoseSigner(protocol.Crypto.SignHash, skidHandler.GetSKID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	service := &COSEService{
+		GetIdentity: protocol.GetIdentity,
+		Sign:        coseSigner.Sign,
+	}
 
 	// set up HTTP server
-	httpServer := handlers.HTTPServer{
-		Router:   handlers.NewRouter(),
+	httpServer := h.HTTPServer{
+		Router:   h.NewRouter(),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
 		KeyFile:  conf.TLS_KeyFile,
 	}
 
-	// start HTTP server
-	serverReadyCtx, serverReady := context.WithCancel(context.Background())
-	g.Go(func() error {
-		return httpServer.Serve(ctx, serverReady)
-	})
-	// wait for server to start
-	<-serverReadyCtx.Done()
-
 	// set up metrics
-	prom.InitPromMetrics(httpServer.Router)
-
-	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(serverID))
-
-	// initialize COSE service
-	ctxManager, err := GetCtxManager(conf)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer ctxManager.Close()
-
-	protocol, err := NewProtocol(ctxManager, conf.secretBytes)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer protocol.Close()
-
-	client := &ExtendedClient{}
-	client.KeyServiceURL = conf.KeyService
-	client.IdentityServiceURL = conf.IdentityService
-	client.verify = protocol.Verify
-	client.CertificateServerURL = conf.CertificateServer
-	client.CertificateServerPubKeyURL = conf.CertificateServerPubKey
-	client.ServerTLSCertFingerprints = conf.serverTLSCertFingerprints
-
-	skidHandler := NewSkidHandler(client.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.EncodePublicKey, conf.ReloadCertsEveryMinute)
-
-	idHandler := &IdentityHandler{
-		Protocol:              protocol,
-		SubmitKeyRegistration: client.SubmitKeyRegistration,
-		SubmitCSR:             client.SubmitCSR,
-		subjectCountry:        conf.CSR_Country,
-		subjectOrganization:   conf.CSR_Organization,
-	}
-
-	coseSigner, err := NewCoseSigner(protocol.SignHash, skidHandler.GetSKID)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	service := &COSEService{
-		CoseSigner:  coseSigner,
-		GetIdentity: protocol.GetIdentity,
-	}
+	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
 
 	// set up endpoint for identity registration
-	creator := handlers.NewIdentityCreator(conf.RegisterAuth)
-	httpServer.Router.Put("/register", creator.Put(idHandler.initIdentity, protocol.Exists))
+	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
+
+	// set up endpoint for CSRs
+	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
+	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
+	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
 	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(getUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
 
-	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
+	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
 	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
 
-	// set up endpoint for readiness checks
-	httpServer.Router.Get("/readiness", h.Health(serverID))
-	log.Info("ready")
+	// set up endpoints for liveness and readiness checks
+	httpServer.Router.Get("/healthz", h.Healthz(serverID))
+	httpServer.Router.Get("/readyz", h.Readyz(serverID, readinessChecks))
 
-	// wait for all go routines of the waitgroup to return
-	if err = g.Wait(); err != nil {
+	// set up graceful shutdown handling
+	ctx, cancel := context.WithCancel(context.Background())
+	go shutdown(cancel)
+
+	// start HTTP server (blocks)
+	if err = httpServer.Serve(ctx); err != nil {
 		log.Error(err)
 	}
 

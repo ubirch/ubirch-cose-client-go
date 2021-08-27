@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
 const (
@@ -98,25 +99,25 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	}, nil
 }
 
-func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte) HTTPResponse {
+func (c *CoseSigner) Sign(msg HTTPRequest, privateKeyPEM []byte) h.HTTPResponse {
 	log.Debugf("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	skid, err := c.GetSKID(msg.ID)
 	if err != nil {
 		log.Error(err)
-		return errorResponse(http.StatusBadRequest, err.Error())
+		return h.ErrorResponse(http.StatusTooEarly, err.Error())
 	}
 
 	cose, err := c.createSignedCOSE(msg.Hash, privateKeyPEM, skid, msg.Payload)
 	if err != nil {
 		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return h.ErrorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
-	return HTTPResponse{
+	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
-		Header:     http.Header{},
+		Header:     http.Header{"Content-Type": {h.BinType}},
 		Content:    cose,
 	}
 }
@@ -127,12 +128,7 @@ func (c *CoseSigner) createSignedCOSE(hash Sha256Sum, privateKeyPEM, kid, payloa
 		return nil, err
 	}
 
-	coseBytes, err := c.getCOSE(kid, payload, signature)
-	if err != nil {
-		return nil, err
-	}
-
-	return coseBytes, nil
+	return c.getCOSE(kid, payload, signature)
 }
 
 // getCOSE creates a COSE Single Signer Data Object (COSE_Sign1)

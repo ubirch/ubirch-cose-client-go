@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 ubirch GmbH
+// Copyright (c) 2021 ubirch GmbH
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,14 +18,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+
 	log "github.com/sirupsen/logrus"
-	"time"
-	// postgres driver is imported for side effects
-	// import pq driver this way only if we dont need it here
-	// done for database/sql (pg, err := sql.Open..)
-	//_ "github.com/lib/pq"
 )
 
 const (
@@ -64,8 +63,8 @@ type DatabaseParams struct {
 	ConnMaxIdleTime time.Duration
 }
 
-// Ensure Database implements the ContextManager interface
-var _ ContextManager = (*DatabaseManager)(nil)
+// Ensure Database implements the StorageManager interface
+var _ StorageManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
@@ -80,9 +79,6 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 	pg.SetMaxIdleConns(dbParams.MaxIdleConns)
 	pg.SetConnMaxLifetime(dbParams.ConnMaxLifetime)
 	pg.SetConnMaxIdleTime(dbParams.ConnMaxIdleTime)
-	if err = pg.Ping(); err != nil {
-		return nil, err
-	}
 
 	log.Debugf("MaxOpenConns: %d", dbParams.MaxOpenConns)
 	log.Debugf("MaxIdleConns: %d", dbParams.MaxIdleConns)
@@ -91,16 +87,25 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelSerializable,
+			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
 		db:        pg,
 		tableName: tableName,
 	}
 
-	_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
-	if err != nil {
-		return nil, err
+	if err = pg.Ping(); err != nil {
+		if strings.Contains(err.Error(), "connection refused") {
+			// if there is no connection to the database yet, continue anyway.
+			log.Warnf("connection to the database could not yet be established: %v", err)
+		} else {
+			return nil, err
+		}
+	} else {
+		_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
+		if err != nil {
+			return nil, fmt.Errorf("creating DB table failed: %v", err)
+		}
 	}
 
 	return dm, nil
@@ -113,24 +118,33 @@ func (dm *DatabaseManager) Close() {
 	}
 }
 
+func (dm *DatabaseManager) IsReady() error {
+	if err := dm.db.Ping(); err != nil {
+		return fmt.Errorf("database not ready: %v", err)
+	}
+
+	// create table if it does not exist yet
+	_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+	if err != nil {
+		return fmt.Errorf("database connection was established but creating table failed: %v", err)
+	}
+	return nil
+}
+
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
 	return dm.db.BeginTx(ctx, dm.options)
 }
 
-func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
+func (dm *DatabaseManager) CommitTransaction(transactionCtx interface{}) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	if commit {
-		return tx.Commit()
-	} else {
-		return tx.Rollback()
-	}
+	return tx.Commit()
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity Identity) error {
+func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -140,7 +154,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
 		dm.tableName)
 
-	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.AuthToken)
+	_, err := tx.Exec(query, &id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
 	if err != nil {
 		return err
 	}
@@ -153,7 +167,7 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
+	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.AuthToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return id, ErrNotExist
@@ -180,11 +194,12 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 	return uid, nil
 }
 
-func isConnectionNotAvailable(err error) bool {
+func (dm *DatabaseManager) IsRecoverable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(10 * time.Millisecond)
 		return true
 	}
+
 	return false
 }

@@ -3,37 +3,39 @@ package main
 import (
 	"bytes"
 	"context"
-	"github.com/google/uuid"
 	"math/rand"
 	"sync"
 	"testing"
+
+	"github.com/google/uuid"
+
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestProtocol(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
-
-	privKeyPEM, err := p.GenerateKey()
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	privKeyPEM, err := p.Crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	testIdentity := Identity{
-		Uid:        testUuid,
+		Uid:        test.Uuid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
-		AuthToken:  testAuth,
+		AuthToken:  test.Auth,
 	}
 
 	// check not exists
@@ -42,12 +44,12 @@ func TestProtocol(t *testing.T) {
 		t.Error("GetIdentity did not return ErrNotExist")
 	}
 
-	exists, err := p.Exists(testIdentity.Uid)
+	exists, err := p.IsInitialized(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
 	}
 	if exists {
-		t.Error("Exists returned TRUE")
+		t.Error("IsInitialized returned TRUE")
 	}
 
 	_, err = p.GetUuidForPublicKey(testIdentity.PublicKey)
@@ -55,18 +57,32 @@ func TestProtocol(t *testing.T) {
 		t.Error("GetUuidForPublicKey did not return ErrNotExist")
 	}
 
-	err = p.StoreNewIdentity(nil, testIdentity)
+	// store identity
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.StoreNewIdentity(tx, testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// check exists
-	exists, err = p.Exists(testIdentity.Uid)
+	exists, err = p.IsInitialized(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
 	}
 	if !exists {
-		t.Error("Exists returned FALSE")
+		t.Error("IsInitialized returned FALSE")
 	}
 
 	storedIdentity, err := p.GetIdentity(testIdentity.Uid)
@@ -87,13 +103,12 @@ func TestProtocol(t *testing.T) {
 		t.Error("GetIdentity returned unexpected Uid value")
 	}
 
-	uid, err := p.GetUuidForPublicKey(testIdentity.PublicKey)
+	storedUid, err := p.GetUuidForPublicKey(testIdentity.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if !bytes.Equal(uid[:], testIdentity.Uid[:]) {
-		t.Error("GetUuidForPublicKey returned unexpected Uid value")
+	if !bytes.Equal(storedUid[:], testIdentity.Uid[:]) {
+		t.Errorf("GetUuidForPublicKey returned unexpected value: %s, expected: %s", storedUid[:], testIdentity.Uid[:])
 	}
 }
 
@@ -104,7 +119,7 @@ func TestProtocolLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cleanUp(t, dm)
+	defer cleanUpDB(t, dm)
 
 	secret := make([]byte, 32)
 	rand.Read(secret)
@@ -113,19 +128,18 @@ func TestProtocolLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
 
 	// generate identities
 	var testIdentities []*Identity
 	for i := 0; i < testLoad/10; i++ {
 		testId := generateRandomIdentity()
 
-		testId.PrivateKey, err = p.GenerateKey()
+		testId.PrivateKey, err = p.Crypto.GenerateKey()
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		testId.PublicKey, err = p.GetPublicKeyFromPrivateKey(testId.PrivateKey)
+		testId.PublicKey, err = p.Crypto.GetPublicKeyFromPrivateKey(testId.PrivateKey)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,7 +176,7 @@ func Test_BadNewProtocol(t *testing.T) {
 	secret := make([]byte, 31)
 	rand.Read(secret)
 
-	_, err := NewProtocol(&mockCtxMngr{}, secret)
+	_, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err == nil {
 		t.Error("NewProtocol did not return error for invalid secret")
 	}
@@ -172,18 +186,17 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
-
-	privKeyPEM, err := p.GenerateKey()
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	privKeyPEM, err := p.Crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +205,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 		Uid:        uuid.UUID{},
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
-		AuthToken:  testAuth,
+		AuthToken:  test.Auth,
 	}
 
 	err = p.StoreNewIdentity(nil, i)
@@ -205,27 +218,26 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
-
-	privKeyPEM, err := p.GenerateKey()
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	privKeyPEM, err := p.Crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	i := Identity{
-		Uid:        testUuid,
+		Uid:        test.Uuid,
 		PrivateKey: make([]byte, 32),
 		PublicKey:  pubKeyPEM,
-		AuthToken:  testAuth,
+		AuthToken:  test.Auth,
 	}
 
 	err = p.StoreNewIdentity(nil, i)
@@ -238,27 +250,26 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
-
-	privKeyPEM, err := p.GenerateKey()
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	privKeyPEM, err := p.Crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	i := Identity{
-		Uid:        testUuid,
+		Uid:        test.Uuid,
 		PrivateKey: nil,
 		PublicKey:  pubKeyPEM,
-		AuthToken:  testAuth,
+		AuthToken:  test.Auth,
 	}
 
 	err = p.StoreNewIdentity(nil, i)
@@ -271,22 +282,21 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	i := Identity{
-		Uid:        testUuid,
+		Uid:        test.Uuid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  make([]byte, 64),
-		AuthToken:  testAuth,
+		AuthToken:  test.Auth,
 	}
 
 	err = p.StoreNewIdentity(nil, i)
@@ -299,22 +309,21 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
 
-	privKeyPEM, err := p.GenerateKey()
+	privKeyPEM, err := p.Crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	i := Identity{
-		Uid:        testUuid,
+		Uid:        test.Uuid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  nil,
-		AuthToken:  testAuth,
+		AuthToken:  test.Auth,
 	}
 
 	err = p.StoreNewIdentity(nil, i)
@@ -327,24 +336,23 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
-
-	privKeyPEM, err := p.GenerateKey()
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	privKeyPEM, err := p.Crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	i := Identity{
-		Uid:        testUuid,
+		Uid:        test.Uuid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
 		AuthToken:  "",
@@ -362,30 +370,42 @@ func TestProtocol_Cache(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
-
-	privKeyPEM, err := p.GenerateKey()
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKeyPEM, err := p.GetPublicKeyFromPrivateKey(privKeyPEM)
+	privKeyPEM, err := p.Crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pubKeyPEM, err := p.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	testIdentity := Identity{
-		Uid:        testUuid,
+		Uid:        test.Uuid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
-		AuthToken:  testAuth,
+		AuthToken:  test.Auth,
 	}
 
-	err = p.StoreNewIdentity(nil, testIdentity)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.StoreNewIdentity(tx, testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,11 +427,10 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	secret := make([]byte, 32)
 	rand.Read(secret)
 
-	p, err := NewProtocol(&mockCtxMngr{}, secret)
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
 
 	_, err = p.GetUuidForPublicKey(make([]byte, 64))
 	if err == nil {
@@ -419,37 +438,48 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	}
 }
 
-type mockCtxMngr struct {
+type mockStorageMngr struct {
 	id Identity
 }
 
-var _ ContextManager = (*mockCtxMngr)(nil)
+var _ StorageManager = (*mockStorageMngr)(nil)
 
-func (m *mockCtxMngr) StoreNewIdentity(tx interface{}, id Identity) error {
-	m.id = id
+var idBuf = &Identity{}
+
+func (m *mockStorageMngr) StartTransaction(context.Context) (interface{}, error) {
+	return nil, nil
+}
+
+func (m *mockStorageMngr) CommitTransaction(interface{}) error {
+	m.id = *idBuf
 	return nil
 }
 
-func (m *mockCtxMngr) GetIdentity(uid uuid.UUID) (Identity, error) {
+func (m *mockStorageMngr) StoreNewIdentity(_ interface{}, id Identity) error {
+	idBuf = &id
+	return nil
+}
+
+func (m *mockStorageMngr) GetIdentity(uid uuid.UUID) (Identity, error) {
 	if m.id.Uid == uuid.Nil || m.id.Uid != uid {
 		return Identity{}, ErrNotExist
 	}
 	return m.id, nil
 }
 
-func (m *mockCtxMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
+func (m *mockStorageMngr) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
 	if m.id.PublicKey == nil || !bytes.Equal(m.id.PublicKey, pubKey) {
 		return uuid.Nil, ErrNotExist
 	}
 	return m.id.Uid, nil
 }
 
-func (m *mockCtxMngr) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return nil, nil
+func (m *mockStorageMngr) IsRecoverable(error) bool {
+	return false
 }
 
-func (m *mockCtxMngr) CloseTransaction(transactionCtx interface{}, commit bool) error {
+func (m *mockStorageMngr) IsReady() error {
 	return nil
 }
 
-func (m *mockCtxMngr) Close() {}
+func (m *mockStorageMngr) Close() {}

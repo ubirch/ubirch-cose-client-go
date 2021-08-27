@@ -75,13 +75,15 @@ func (s *Sender) register(clientBaseURL, id, auth, registerAuth string) error {
 	return nil
 }
 
-func (s *Sender) sendRequests(clientBaseURL, uid, auth string, wg *sync.WaitGroup) {
+func (s *Sender) sendRequests(clientBaseURL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	clientURL := clientBaseURL + uid + "/cbor/hash"
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
+
+	time.Sleep(offset)
 
 	for i := 0; i < numberOfRequestsPerID; i++ {
 		wg.Add(1)
@@ -112,15 +114,16 @@ func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *
 		log.Error(err)
 		return
 	}
-
-	s.addTime(time.Since(start))
+	duration := time.Now().Sub(start)
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusOK {
+		s.addTime(duration)
+	} else {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
-		log.Errorf("%d: %s", resp.StatusCode, respBodyBytes)
+		log.Warnf("%d: %s", resp.StatusCode, respBodyBytes)
 	}
 
 	s.countStatus(resp.Status)
@@ -140,5 +143,8 @@ func (s *Sender) addTime(dur time.Duration) {
 }
 
 func (s *Sender) getAvgRequestDuration() time.Duration {
+	if s.requestCounter == 0 {
+		return 0
+	}
 	return s.requestTimer / time.Duration(s.requestCounter)
 }
