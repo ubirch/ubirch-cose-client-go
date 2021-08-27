@@ -71,7 +71,7 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = p.CloseTransaction(tx, Commit)
+	err = p.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func TestProtocol_Cache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = p.CloseTransaction(tx, Commit)
+	err = p.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,18 +446,16 @@ var _ StorageManager = (*mockStorageMngr)(nil)
 
 var idBuf = &Identity{}
 
-func (m *mockStorageMngr) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+func (m *mockStorageMngr) StartTransaction(context.Context) (interface{}, error) {
 	return nil, nil
 }
 
-func (m *mockStorageMngr) CloseTransaction(transactionCtx interface{}, commit bool) error {
-	if commit {
-		m.id = *idBuf
-	}
+func (m *mockStorageMngr) CommitTransaction(interface{}) error {
+	m.id = *idBuf
 	return nil
 }
 
-func (m *mockStorageMngr) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
+func (m *mockStorageMngr) StoreNewIdentity(_ interface{}, id Identity) error {
 	idBuf = &id
 	return nil
 }

@@ -99,7 +99,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, err error)
 		return nil, err
 	}
 
-	err = i.Protocol.CloseTransaction(tx, Commit)
+	err = i.Protocol.CommitTransaction(tx)
 	if err != nil {
 		return nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
 	}

@@ -62,7 +62,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = dm.CloseTransaction(tx, Commit)
+	err = dm.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestStoreExisting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = dm.CloseTransaction(tx, Commit)
+	err = dm.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,6 +203,38 @@ func TestStoreExisting(t *testing.T) {
 	err = dm.StoreNewIdentity(tx2, *testIdentity)
 	if err == nil {
 		t.Fatal("existing identity was overwritten")
+	}
+}
+
+func TestDatabaseManager_CancelTransaction(t *testing.T) {
+	dm, err := initDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanUpDB(t, dm)
+
+	// store identity, but cancel context, so transaction will be rolled back
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testIdentity := generateRandomIdentity()
+
+	err = dm.StoreNewIdentity(tx, *testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cancel()
+
+	// check not exists
+	_, err = dm.GetIdentity(testIdentity.Uid)
+	if err != ErrNotExist {
+		t.Error("GetIdentity did not return ErrNotExist")
 	}
 }
 
@@ -359,9 +391,9 @@ func storeIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup)
 		return fmt.Errorf("StoreNewIdentity: %v", err)
 	}
 
-	err = storageMngr.CloseTransaction(tx, Commit)
+	err = storageMngr.CommitTransaction(tx)
 	if err != nil {
-		return fmt.Errorf("CloseTransaction: %v", err)
+		return fmt.Errorf("CommitTransaction: %v", err)
 	}
 
 	return nil

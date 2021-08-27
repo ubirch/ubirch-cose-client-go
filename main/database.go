@@ -135,17 +135,13 @@ func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx
 	return dm.db.BeginTx(ctx, dm.options)
 }
 
-func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
+func (dm *DatabaseManager) CommitTransaction(transactionCtx interface{}) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	if commit {
-		return tx.Commit()
-	} else {
-		return tx.Rollback()
-	}
+	return tx.Commit()
 }
 
 func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
