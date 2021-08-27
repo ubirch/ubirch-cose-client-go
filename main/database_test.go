@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -93,16 +95,11 @@ func TestDatabaseManager(t *testing.T) {
 }
 
 func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
-	c, err := getDatabaseConfig()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// use DSN that is valid, but not reachable
-	c.PostgresDSN = "postgres://nousr:nopwd@localhost:0000/nodatabase"
+	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
+	dm, err := NewSqlDatabaseInfo(unreachableDSN, testTableName, &DatabaseParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +123,46 @@ func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
 	_, err = NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
 	if err == nil {
 		t.Fatal("no error returned for invalid DSN")
+	}
+}
+
+func TestDatabaseManager_IsReady(t *testing.T) {
+	c, err := getDatabaseConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dm := &DatabaseManager{
+		options: &sql.TxOptions{
+			Isolation: sql.LevelReadCommitted,
+			ReadOnly:  false,
+		},
+		db:        pg,
+		tableName: testTableName,
+	}
+	defer cleanUpDB(t, dm)
+
+	// table does not exist yet
+	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
+
+	_, err = dm.GetIdentity(uuid.New())
+	if !strings.Contains(err.Error(), tableDoesNotExistError) {
+		t.Fatalf("unexpected error: %v, expected: %v", err, tableDoesNotExistError)
+	}
+
+	err = dm.IsReady()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = dm.GetIdentity(uuid.New())
+	if err != ErrNotExist {
+		t.Error("GetIdentity did not return ErrNotExist")
 	}
 }
 

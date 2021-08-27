@@ -122,6 +122,12 @@ func (dm *DatabaseManager) IsReady() error {
 	if err := dm.db.Ping(); err != nil {
 		return fmt.Errorf("database not ready: %v", err)
 	}
+
+	// create table if it does not exist yet
+	_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+	if err != nil {
+		return fmt.Errorf("database connection was established but creating table failed: %v", err)
+	}
 	return nil
 }
 
@@ -196,16 +202,6 @@ func (dm *DatabaseManager) IsRecoverable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(10 * time.Millisecond)
-		return true
-	}
-
-	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
-	if strings.Contains(err.Error(), tableDoesNotExistError) {
-		_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
-		if err != nil {
-			log.Errorf("an error occured when trying to create DB table \"%s\": %v", dm.tableName, err)
-			return false
-		}
 		return true
 	}
 
