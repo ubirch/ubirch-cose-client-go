@@ -1,6 +1,28 @@
 # UBIRCH COSE client (go)
 
-### Interface Description
+## Interface Description
+
+### Identity Registration
+
+Sending a registration request invokes the generation of a ECDSA key pair for signing COSE objects. Further, an auth
+token will be generated and registered at the certify-api. On success, the response contains an X.509 Certificate
+Signing Request in PEM format.
+
+    curl ${host}/register -X PUT \
+    -H "X-Auth-Token: <registerAuth>" \
+    -H "Content-Type: application/json" \
+    -d '{"uuid":"<uuid>"}' \
+    -i
+
+### CSR re-creation
+
+A CSR for an already registered identity can be retrieved from the CSR endpoint.
+
+    curl ${host}/{uuid}/csr -X GET \
+    -H "X-Auth-Token: <registerAuth>" \
+    -i
+
+### COSE Signing Requests
 
 *see specification: [CBOR Object Signing and Encryption (COSE)](https://tools.ietf.org/html/rfc8152)*
 
@@ -22,7 +44,10 @@ To send the **hex** string representation of the hash (instead of base64), the `
 used.
 
 ```json
-{"Content-Type": "text/plain", "Content-Transfer-Encoding": "hex"}
+{
+  "Content-Type": "text/plain",
+  "Content-Transfer-Encoding": "hex"
+}
 ```
 
 ### Response
@@ -142,23 +167,6 @@ or, if TLS is enabled:
   ```
 
 ## Configuration
-
-The identity attributes are set through a file "`identities.json`".
-
-```json
-[
-  {
-    "tenant": "<tenant-name>",
-    "category": "<category-name>",
-    "poc": "<PoC-name>",
-    "uuid": "<uuid>",
-    "token": "<auth token>"
-  },
-  ...
-]
-```
-
-See example: [example_identities.json](main/example_identities.json)
 
 It is mandatory to set a 32 byte secret for aes256 encryption of private keys (pkcs#8)
 either in a file `config.json` or as an environment variable.
@@ -295,7 +303,6 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     ```shell
     UBIRCH_LOGTEXTFORMAT=true
     ```
-
 
 ## Copyright
 
