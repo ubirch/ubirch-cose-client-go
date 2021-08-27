@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"math/rand"
@@ -42,7 +43,8 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 	if len(rest) != 0 {
 		t.Errorf("rest: %q", rest)
 	}
-	_, err = x509.ParseCertificateRequest(block.Bytes)
+
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	if err != nil {
 		t.Error(err)
 	}
@@ -50,6 +52,15 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 	initializedIdentity, err := p.GetIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	pub, err := p.Crypto.EncodePublicKey(csr.PublicKey)
+	if err != nil {
+		t.Error(err)
+	} else {
+		if !bytes.Equal(pub, initializedIdentity.PublicKey) {
+			t.Errorf("public key in CSR does not match initializedIdentity.PublicKey")
+		}
 	}
 
 	if client.Auth != initializedIdentity.AuthToken {
@@ -161,9 +172,23 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		t.Errorf("rest: %q", rest)
 	}
 
-	_, err = x509.ParseCertificateRequest(block.Bytes)
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	if err != nil {
 		t.Error(err)
+	}
+
+	initializedIdentity, err := p.GetIdentity(test.Uuid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pub, err := p.Crypto.EncodePublicKey(csr.PublicKey)
+	if err != nil {
+		t.Error(err)
+	} else {
+		if !bytes.Equal(pub, initializedIdentity.PublicKey) {
+			t.Errorf("public key in CSR does not match initializedIdentity.PublicKey")
+		}
 	}
 }
 
