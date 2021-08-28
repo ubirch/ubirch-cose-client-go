@@ -178,7 +178,7 @@ func main() {
 	idHandler := &IdentityHandler{
 		Protocol:            protocol,
 		Crypto:              cryptoCtx,
-		Register:            certifyApiClient.RegisterSeal,
+		RegisterAuth:        certifyApiClient.RegisterSeal,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
@@ -192,7 +192,7 @@ func main() {
 
 	service := &COSEService{
 		GetIdentity: protocol.GetIdentity,
-		CheckAuth:   protocol.pwHasher.CheckPassword,
+		CheckAuth:   protocol.PwHasher.CheckPassword,
 		Sign:        coseSigner.Sign,
 	}
 

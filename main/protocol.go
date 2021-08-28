@@ -36,8 +36,8 @@ const (
 type Protocol struct {
 	StorageManager
 
-	pwHasher       *pw.Argon2idKeyDerivator
-	pwHasherParams *pw.Argon2idParams
+	PwHasher       *pw.Argon2idKeyDerivator
+	PwHasherParams *pw.Argon2idParams
 
 	identityCache *sync.Map // {<uid>: <*identity>}
 	uidCache      *sync.Map // {<pub>: <uid>}
@@ -56,8 +56,8 @@ func NewProtocol(storageManager StorageManager, maxTotalMem uint32, argon2idPara
 	return &Protocol{
 		StorageManager: storageManager,
 
-		pwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
-		pwHasherParams: argon2idParams,
+		PwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
+		PwHasherParams: argon2idParams,
 
 		identityCache: &sync.Map{},
 		uidCache:      &sync.Map{},

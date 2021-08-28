@@ -25,7 +25,6 @@ import (
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
-	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
@@ -33,7 +32,7 @@ type RegisterAuth func(uid uuid.UUID, auth string) error
 
 type IdentityHandler struct {
 	Protocol *Protocol
-	Crypto ubirch.Crypto
+	Crypto   ubirch.Crypto
 	RegisterAuth
 	subjectCountry      string
 	subjectOrganization string
@@ -45,7 +44,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) (csrP
 		return nil, err
 	}
 
-	initialized, err := i.isInitialized(uid)
+	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
 	}
@@ -54,7 +53,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) (csrP
 		return nil, h.ErrAlreadyInitialized
 	}
 
-	keyExists, err := i.PrivateKeyExists(uid)
+	keyExists, err := i.Crypto.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
@@ -63,14 +62,14 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) (csrP
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}
 
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-	pubKeyPEM, err := i.GetPublicKeyPEM(uid)
+	pubKeyPEM, err := i.Crypto.GetPublicKeyPEM(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not get public key: %v", err)
 	}
@@ -80,7 +79,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) (csrP
 		return nil, err
 	}
 
-	pwHash, err := i.pwHasher.GeneratePasswordHash(ctx, pw, i.pwHasherParams)
+	pwHash, err := i.Protocol.PwHasher.GeneratePasswordHash(ctx, pw, i.Protocol.PwHasherParams)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +120,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) (csrP
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
-	keyExists, err := i.PrivateKeyExists(uid)
+	keyExists, err := i.Crypto.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
@@ -130,7 +129,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}

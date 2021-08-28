@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"math/rand"
 	"testing"
 
 	"github.com/google/uuid"
@@ -32,7 +31,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 	idHandler := &IdentityHandler{
 		Protocol:            p,
 		Crypto:              cryptoCtx,
-		Register:            client.registerAuth,
+		RegisterAuth:        client.registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -69,16 +68,16 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Error("initializedIdentity unexpected public key")
 	}
 
-	csrPublicKey, err := p.Crypto.EncodePublicKey(csr.PublicKey)
+	csrPublicKey, err := cryptoCtx.EncodePublicKey(csr.PublicKey)
 	if err != nil {
 		t.Error(err)
 	} else {
-		if !bytes.Equal(csrPublicKey, initializedIdentity.PublicKey) {
+		if !bytes.Equal(csrPublicKey, initializedIdentity.PublicKeyPEM) {
 			t.Errorf("public key in CSR does not match initializedIdentity.PublicKey")
 		}
 	}
 
-	ok, err := p.pwHasher.CheckPassword(context.Background(), client.Auth, initializedIdentity.Auth)
+	ok, err := p.PwHasher.CheckPassword(context.Background(), client.Auth, initializedIdentity.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,22 +187,26 @@ func TestIdentityHandler_initIdentity_BadRegistration(t *testing.T) {
 }
 
 func TestIdentityHandler_CreateCSR(t *testing.T) {
-	secret := make([]byte, 32)
-	rand.Read(secret)
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
+	}
 
-	p, err := NewProtocol(&mockStorageMngr{}, secret)
+	err := cryptoCtx.GenerateKey(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
+
 	idHandler := &IdentityHandler{
 		Protocol:            p,
+		Crypto:              cryptoCtx,
 		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid)
+	_, err = idHandler.InitIdentity(context.Background(), test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,32 +234,31 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pub, err := p.Crypto.EncodePublicKey(csr.PublicKey)
+	pub, err := cryptoCtx.EncodePublicKey(csr.PublicKey)
 	if err != nil {
 		t.Error(err)
 	} else {
-		if !bytes.Equal(pub, initializedIdentity.PublicKey) {
+		if !bytes.Equal(pub, initializedIdentity.PublicKeyPEM) {
 			t.Errorf("public key in CSR does not match initializedIdentity.PublicKey")
 		}
 	}
 }
 
 func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
-	secret := make([]byte, 32)
-	rand.Read(secret)
-
-	p, err := NewProtocol(&mockStorageMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: &test.MockKeystorer{},
 	}
+
+	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
+		Crypto:              cryptoCtx,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.CreateCSR(test.Uuid)
+	_, err := idHandler.CreateCSR(test.Uuid)
 	if err != h.ErrUnknown {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}
