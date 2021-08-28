@@ -154,9 +154,9 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 	return uid, nil
 }
 
-func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid uuid.UUID, err error) {
+func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyPEM []byte) (uid uuid.UUID, err error) {
 	for i := 0; i <= maxRecoveryAttempts; i++ {
-		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyBytes)
+		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyPEM)
 		if err != nil && p.StorageManager.IsRecoverable(err) {
 			log.Warnf("GetUuidForPublicKey error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
 			continue
