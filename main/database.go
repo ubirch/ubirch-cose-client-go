@@ -94,8 +94,12 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, dbParams *DatabasePara
 	}
 
 	if err = pg.Ping(); err != nil {
-		// if there is no connection to the database yet, continue anyway.
-		log.Warnf("connection to the database could not yet be established: %v", err)
+		if strings.Contains(err.Error(), "connection refused") {
+			// if there is no connection to the database yet, continue anyway.
+			log.Warnf("connection to the database could not yet be established: %v", err)
+		} else {
+			return nil, err
+		}
 	} else {
 		_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
 		if err != nil {
@@ -117,6 +121,12 @@ func (dm *DatabaseManager) IsReady() error {
 	if err := dm.db.Ping(); err != nil {
 		return fmt.Errorf("database not ready: %v", err)
 	}
+
+	// create table if it does not exist yet
+	_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+	if err != nil {
+		return fmt.Errorf("database connection was established but creating table failed: %v", err)
+	}
 	return nil
 }
 
@@ -124,17 +134,13 @@ func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx
 	return dm.db.BeginTx(ctx, dm.options)
 }
 
-func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
+func (dm *DatabaseManager) CommitTransaction(transactionCtx interface{}) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	if commit {
-		return tx.Commit()
-	} else {
-		return tx.Rollback()
-	}
+	return tx.Commit()
 }
 
 func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
@@ -147,10 +153,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, id Ident
 		"INSERT INTO %s (uid, public_key, auth) VALUES ($1, $2, $3);",
 		dm.tableName)
 
-	_, err := tx.Exec(query,
-		&id.Uid,
-		&id.PublicKeyPEM,
-		&id.Auth)
+	_, err := tx.Exec(query, &id.Uid, &id.PublicKeyPEM, &id.Auth)
 	if err != nil {
 		return err
 	}
@@ -163,10 +166,7 @@ func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid).Scan(
-		&id.Uid,
-		&id.PublicKeyPEM,
-		&id.Auth)
+	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PublicKeyPEM, &id.Auth)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return id, ErrNotExist
@@ -197,16 +197,6 @@ func (dm *DatabaseManager) IsRecoverable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(10 * time.Millisecond)
-		return true
-	}
-
-	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
-	if strings.Contains(err.Error(), tableDoesNotExistError) {
-		_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
-		if err != nil {
-			log.Errorf("an error occured when trying to create DB table \"%s\": %v", dm.tableName, err)
-			return false
-		}
 		return true
 	}
 

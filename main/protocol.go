@@ -166,7 +166,7 @@ func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyBytes []byte) (uid 
 	return uid, err
 }
 
-func (p *Protocol) isInitialized(uid uuid.UUID) (initialized bool, err error) {
+func (p *Protocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
 	_, err = p.GetIdentity(uid)
 	if err == ErrNotExist {
 		return false, nil

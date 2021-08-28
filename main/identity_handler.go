@@ -29,18 +29,21 @@ import (
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
+type RegisterAuth func(uid uuid.UUID, auth string) error
+
 type IdentityHandler struct {
-	*Protocol
-	ubirch.Crypto
-	Register            registerAuth
+	Protocol *Protocol
+	Crypto ubirch.Crypto
+	RegisterAuth
 	subjectCountry      string
 	subjectOrganization string
 }
 
-type registerAuth func(uid uuid.UUID, auth string) error
-
-func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]byte, error) {
-	log.Infof("initializing identity %s", uid)
+func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) (csrPEM []byte, err error) {
+	err = i.Protocol.IsReady()
+	if err != nil {
+		return nil, err
+	}
 
 	initialized, err := i.isInitialized(uid)
 	if err != nil {
@@ -91,22 +94,22 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]by
 	ctxForTransaction, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := i.StartTransaction(ctxForTransaction)
+	tx, err := i.Protocol.StartTransaction(ctxForTransaction)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.StoreNewIdentity(tx, identity)
+	err = i.Protocol.StoreNewIdentity(tx, identity)
 	if err != nil {
 		return nil, fmt.Errorf("could not store new identity: %v", err)
 	}
 
-	err = i.Register(uid, pw)
+	err = i.RegisterAuth(uid, pw)
 	if err != nil {
 		return nil, err
 	}
 
-	err = i.CloseTransaction(tx, Commit)
+	err = i.Protocol.CommitTransaction(tx)
 	if err != nil {
 		return nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
 	}
@@ -117,7 +120,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) ([]by
 	return csrPEM, nil
 }
 
-func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
+func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 	keyExists, err := i.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
@@ -132,7 +135,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) ([]byte, error) {
 		return nil, fmt.Errorf("could not generate CSR: %v", err)
 	}
 
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
 	return csrPEM, nil
 }

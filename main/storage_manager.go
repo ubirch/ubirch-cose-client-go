@@ -8,19 +8,13 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	Commit   = true
-	Rollback = false
-)
-
 var (
-	ErrExists   = errors.New("entry already exists")
 	ErrNotExist = errors.New("entry does not exist")
 )
 
 type StorageManager interface {
 	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	CloseTransaction(transactionCtx interface{}, commit bool) error
+	CommitTransaction(transactionCtx interface{}) error
 
 	StoreNewIdentity(transactionCtx interface{}, id Identity) error
 	GetIdentity(uid uuid.UUID) (Identity, error)

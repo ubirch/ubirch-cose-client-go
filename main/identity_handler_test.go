@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"math/rand"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,7 +15,7 @@ import (
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
-func TestIdentityHandler_initIdentity(t *testing.T) {
+func TestIdentityHandler_InitIdentity(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
 		Keystore: &test.MockKeystorer{},
 	}
@@ -34,9 +37,22 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.InitIdentity(context.Background(), test.Uuid)
+	csrPEM, err := idHandler.InitIdentity(context.Background(), test.Uuid)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	block, rest := pem.Decode(csrPEM)
+	if block == nil || block.Type != "CERTIFICATE REQUEST" {
+		t.Error("failed to decode PEM block containing CSR")
+	}
+	if len(rest) != 0 {
+		t.Errorf("rest: %q", rest)
+	}
+
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		t.Error(err)
 	}
 
 	initializedIdentity, err := p.GetIdentity(test.Uuid)
@@ -44,21 +60,31 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := p.pwHasher.CheckPassword(context.Background(), client.Auth, initializedIdentity.Auth)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Error("initializedIdentity unexpected password")
-	}
-
 	pub, err := cryptoCtx.GetPublicKeyPEM(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(initializedIdentity.PublicKeyPEM, pub) {
+	if !bytes.Equal(pub, initializedIdentity.PublicKeyPEM) {
 		t.Error("initializedIdentity unexpected public key")
+	}
+
+	csrPublicKey, err := p.Crypto.EncodePublicKey(csr.PublicKey)
+	if err != nil {
+		t.Error(err)
+	} else {
+		if !bytes.Equal(csrPublicKey, initializedIdentity.PublicKey) {
+			t.Errorf("public key in CSR does not match initializedIdentity.PublicKey")
+		}
+	}
+
+	ok, err := p.pwHasher.CheckPassword(context.Background(), client.Auth, initializedIdentity.Auth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !ok {
+		t.Error("initializedIdentity unexpected password")
 	}
 
 	data := []byte("test")
@@ -74,7 +100,7 @@ func TestIdentityHandler_initIdentity(t *testing.T) {
 	}
 
 	if !verified {
-		t.Fatal("signature not verifiable")
+		t.Error("signature not verifiable")
 	}
 }
 
@@ -93,7 +119,7 @@ func TestIdentityHandler_initIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	idHandler := &IdentityHandler{
 		Protocol:            p,
 		Crypto:              cryptoCtx,
-		Register:            (&mockRegistrationClient{}).registerAuth,
+		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -119,7 +145,7 @@ func TestIdentityHandler_initIdentityBad_ErrUnknown(t *testing.T) {
 	idHandler := &IdentityHandler{
 		Protocol:            p,
 		Crypto:              cryptoCtx,
-		Register:            (&mockRegistrationClient{}).registerAuth,
+		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -145,7 +171,7 @@ func TestIdentityHandler_initIdentity_BadRegistration(t *testing.T) {
 	idHandler := &IdentityHandler{
 		Protocol:            p,
 		Crypto:              cryptoCtx,
-		Register:            (&mockRegistrationClient{}).registerAuthBad,
+		RegisterAuth:        (&mockRegistrationClient{}).registerAuthBad,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
@@ -158,6 +184,81 @@ func TestIdentityHandler_initIdentity_BadRegistration(t *testing.T) {
 	_, err = p.GetIdentity(test.Uuid)
 	if err != ErrNotExist {
 		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
+	}
+}
+
+func TestIdentityHandler_CreateCSR(t *testing.T) {
+	secret := make([]byte, 32)
+	rand.Read(secret)
+
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	idHandler := &IdentityHandler{
+		Protocol:            p,
+		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
+	}
+
+	_, err = idHandler.InitIdentity(test.Uuid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	csrPEM, err := idHandler.CreateCSR(test.Uuid)
+	if err != nil {
+		t.Error(err)
+	}
+
+	block, rest := pem.Decode(csrPEM)
+	if block == nil || block.Type != "CERTIFICATE REQUEST" {
+		t.Error("failed to decode PEM block containing CSR")
+	}
+	if len(rest) != 0 {
+		t.Errorf("rest: %q", rest)
+	}
+
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		t.Error(err)
+	}
+
+	initializedIdentity, err := p.GetIdentity(test.Uuid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pub, err := p.Crypto.EncodePublicKey(csr.PublicKey)
+	if err != nil {
+		t.Error(err)
+	} else {
+		if !bytes.Equal(pub, initializedIdentity.PublicKey) {
+			t.Errorf("public key in CSR does not match initializedIdentity.PublicKey")
+		}
+	}
+}
+
+func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
+	secret := make([]byte, 32)
+	rand.Read(secret)
+
+	p, err := NewProtocol(&mockStorageMngr{}, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	idHandler := &IdentityHandler{
+		Protocol:            p,
+		subjectCountry:      "AA",
+		subjectOrganization: "test GmbH",
+	}
+
+	_, err = idHandler.CreateCSR(test.Uuid)
+	if err != h.ErrUnknown {
+		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}
 }
 

@@ -49,12 +49,12 @@ func TestProtocol(t *testing.T) {
 		t.Error("GetIdentity did not return ErrNotExist")
 	}
 
-	exists, err := p.isInitialized(testIdentity.Uid)
+	exists, err := p.IsInitialized(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
 	}
 	if exists {
-		t.Error("isInitialized returned TRUE")
+		t.Error("IsInitialized returned TRUE")
 	}
 
 	_, err = p.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
@@ -76,18 +76,18 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = p.CloseTransaction(tx, Commit)
+	err = p.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// check exists
-	exists, err = p.isInitialized(testIdentity.Uid)
+	exists, err = p.IsInitialized(testIdentity.Uid)
 	if err != nil {
 		t.Error(err)
 	}
 	if !exists {
-		t.Error("isInitialized returned FALSE")
+		t.Error("IsInitialized returned FALSE")
 	}
 
 	storedIdentity, err := p.GetIdentity(testIdentity.Uid)
@@ -256,7 +256,7 @@ func TestProtocol_Cache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = p.CloseTransaction(tx, Commit)
+	err = p.CommitTransaction(tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,16 +289,19 @@ type mockStorageMngr struct {
 
 var _ StorageManager = (*mockStorageMngr)(nil)
 
-func (m *mockStorageMngr) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+var idBuf = &Identity{}
+
+func (m *mockStorageMngr) StartTransaction(context.Context) (interface{}, error) {
 	return nil, nil
 }
 
-func (m *mockStorageMngr) CloseTransaction(transactionCtx interface{}, commit bool) error {
+func (m *mockStorageMngr) CommitTransaction(interface{}) error {
+	m.id = *idBuf
 	return nil
 }
 
-func (m *mockStorageMngr) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
-	m.id = id
+func (m *mockStorageMngr) StoreNewIdentity(_ interface{}, id Identity) error {
+	idBuf = &id
 	return nil
 }
 

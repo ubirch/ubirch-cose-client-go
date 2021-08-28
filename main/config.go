@@ -145,7 +145,7 @@ func (c *Config) loadEnv() error {
 func (c *Config) loadFile(filename string) error {
 	log.Infof("loading configuration from file: %s", filename)
 
-	fileHandle, err := os.Open(filename)
+	fileHandle, err := os.Open(filepath.Clean(filename))
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func (c *Config) setDbParams() error {
 }
 
 func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
-	fileHandle, err := os.Open(serverTLSCertFile)
+	fileHandle, err := os.Open(filepath.Clean(serverTLSCertFile))
 	if err != nil {
 		return err
 	}

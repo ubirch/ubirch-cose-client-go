@@ -23,6 +23,8 @@ type SealRegistration struct {
 	Pwd string    `json:"password"`
 }
 
+const registerPath = "/api/internal/identity/v1/seal/register"
+
 // RegisterSeal registers a UUID and related auth token at the certify API
 // https://github.com/ubirch/ubirch-certify-service#register-seal
 func (c *CertifyApiClient) RegisterSeal(uid uuid.UUID, pwd string) error {
@@ -36,7 +38,7 @@ func (c *CertifyApiClient) RegisterSeal(uid uuid.UUID, pwd string) error {
 		return err
 	}
 
-	registerURL := c.CertifyApiURL + "/api/internal/identity/v1/seal/register"
+	registerURL := c.CertifyApiURL + registerPath
 
 	req, err := http.NewRequest(http.MethodPost, registerURL, bytes.NewBuffer(sealRegBytes))
 	if err != nil {
