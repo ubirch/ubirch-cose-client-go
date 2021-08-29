@@ -28,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	if len(*outFile) != 0 {
-		fileHandle, err := os.OpenFile(filepath.Clean(*outFile), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+		fileHandle, err := os.OpenFile(filepath.Clean(*outFile), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 		if err != nil {
 			log.Fatal(err)
 		}
