@@ -27,7 +27,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
@@ -162,13 +161,13 @@ func main() {
 
 	protocol := NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.kdParams)
 
-	//certClient := &CertificateServerClient{
-	//	CertificateServerURL:       conf.CertificateServer,
-	//	CertificateServerPubKeyURL: conf.CertificateServerPubKey,
-	//	ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
-	//}
-	//
-	//skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
+	certClient := &CertificateServerClient{
+		CertificateServerURL:       conf.CertificateServer,
+		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
+		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
+	}
+
+	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
 
 	certifyApiClient := &CertifyApiClient{
 		CertifyApiURL:  conf.CertifyApiUrl,
@@ -183,12 +182,10 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	//coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
-	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, getSKID) // FIXME
+	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Warnf("USING MOCK SKID") // FIXME
 
 	service := &COSEService{
 		GetIdentity: protocol.GetIdentity,
@@ -236,8 +233,4 @@ func main() {
 	}
 
 	log.Debug("shut down")
-}
-
-func getSKID(uuid.UUID) ([]byte, error) {
-	return make([]byte, 8), nil
 }
