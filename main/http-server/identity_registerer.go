@@ -23,11 +23,11 @@ type RegistrationPayload struct {
 	Pwd string    `json:"password"`
 }
 
-type InitializeIdentity func(ctx context.Context, uid uuid.UUID) (csr []byte, err error)
+type InitializeIdentity func(ctx context.Context, uid uuid.UUID) (csr []byte, pw string, err error)
 
-func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
+func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(AuthHeader) != auth {
+		if r.Header.Get(AuthHeader) != registerAuth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
@@ -42,7 +42,7 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 
 		uid := idPayload.Uid
 
-		csr, err := initialize(r.Context(), uid)
+		csr, auth, err := initialize(r.Context(), uid)
 		if err != nil {
 			log.Warnf("%s: identity registration failed: %v", uid, err)
 			switch err {
@@ -58,8 +58,11 @@ func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
 
 		resp := HTTPResponse{
 			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": {BinType}},
-			Content:    csr,
+			Header: http.Header{
+				"Content-Type": {BinType},
+				AuthHeader:     {auth},
+			},
+			Content: csr,
 		}
 
 		SendResponse(w, resp)
