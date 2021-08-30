@@ -14,12 +14,12 @@ const (
 
 func TestExtendedClient_RequestCertificateList(t *testing.T) {
 	conf := &config.Config{}
-	err := conf.LoadServerTLSCertificates("../config/certs/demo_ubirch_tls_certs.json")
+	err := conf.LoadServerTLSCertificates("../config/demo_ubirch_tls_certs.json")
 	if err != nil {
 		t.Fatalf("loading TLS certificates failed: %v", err)
 	}
 	conf2 := &config.Config{}
-	err = conf2.LoadServerTLSCertificates("../config/certs/dev_ubirch_tls_certs.json")
+	err = conf2.LoadServerTLSCertificates("../config/dev_ubirch_tls_certs.json")
 	if err != nil {
 		t.Fatalf("loading TLS certificates failed: %v", err)
 	}

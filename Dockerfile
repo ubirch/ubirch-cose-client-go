@@ -7,7 +7,7 @@ ARG REVISION=0000000
 WORKDIR /app/main
 RUN \
     GOPROXY=https://proxy.golang.org,direct \
-    go build -trimpath -ldflags "-buildid= -s -w -X main.Version=$VERSION -X main.Revision=$REVISION" -o main .
+    go build -a -installsuffix cgo -trimpath -ldflags "-buildid= -s -w -X main.Version=$VERSION -X main.Revision=$REVISION" -o main .
 
 
 FROM debian:bullseye

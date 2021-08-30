@@ -128,7 +128,7 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	err = c.LoadServerTLSCertificates(filepath.Join(configDir, certsFolder, fmt.Sprintf(tlsCertsFileName, c.Env)))
+	err = c.LoadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env)))
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
