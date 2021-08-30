@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"math/rand"
 	"os"
 	"strings"
@@ -96,16 +97,15 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(unreachableDSN, testTableName, &DatabaseParams{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dm.Close()
+	_, err := NewSqlDatabaseInfo(unreachableDSN, testTableName, &DatabaseParams{})
 
-	err = dm.IsReady()
-	if err == nil {
-		t.Error("IsReady() returned no error for unreachable database")
-	}
+	require.Error(t, err)
+	//defer dm.Close()
+
+	//err = dm.IsReady()
+	//if err == nil {
+	//	t.Error("IsReady() returned no error for unreachable database")
+	//}
 }
 
 func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {

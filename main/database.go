@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
+	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 )
 

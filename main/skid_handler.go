@@ -1,4 +1,4 @@
-package repository
+package main
 
 import (
 	"bytes"
@@ -126,12 +126,12 @@ func (s *SkidHandler) loadSKIDs() {
 		}
 		//log.Debugf("%s: public key certificate match", kid)
 
-		if certificate.NotAfter.After(time.Now()) {
+		if certificate.NotAfter.Before(time.Now()) {
 			log.Debugf("certifcate expired %s: time now: %s", certificate.NotAfter.String(), time.Now().String())
 			continue
 		}
 
-		if certificate.NotBefore.Before(time.Now()) {
+		if certificate.NotBefore.After(time.Now()) {
 			log.Debugf("certifcate not now valid NotBefore: %s time now: %s", certificate.NotAfter.String(), time.Now().String())
 			continue
 		}
