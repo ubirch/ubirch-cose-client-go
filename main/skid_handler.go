@@ -1,4 +1,4 @@
-package main
+package repository
 
 import (
 	"bytes"
@@ -93,7 +93,7 @@ func (s *SkidHandler) loadSKIDs() {
 	}
 
 	tempSkidStore := map[uuid.UUID][]byte{}
-
+	tempCerts := map[uuid.UUID]*x509.Certificate{}
 	// go through certificate list and match known public keys
 	for _, cert := range certs {
 		kid := base64.StdEncoding.EncodeToString(cert.Kid)
@@ -126,6 +126,23 @@ func (s *SkidHandler) loadSKIDs() {
 		}
 		//log.Debugf("%s: public key certificate match", kid)
 
+		if certificate.NotAfter.After(time.Now()) {
+			log.Debugf("certifcate expired %s: time now: %s", certificate.NotAfter.String(), time.Now().String())
+			continue
+		}
+
+		if certificate.NotBefore.Before(time.Now()) {
+			log.Debugf("certifcate not now valid NotBefore: %s time now: %s", certificate.NotAfter.String(), time.Now().String())
+			continue
+		}
+
+		if tempCert, ok := tempCerts[uid]; ok {
+			if certificate.NotBefore.Before(tempCert.NotBefore) {
+				continue
+			}
+		}
+
+		tempCerts[uid] = certificate
 		tempSkidStore[uid] = cert.Kid
 	}
 

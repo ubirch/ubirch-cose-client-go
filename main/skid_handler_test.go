@@ -1,4 +1,4 @@
-package main
+package repository
 
 import (
 	"encoding/json"
@@ -195,7 +195,10 @@ func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, err
 		alreadyCalled = true
 		return mockGetCertificateList()
 	} else {
-		return certs[:1], nil
+		if len(certs) > 0 {
+			return certs[:1], nil
+		}
+		return certs, nil
 	}
 }
 
