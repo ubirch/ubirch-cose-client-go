@@ -23,7 +23,7 @@ func TestContentEncoding(t *testing.T) {
 
 func TestReadBody(t *testing.T) {
 	bodyStr := "something"
-	req, err := http.NewRequest("","", bytes.NewBufferString(bodyStr))
+	req, err := http.NewRequest("", "", bytes.NewBufferString(bodyStr))
 	require.NoError(t, err)
 
 	body, err := ReadBody(req)

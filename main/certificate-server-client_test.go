@@ -74,5 +74,4 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 			c.tcChecks(t, certs, err)
 		})
 	}
-
 }

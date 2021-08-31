@@ -98,5 +98,4 @@ func TestFetchCSR(t *testing.T) {
 			c.tcChecks(t, recorder)
 		})
 	}
-
 }
