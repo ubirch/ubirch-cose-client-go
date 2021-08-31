@@ -1,18 +1,17 @@
 package main
 
 import (
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
@@ -60,39 +59,6 @@ func TestNewSkidHandler(t *testing.T) {
 
 	// clean up
 	testUUIDs = []uuid.UUID{}
-}
-
-func TestNewSkidHandlerNotAfterNotBefore(t *testing.T) {
-	c := &ubirch.ECDSACryptoContext{}
-
-	p := &Protocol{
-		StorageManager: &mockStorageMngr{},
-
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
-	}
-
-	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
-
-	mockCertList, err := mockGetCertificateList()
-	require.NoError(t, err)
-	require.True(t, len(mockCertList) > 0)
-	certificate, err := x509.ParseCertificate(mockCertList[len(mockCertList)-1].RawData)
-
-	pubKeyPEM, err := s.encPubKey(certificate.PublicKey)
-	require.NoError(t, err)
-
-	fmt.Println(p.uidCache)
-
-	uuidLastCert, err := p.GetUuidForPublicKey(pubKeyPEM)
-	require.NoError(t, err)
-
-	skid, err := s.GetSKID(uuidLastCert)
-	fmt.Println(len(s.skidStore))
-	require.NoError(t, err)
-	encSkid := base64.RawStdEncoding.EncodeToString(skid)
-	require.Equal(t, "YWJjZGVmZQo", encSkid)
-
 }
 
 func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
@@ -198,6 +164,38 @@ func TestSkidHandler_LoadSKIDs_BadGetCertificateList_MaxCertLoadFailCount(t *tes
 	}
 }
 
+func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
+	c := &ubirch.ECDSACryptoContext{}
+
+	p := &Protocol{
+		StorageManager: &mockStorageMngr{},
+
+		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
+	}
+
+	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
+
+	mockCertList, err := mockGetCertificateList()
+	require.NoError(t, err)
+	require.True(t, len(mockCertList) > 0)
+
+	certificate, err := x509.ParseCertificate(mockCertList[len(mockCertList)-1].RawData)
+	require.NoError(t, err)
+
+	pubKeyPEM, err := s.encPubKey(certificate.PublicKey)
+	require.NoError(t, err)
+
+	uuidLastCert, err := p.GetUuidForPublicKey(pubKeyPEM)
+	require.NoError(t, err)
+
+	skid, err := s.GetSKID(uuidLastCert)
+	require.NoError(t, err)
+
+	encSkid := base64.RawStdEncoding.EncodeToString(skid)
+	require.Equal(t, "YWJjZGVmZQo", encSkid)
+}
+
 var certs []Certificate
 
 func mockGetCertificateList() ([]Certificate, error) {
@@ -254,7 +252,7 @@ func mockGetUuidFindsNothing([]byte) (uuid.UUID, error) {
 }
 
 func (p *Protocol) mockGetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
-	pubKeyID := mockGetPubKeyID(publicKeyPEM)
+	pubKeyID := getPubKeyID(publicKeyPEM)
 
 	_uid, found := p.uidCache.Load(pubKeyID)
 
@@ -267,12 +265,5 @@ func (p *Protocol) mockGetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, 
 		p.uidCache.Store(pubKeyID, uid)
 	}
 
-	fmt.Println(uid)
 	return uid, nil
-}
-
-func mockGetPubKeyID(publicKeyPEM []byte) string {
-	fmt.Println(publicKeyPEM)
-	sum256 := sha256.Sum256(publicKeyPEM)
-	return base64.StdEncoding.EncodeToString(sum256[:])
 }
