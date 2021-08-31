@@ -58,7 +58,6 @@ func TestServeHealthReady(t *testing.T) {
 	respReady, err := client.Do(reqReady)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, respReady.StatusCode)
-	fmt.Println(resp)
 }
 
 func TestServeNotReadyError(t *testing.T) {
