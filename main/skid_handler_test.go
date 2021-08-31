@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -180,7 +179,8 @@ func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, len(mockCertList) > 0)
 
-	certificate, err := x509.ParseCertificate(mockCertList[len(mockCertList)-1].RawData)
+	cert := mockCertList[len(mockCertList)-2]
+	certificate, err := x509.ParseCertificate(cert.RawData)
 	require.NoError(t, err)
 
 	pubKeyPEM, err := s.encPubKey(certificate.PublicKey)
@@ -192,8 +192,7 @@ func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
 	skid, err := s.GetSKID(uuidLastCert)
 	require.NoError(t, err)
 
-	encSkid := base64.RawStdEncoding.EncodeToString(skid)
-	require.Equal(t, "YWJjZGVmZQo", encSkid)
+	require.Equal(t, cert.Kid, skid)
 }
 
 var certs []Certificate
