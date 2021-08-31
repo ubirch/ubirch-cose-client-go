@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestArgon2idKeyDerivator(t *testing.T) {

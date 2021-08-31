@@ -106,7 +106,6 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	if err == nil {
 		t.Error("IsReady() returned no error for unreachable database")
 	}
-
 }
 
 func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
