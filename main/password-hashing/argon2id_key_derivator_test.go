@@ -5,19 +5,18 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-const Auth = "password1234!"
-
 func TestArgon2idKeyDerivator(t *testing.T) {
 	kd := &Argon2idKeyDerivator{}
 	params := kd.DefaultParams()
 
-	pw, err := kd.GeneratePasswordHash(context.Background(), Auth, params)
+	pw, err := kd.GeneratePasswordHash(context.Background(), test.Auth, params)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,12 +43,12 @@ func TestArgon2idKeyDerivator_NotEqual(t *testing.T) {
 	kd := &Argon2idKeyDerivator{}
 	params := kd.DefaultParams()
 
-	pw1, err := kd.GeneratePasswordHash(context.Background(), Auth, params)
+	pw1, err := kd.GeneratePasswordHash(context.Background(), test.Auth, params)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pw2, err := kd.GeneratePasswordHash(context.Background(), Auth, params)
+	pw2, err := kd.GeneratePasswordHash(context.Background(), test.Auth, params)
 	if err != nil {
 		t.Fatal(err)
 	}
