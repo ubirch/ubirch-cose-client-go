@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
