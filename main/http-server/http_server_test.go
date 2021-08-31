@@ -9,82 +9,105 @@ import (
 )
 
 func TestServeError(t *testing.T) {
-	// set up HTTP server
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	httpServer := HTTPServer{
-		Router: NewRouter(),
-		Addr:   ":1234",
-		TLS:    true,
+	testCases := []struct {
+		name       string
+		httpServer HTTPServer
+		tcChecks   func(t *testing.T, err error)
+	}{
+		{
+			name: "no cert file",
+			httpServer: HTTPServer{
+				Router: NewRouter(),
+				Addr:   ":1234",
+				TLS:    true,
+			},
+			tcChecks: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "no such file or directory")
+			},
+		},
 	}
-
-	err := httpServer.Serve(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no such file or directory")
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			err := c.httpServer.Serve(ctx)
+			c.tcChecks(t, err)
+		})
+	}
 }
 
-func TestServeHealthReady(t *testing.T) {
-	var readinessChecks []func() error
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func TestServe_Health_Ready(t *testing.T) {
 
-	httpServer := HTTPServer{
-		Router: NewRouter(),
-		Addr:   "localhost:1234",
-		TLS:    false,
+	testCases := []struct {
+		name      string
+		reqUrl    string
+		readyFunc func() error
+		tcChecks  func(t *testing.T, err error, resp *http.Response)
+	}{
+		{
+			name:   "happy path readyz",
+			reqUrl: "http://localhost:1234/readyz",
+			readyFunc: func() error {
+				return nil
+			},
+			tcChecks: func(t *testing.T, err error, resp *http.Response) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+			},
+		},
+		{
+			name:   "happy path heathz",
+			reqUrl: "http://localhost:1234/healthz",
+			readyFunc: func() error {
+				return nil
+			},
+			tcChecks: func(t *testing.T, err error, resp *http.Response) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+			},
+		},
+		{
+			name:   "error readiness func",
+			reqUrl: "http://localhost:1234/readyz",
+			readyFunc:  func() error {
+				return fmt.Errorf("something")
+			},
+			tcChecks: func(t *testing.T, err error, resp *http.Response) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+			},
+		},
 	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			var readinessChecks []func() error
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-	readinessChecks = append(readinessChecks, func() error {
-		return nil
-	})
+			httpServer := HTTPServer{
+				Router: NewRouter(),
+				Addr:   "localhost:1234",
+				TLS:    false,
+			}
 
-	httpServer.Router.Get("/healthz", Healthz("serverID"))
-	httpServer.Router.Get("/readyz", Readyz("serverID", readinessChecks))
+			readinessChecks = append(readinessChecks, c.readyFunc)
 
-	go func() {
-		err := httpServer.Serve(ctx)
-		require.NoError(t, err)
-	}()
-	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodGet, "http://localhost:1234/healthz", nil)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+			httpServer.Router.Get("/healthz", Healthz("serverID"))
+			httpServer.Router.Get("/readyz", Readyz("serverID", readinessChecks))
 
-	reqReady, err := http.NewRequest(http.MethodGet, "http://localhost:1234/readyz", nil)
-	require.NoError(t, err)
-	respReady, err := client.Do(reqReady)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, respReady.StatusCode)
-}
+			go func() {
+				err := httpServer.Serve(ctx)
+				require.NoError(t, err)
+			}()
 
-func TestServeNotReadyError(t *testing.T) {
-	var readinessChecks []func() error
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+			client := http.Client{}
+			reqReady, err := http.NewRequest(http.MethodGet, c.reqUrl, nil)
+			require.NoError(t, err)
+			respReady, err := client.Do(reqReady)
 
-	httpServer := HTTPServer{
-		Router: NewRouter(),
-		Addr:   "localhost:1234",
-		TLS:    false,
+			c.tcChecks(t, err, respReady)
+		})
 	}
-
-	readinessChecks = append(readinessChecks, func() error {
-		return fmt.Errorf("something")
-	})
-
-	httpServer.Router.Get("/readyz", Readyz("serverID", readinessChecks))
-
-	go func() {
-		err := httpServer.Serve(ctx)
-		require.NoError(t, err)
-	}()
-	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodGet, "http://localhost:1234/readyz", nil)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 }
