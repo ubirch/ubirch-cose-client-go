@@ -4,13 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"path"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/go-chi/cors"
-
 	log "github.com/sirupsen/logrus"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
@@ -64,28 +61,6 @@ func NewRouter() *chi.Mux {
 	router.Use(prom.PromMiddleware)
 	router.Use(middleware.Timeout(GatewayTimeout))
 	return router
-}
-
-func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
-	srv.Router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   allowedOrigins,
-		AllowedMethods:   []string{"POST", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
-		ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
-		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
-		Debug:            debug,
-	}))
-}
-
-func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
-
-	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
-	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
-
-	srv.Router.Options(endpoint.Path, endpoint.HandleOptions)
-	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
 }
 
 func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
