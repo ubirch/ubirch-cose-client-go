@@ -25,10 +25,10 @@ COPY --from=builder app/repository/migration /migration
 ENV LD_LIBRARY_PATH=/usr/local/lib/utimaco/
 COPY hsm/libcs_pkcs11_R2.so /usr/local/lib/utimaco/
 # Example configuration
-ENV CS_PKCS11_R2_CFG=/etc/utimaco/cs_pkcs11_R2.cfg
-COPY hsm/cs_pkcs11_R2.cfg /etc/utimaco/
 ENV CS_AUTH_KEYS=/etc/utimaco/HSMAuth.key
 COPY hsm/HSMAuth.key /etc/utimaco/
+ENV CS_PKCS11_R2_CFG=/etc/utimaco/cs_pkcs11_R2.cfg
+ENV CS_PKCS11_R3_CFG=/etc/utimaco/cs_pkcs11_R3.cfg
 
 ENTRYPOINT ["/opt/cose-client"]
 CMD ["-configdirectory", "/data"]
