@@ -28,7 +28,7 @@ ENV CS_AUTH_KEYS=/etc/utimaco/HSMAuth.key
 COPY hsm/HSMAuth.key /etc/utimaco/
 
 ENV CS_PKCS11_R2_CFG=/etc/utimaco/cs_pkcs11_R2.cfg
-COPY hsm/cs_pkcs11_R2.cfg /etc/utimaco/cs_pkcs11_R2.cfg
+COPY hsm/cs_pkcs11_R2.cfg /etc/utimaco/
 
 ENTRYPOINT ["/opt/cose-client"]
 CMD ["-configdirectory", "/data"]
