@@ -24,6 +24,8 @@ COPY --from=builder app/main/main /opt/cose-client
 ENV LD_LIBRARY_PATH=/usr/local/lib/utimaco/
 COPY hsm/libcs_pkcs11_R2.so /usr/local/lib/utimaco/
 
+ENV UBIRCH_PKCS11_MODULE=libcs_pkcs11_R2.so
+
 ENV CS_AUTH_KEYS=/etc/utimaco/HSMAuth.key
 COPY hsm/HSMAuth.key /etc/utimaco/
 
