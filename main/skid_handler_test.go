@@ -16,15 +16,22 @@ import (
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
-var testUUIDs []uuid.UUID
+const numberOfValidCerts = 4
 
 func TestNewSkidHandler(t *testing.T) {
 	c := &ubirch.ECDSACryptoContext{}
 
-	s := NewSkidHandler(mockGetCertificateList, mockGetUuid, c.EncodePublicKey, false)
+	p := &Protocol{
+		StorageManager: &mockStorageMngr{},
 
-	if len(s.skidStore) != len(testUUIDs) {
-		t.Errorf("loading SKIDs failed")
+		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
+	}
+
+	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
+
+	if len(s.skidStore) != numberOfValidCerts {
+		t.Errorf("loading SKIDs failed: len=%d, expected: %d", len(s.skidStore), numberOfValidCerts)
 	}
 
 	if s.maxCertLoadFailCount != 3 {
@@ -39,25 +46,11 @@ func TestNewSkidHandler(t *testing.T) {
 		t.Errorf("wrong interval set: %s, expected: %s", s.certLoadInterval, time.Hour)
 	}
 
-	for _, uid := range testUUIDs {
-		skid, err := s.GetSKID(uid)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		if len(skid) != SkidLen {
-			t.Error("stored SKID with invalid length")
-		}
-	}
-
 	// check for unknown uuid
 	_, err := s.GetSKID(uuid.New())
 	if err == nil {
 		t.Error("GetSKID did not return error for unknown UUID")
 	}
-
-	// clean up
-	testUUIDs = []uuid.UUID{}
 }
 
 func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
@@ -85,6 +78,13 @@ func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
 func TestSkidHandler_LoadSKIDs(t *testing.T) {
 	c := &ubirch.ECDSACryptoContext{}
 
+	p := &Protocol{
+		StorageManager: &mockStorageMngr{},
+
+		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
+	}
+
 	s := &SkidHandler{
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -93,7 +93,7 @@ func TestSkidHandler_LoadSKIDs(t *testing.T) {
 		maxCertLoadFailCount: 3,
 
 		getCerts:  mockGetCertificateListReturnsFewerCertsAfterFirstCall,
-		getUuid:   mockGetUuid,
+		getUuid:   p.mockGetUuidForPublicKey,
 		encPubKey: c.EncodePublicKey,
 	}
 
@@ -232,12 +232,6 @@ func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, err
 
 func mockBadGetCertificateList() ([]Certificate, error) {
 	return nil, test.Error
-}
-
-func mockGetUuid([]byte) (uuid.UUID, error) {
-	newUUID := uuid.New()
-	testUUIDs = append(testUUIDs, newUUID)
-	return newUUID, nil
 }
 
 func mockGetUuidFindsNothing([]byte) (uuid.UUID, error) {
