@@ -93,6 +93,7 @@ func (s *SkidHandler) loadSKIDs() {
 	}
 
 	tempSkidStore := map[uuid.UUID][]byte{}
+	tempCerts := map[uuid.UUID]*x509.Certificate{}
 
 	// go through certificate list and match known public keys
 	for _, cert := range certs {
@@ -126,6 +127,27 @@ func (s *SkidHandler) loadSKIDs() {
 		}
 		//log.Debugf("%s: public key certificate match", kid)
 
+		// check validity of certificate
+		now := time.Now()
+
+		if now.After(certificate.NotAfter) {
+			log.Warnf("%s: certifcate expired: valid until %s, time now: %s", uid, certificate.NotAfter.String(), now.String())
+			continue
+		}
+
+		if now.Before(certificate.NotBefore) {
+			log.Warnf("%s: certifcate not yet valid: valid from %s, time now: %s", uid, certificate.NotAfter.String(), now.String())
+			continue
+		}
+
+		// if there are more than one valid certificates, use the newer one, i.e. the one that starts being valid at a later time
+		if tempCert, ok := tempCerts[uid]; ok {
+			if certificate.NotBefore.Before(tempCert.NotBefore) {
+				continue
+			}
+		}
+
+		tempCerts[uid] = certificate
 		tempSkidStore[uid] = cert.Kid
 	}
 
