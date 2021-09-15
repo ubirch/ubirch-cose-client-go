@@ -12,6 +12,7 @@ require (
 	github.com/lib/pq v1.10.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
+	github.com/stretchr/testify v1.5.1
 	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210714131450-661d8907b955
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a // indirect

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,20 +10,28 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
-var testUUIDs []uuid.UUID
+const numberOfValidCerts = 4
 
 func TestNewSkidHandler(t *testing.T) {
 	c := &ubirch.ECDSACryptoContext{}
 
-	s := NewSkidHandler(mockGetCertificateList, mockGetUuid, c.EncodePublicKey, false)
+	p := &Protocol{
+		StorageManager: &mockStorageMngr{},
 
-	if len(s.skidStore) != len(testUUIDs) {
-		t.Errorf("loading SKIDs failed")
+		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
+	}
+
+	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
+
+	if len(s.skidStore) != numberOfValidCerts {
+		t.Errorf("loading SKIDs failed: len=%d, expected: %d", len(s.skidStore), numberOfValidCerts)
 	}
 
 	if s.maxCertLoadFailCount != 3 {
@@ -37,25 +46,11 @@ func TestNewSkidHandler(t *testing.T) {
 		t.Errorf("wrong interval set: %s, expected: %s", s.certLoadInterval, time.Hour)
 	}
 
-	for _, uid := range testUUIDs {
-		skid, err := s.GetSKID(uid)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		if len(skid) != SkidLen {
-			t.Error("stored SKID with invalid length")
-		}
-	}
-
 	// check for unknown uuid
 	_, err := s.GetSKID(uuid.New())
 	if err == nil {
 		t.Error("GetSKID did not return error for unknown UUID")
 	}
-
-	// clean up
-	testUUIDs = []uuid.UUID{}
 }
 
 func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
@@ -83,6 +78,13 @@ func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
 func TestSkidHandler_LoadSKIDs(t *testing.T) {
 	c := &ubirch.ECDSACryptoContext{}
 
+	p := &Protocol{
+		StorageManager: &mockStorageMngr{},
+
+		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
+	}
+
 	s := &SkidHandler{
 		skidStore:      map[uuid.UUID][]byte{},
 		skidStoreMutex: &sync.RWMutex{},
@@ -91,7 +93,7 @@ func TestSkidHandler_LoadSKIDs(t *testing.T) {
 		maxCertLoadFailCount: 3,
 
 		getCerts:  mockGetCertificateListReturnsFewerCertsAfterFirstCall,
-		getUuid:   mockGetUuid,
+		getUuid:   p.mockGetUuidForPublicKey,
 		encPubKey: c.EncodePublicKey,
 	}
 
@@ -161,6 +163,32 @@ func TestSkidHandler_LoadSKIDs_BadGetCertificateList_MaxCertLoadFailCount(t *tes
 	}
 }
 
+func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
+	c := &ubirch.ECDSACryptoContext{}
+
+	p := &Protocol{
+		StorageManager: &mockStorageMngr{},
+
+		identityCache: &sync.Map{},
+		uidCache:      &sync.Map{},
+	}
+
+	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
+
+	require.False(t, containsSKID(s.skidStore, "DPMxfW4lzOE="))
+	require.False(t, containsSKID(s.skidStore, "xOdxdmCwzas="))
+	require.False(t, containsSKID(s.skidStore, "icUT/qzCb4M="))
+}
+
+func containsSKID(m map[uuid.UUID][]byte, v string) bool {
+	for _, skid := range m {
+		if base64.StdEncoding.EncodeToString(skid) == v {
+			return true
+		}
+	}
+	return false
+}
+
 var certs []Certificate
 
 func mockGetCertificateList() ([]Certificate, error) {
@@ -195,7 +223,10 @@ func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, err
 		alreadyCalled = true
 		return mockGetCertificateList()
 	} else {
-		return certs[:1], nil
+		if len(certs) > 0 {
+			return certs[:1], nil
+		}
+		return certs, nil
 	}
 }
 
@@ -203,12 +234,23 @@ func mockBadGetCertificateList() ([]Certificate, error) {
 	return nil, test.Error
 }
 
-func mockGetUuid([]byte) (uuid.UUID, error) {
-	newUUID := uuid.New()
-	testUUIDs = append(testUUIDs, newUUID)
-	return newUUID, nil
-}
-
 func mockGetUuidFindsNothing([]byte) (uuid.UUID, error) {
 	return uuid.Nil, ErrNotExist
+}
+
+func (p *Protocol) mockGetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
+	pubKeyID := getPubKeyID(publicKeyPEM)
+
+	_uid, found := p.uidCache.Load(pubKeyID)
+
+	if found {
+		uid, found = _uid.(uuid.UUID)
+	}
+
+	if !found {
+		uid = uuid.New()
+		p.uidCache.Store(pubKeyID, uid)
+	}
+
+	return uid, nil
 }
