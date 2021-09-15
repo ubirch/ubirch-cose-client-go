@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
@@ -161,6 +163,23 @@ func TestSkidHandler_LoadSKIDs_BadGetCertificateList_MaxCertLoadFailCount(t *tes
 	}
 }
 
+func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
+	s := NewSkidHandler(mockGetCertificateList, mockGetUuid, (&ubirch.ECDSACryptoContext{}).EncodePublicKey, false)
+
+	require.False(t, containsSKID(s.skidStore, "DPMxfW4lzOE="))
+	require.False(t, containsSKID(s.skidStore, "xOdxdmCwzas="))
+	require.False(t, containsSKID(s.skidStore, "icUT/qzCb4M="))
+}
+
+func containsSKID(m map[uuid.UUID][]byte, v string) bool {
+	for _, skid := range m {
+		if base64.StdEncoding.EncodeToString(skid) == v {
+			return true
+		}
+	}
+	return false
+}
+
 var certs []Certificate
 
 func mockGetCertificateList() ([]Certificate, error) {
@@ -195,7 +214,10 @@ func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, err
 		alreadyCalled = true
 		return mockGetCertificateList()
 	} else {
-		return certs[:1], nil
+		if len(certs) > 0 {
+			return certs[:1], nil
+		}
+		return certs, nil
 	}
 }
 
