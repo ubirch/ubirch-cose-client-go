@@ -1,7 +1,7 @@
 package main
 
 import (
-	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -175,24 +175,18 @@ func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
 
 	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
 
-	mockCertList, err := mockGetCertificateList()
-	require.NoError(t, err)
-	require.True(t, len(mockCertList) > 0)
+	require.False(t, containsSKID(s.skidStore, "DPMxfW4lzOE="))
+	require.False(t, containsSKID(s.skidStore, "xOdxdmCwzas="))
+	require.False(t, containsSKID(s.skidStore, "icUT/qzCb4M="))
+}
 
-	cert := mockCertList[len(mockCertList)-2]
-	certificate, err := x509.ParseCertificate(cert.RawData)
-	require.NoError(t, err)
-
-	pubKeyPEM, err := s.encPubKey(certificate.PublicKey)
-	require.NoError(t, err)
-
-	uuidLastCert, err := p.GetUuidForPublicKey(pubKeyPEM)
-	require.NoError(t, err)
-
-	skid, err := s.GetSKID(uuidLastCert)
-	require.NoError(t, err)
-
-	require.Equal(t, cert.Kid, skid)
+func containsSKID(m map[uuid.UUID][]byte, v string) bool {
+	for _, skid := range m {
+		if base64.StdEncoding.EncodeToString(skid) == v {
+			return true
+		}
+	}
+	return false
 }
 
 var certs []Certificate
