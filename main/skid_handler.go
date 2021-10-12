@@ -131,12 +131,12 @@ func (s *SkidHandler) loadSKIDs() {
 		now := time.Now()
 
 		if now.After(certificate.NotAfter) {
-			log.Warnf("%s: certifcate expired: valid until %s, time now: %s", uid, certificate.NotAfter.String(), now.String())
+			log.Debugf("%s: certifcate expired: valid until %s", kid, certificate.NotAfter.String())
 			continue
 		}
 
 		if now.Before(certificate.NotBefore) {
-			log.Warnf("%s: certifcate not yet valid: valid from %s, time now: %s", uid, certificate.NotAfter.String(), now.String())
+			log.Debugf("%s: certifcate not yet valid: valid from %s", kid, certificate.NotBefore.String())
 			continue
 		}
 
