@@ -148,7 +148,7 @@ func TestDatabaseManager_IsReady(t *testing.T) {
 	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
 
 	_, err = dm.GetIdentity(uuid.New())
-	if !strings.Contains(err.Error(), tableDoesNotExistError) {
+	if err == nil || !strings.Contains(err.Error(), tableDoesNotExistError) {
 		t.Fatalf("unexpected error: %v, expected: %v", err, tableDoesNotExistError)
 	}
 
