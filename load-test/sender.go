@@ -31,7 +31,7 @@ func NewSender() *Sender {
 	}
 }
 
-func (s *Sender) register(clientBaseURL, id, auth, registerAuth string) error {
+func (s *Sender) register(clientBaseURL, id, registerAuth string) (auth string, err error) {
 	url := clientBaseURL + "register"
 
 	header := http.Header{}
@@ -39,25 +39,24 @@ func (s *Sender) register(clientBaseURL, id, auth, registerAuth string) error {
 	header.Set("X-Auth-Token", registerAuth)
 
 	registrationData := map[string]string{
-		"uuid":     id,
-		"password": auth,
+		"uuid": id,
 	}
 
 	body, err := json.Marshal(registrationData)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	req.Header = header
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	//noinspection GoUnhandledErrorResult
@@ -69,10 +68,10 @@ func (s *Sender) register(clientBaseURL, id, auth, registerAuth string) error {
 	case http.StatusConflict:
 		log.Debugf("%s: identity already registered", id)
 	default:
-		return fmt.Errorf("%s: registration returned: %s", id, resp.Status)
+		return "", fmt.Errorf("%s: registration returned: %s", id, resp.Status)
 	}
 
-	return nil
+	return resp.Header.Get("X-Auth-Token"), nil
 }
 
 func (s *Sender) sendRequests(clientBaseURL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {

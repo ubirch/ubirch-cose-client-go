@@ -9,9 +9,9 @@ import (
 )
 
 type Config struct {
-	Url          string
-	RegisterAuth string
-	Token        map[string]string
+	Url          string            `json:"url"`
+	RegisterAuth string            `json:"registerAuth"`
+	Token        map[string]string `json:"token"`
 }
 
 func (c *Config) Load(filename string) error {
@@ -21,6 +21,25 @@ func (c *Config) Load(filename string) error {
 	}
 
 	err = json.NewDecoder(fileHandle).Decode(c)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			log.Error(fileCloseErr)
+		}
+		return err
+	}
+
+	return fileHandle.Close()
+}
+
+func (c *Config) PersistAuth(filename, id, auth string) error {
+	c.Token[id] = auth
+
+	fileHandle, err := os.Create(filepath.Clean(filename))
+	if err != nil {
+		return err
+	}
+
+	err = json.NewEncoder(fileHandle).Encode(c)
 	if err != nil {
 		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
 			log.Error(fileCloseErr)
