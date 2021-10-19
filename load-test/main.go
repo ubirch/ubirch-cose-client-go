@@ -54,10 +54,18 @@ func main() {
 	identities := c.getTestIdentities()
 	sender := NewSender()
 
-	for id, auth := range identities {
-		err := sender.register(c.Url, id, auth, c.RegisterAuth)
+	for id := range identities {
+		auth, err := sender.register(c.Url, id, c.RegisterAuth)
 		if err != nil {
 			log.Fatal(err)
+		}
+
+		if auth != "" {
+			identities[id] = auth
+			err = c.PersistAuth(*configFile, id, auth)
+			if err != nil {
+				log.Fatalf("auth token for identity %s could not be persisted: %v (auth token: %s) ", id, err, auth)
+			}
 		}
 	}
 

@@ -31,7 +31,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	csrPEM, err := idHandler.InitIdentity(test.Uuid)
+	csrPEM, _, err := idHandler.InitIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,12 +100,12 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid)
+	_, _, err = idHandler.InitIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid)
+	_, _, err = idHandler.InitIdentity(test.Uuid)
 	if err != h.ErrAlreadyInitialized {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrAlreadyInitialized)
 	}
@@ -127,7 +127,7 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid)
+	_, _, err = idHandler.InitIdentity(test.Uuid)
 	if err != test.Error {
 		t.Errorf("unexpected error: %v, expected: %v", err, test.Error)
 	}
@@ -154,7 +154,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.InitIdentity(test.Uuid)
+	_, _, err = idHandler.InitIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
