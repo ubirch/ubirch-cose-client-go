@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
+	_ "github.com/lib/pq"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -191,14 +191,4 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 	}
 
 	return uid, nil
-}
-
-func (dm *DatabaseManager) IsRecoverable(err error) bool {
-	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
-		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
-		time.Sleep(10 * time.Millisecond)
-		return true
-	}
-
-	return false
 }
