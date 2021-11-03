@@ -2,8 +2,7 @@ package main
 
 import (
 	"flag"
-	"os"
-	"path/filepath"
+	"fmt"
 	"sync"
 	"time"
 
@@ -19,27 +18,12 @@ const (
 var (
 	defaultConfigFile = "config.json"
 	configFile        = flag.String("config", "", "file name of the configuration file. if omitted, configuration is read from \"config.json\".")
-	outFile           = flag.String("out", "", "file name for output. if omitted, output is written to std out.")
 )
 
 func main() {
 	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 
 	flag.Parse()
-
-	if len(*outFile) != 0 {
-		fileHandle, err := os.OpenFile(filepath.Clean(*outFile), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer func() {
-			_, _ = fileHandle.WriteString("\n========================================================================================================================\n\n")
-			if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
-				log.Error(fileCloseErr)
-			}
-		}()
-		log.SetOutput(fileHandle)
-	}
 
 	if len(*configFile) == 0 {
 		*configFile = defaultConfigFile
@@ -100,4 +84,5 @@ func main() {
 	log.Infof("avg total throughput: %7.3f requests/second", avgReqsPerSec)
 	avgReqsPerSecSuccess := float64(sender.statusCounter["200 OK"]) / duration.Seconds()
 	log.Infof("avg successful throughput: %7.3f requests/second", avgReqsPerSecSuccess)
+	fmt.Print("\n\n========================================================================================================================\n\n")
 }
