@@ -43,13 +43,13 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 
 		csr, auth, err := initialize(uid)
 		if err != nil {
-			log.Warnf("%s: identity registration failed: %v", uid, err)
 			switch err {
 			case ErrAlreadyInitialized:
-				http.Error(w, err.Error(), http.StatusConflict)
+				Error(uid, w, err, http.StatusConflict)
 			case ErrUnknown:
-				http.Error(w, err.Error(), http.StatusNotFound)
+				Error(uid, w, err, http.StatusNotFound)
 			default:
+				log.Errorf("%s: identity registration failed: %v", uid, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
