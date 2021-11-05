@@ -46,17 +46,15 @@ type Protocol struct {
 // Ensure Protocol implements the StorageManager interface
 var _ StorageManager = (*Protocol)(nil)
 
-func NewProtocol(storageManager StorageManager, maxTotalMem uint32, argon2idParams *pw.Argon2idParams) *Protocol {
-	params, err := json.Marshal(argon2idParams)
-	if err != nil {
-		log.Errorf("failed to encode argon2id key derivation parameter: %v", err)
-	}
+func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
+	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism)
+	params, _ := json.Marshal(argon2idParams)
 	log.Debugf("initialize argon2id key derivation with parameters %s", params)
 
 	return &Protocol{
 		StorageManager: storageManager,
 
-		PwHasher:       pw.NewArgon2idKeyDerivator(maxTotalMem),
+		PwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
 		PwHasherParams: argon2idParams,
 
 		identityCache: &sync.Map{},

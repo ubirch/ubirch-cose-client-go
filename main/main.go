@@ -159,7 +159,7 @@ func main() {
 	defer storageManager.Close()
 	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	protocol := NewProtocol(storageManager, conf.KdMaxTotalMemMiB, conf.kdParams)
+	protocol := NewProtocol(storageManager, conf)
 
 	certClient := &CertificateServerClient{
 		CertificateServerURL:       conf.CertificateServer,

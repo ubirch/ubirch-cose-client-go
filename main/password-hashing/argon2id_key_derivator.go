@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"runtime"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,7 +15,11 @@ import (
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
-const stdEncodingFormat = "$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s"
+const (
+	KeyLen            = 24
+	SaltLen           = 16
+	stdEncodingFormat = "$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s"
+)
 
 type Argon2idKeyDerivator struct {
 	sem *semaphore.Weighted
@@ -36,14 +39,23 @@ type Argon2idParams struct {
 	SaltLen uint32 // the length of the random salt in byte
 }
 
-func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
+func GetArgon2idParams(memMiB, time uint32, threads uint8) *Argon2idParams {
 	return &Argon2idParams{
-		Memory:  15 * 1024, // https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
-		Time:    2,
-		Threads: uint8(runtime.NumCPU() * 2), // 2 * number of cores
-		KeyLen:  24,
-		SaltLen: 16,
+		Memory:  memMiB * 1024,
+		Time:    time,
+		Threads: threads,
+		KeyLen:  KeyLen,
+		SaltLen: SaltLen,
 	}
+}
+
+func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
+	// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
+	memMiB := uint32(15)
+	time := uint32(2)
+	threads := uint8(4)
+
+	return GetArgon2idParams(memMiB, time, threads)
 }
 
 // GeneratePasswordHash derives a key from the password, salt, and cost parameters using Argon2id

@@ -27,7 +27,6 @@ import (
 	"github.com/kelseyhightower/envconfig"
 
 	log "github.com/sirupsen/logrus"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (
@@ -50,12 +49,10 @@ const (
 
 	defaultPKCS11Module = "libcs_pkcs11_R3.so"
 
-	defaultKeyDerivationMaxTotalMemory   = 64
-	defaultKeyDerivationParamMemory      = 16
+	defaultKeyDerivationMaxTotalMemory   = 30
+	defaultKeyDerivationParamMemory      = 15
 	defaultKeyDerivationParamTime        = 2
-	defaultKeyDerivationParamParallelism = 8
-	defaultKeyDerivationParamKeyLen      = 24
-	defaultKeyDerivationParamSaltLen     = 16
+	defaultKeyDerivationParamParallelism = 4
 
 	defaultRequestLimit        = 10
 	defaultRequestBacklogLimit = 5
@@ -93,7 +90,6 @@ type Config struct {
 	RequestBacklogLimit       int    `json:"requestBacklogLimit" envconfig:"REQUEST_BACKLOG_LIMIT"`         // backlog for holding a finite number of pending requests
 	serverTLSCertFingerprints map[string][32]byte
 	dbParams                  *DatabaseParams
-	kdParams                  *pw.Argon2idParams
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -261,14 +257,6 @@ func (c *Config) setKeyDerivationParams() {
 
 	if c.KdParamParallelism == 0 {
 		c.KdParamParallelism = defaultKeyDerivationParamParallelism
-	}
-
-	c.kdParams = &pw.Argon2idParams{
-		Memory:  c.KdParamMemMiB * 1024,
-		Time:    c.KdParamTime,
-		Threads: c.KdParamParallelism,
-		KeyLen:  defaultKeyDerivationParamKeyLen,
-		SaltLen: defaultKeyDerivationParamSaltLen,
 	}
 }
 
