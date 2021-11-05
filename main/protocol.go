@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -29,8 +28,7 @@ import (
 )
 
 const (
-	SkidLen             = 8
-	maxRecoveryAttempts = 2
+	SkidLen = 8
 )
 
 type Protocol struct {
@@ -62,33 +60,13 @@ func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
 	}
 }
 
-func (p *Protocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	for i := 0; i <= maxRecoveryAttempts; i++ {
-		transactionCtx, err = p.StorageManager.StartTransaction(ctx)
-		if err != nil && p.StorageManager.IsRecoverable(err) {
-			log.Warnf("StartTransaction error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
-			continue
-		}
-		break
-	}
-	return transactionCtx, err
-}
-
 func (p *Protocol) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
 	err := checkIdentityAttributesNotNil(&id)
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i <= maxRecoveryAttempts; i++ {
-		err = p.StorageManager.StoreNewIdentity(transactionCtx, id)
-		if err != nil && p.StorageManager.IsRecoverable(err) {
-			log.Warnf("StoreNewIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
-			continue
-		}
-		break
-	}
-	return err
+	return p.StorageManager.StoreNewIdentity(transactionCtx, id)
 }
 
 func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
@@ -99,33 +77,17 @@ func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
 	}
 
 	if !found {
-		id, err = p.fetchIdentityFromStorage(uid)
+		id, err = p.StorageManager.GetIdentity(uid)
+		if err != nil {
+			return id, err
+		}
+
+		err = checkIdentityAttributesNotNil(&id)
 		if err != nil {
 			return id, err
 		}
 
 		p.identityCache.Store(uid, id)
-	}
-
-	return id, nil
-}
-
-func (p *Protocol) fetchIdentityFromStorage(uid uuid.UUID) (id Identity, err error) {
-	for i := 0; i <= maxRecoveryAttempts; i++ {
-		id, err = p.StorageManager.GetIdentity(uid)
-		if err != nil && p.StorageManager.IsRecoverable(err) {
-			log.Warnf("GetIdentity error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
-			continue
-		}
-		break
-	}
-	if err != nil {
-		return id, err
-	}
-
-	err = checkIdentityAttributesNotNil(&id)
-	if err != nil {
-		return id, err
 	}
 
 	return id, nil
@@ -141,7 +103,7 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 	}
 
 	if !found {
-		uid, err = p.fetchUuidForPublicKeyFromStorage(publicKeyPEM)
+		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyPEM)
 		if err != nil {
 			return uuid.Nil, err
 		}
@@ -150,18 +112,6 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 	}
 
 	return uid, nil
-}
-
-func (p *Protocol) fetchUuidForPublicKeyFromStorage(publicKeyPEM []byte) (uid uuid.UUID, err error) {
-	for i := 0; i <= maxRecoveryAttempts; i++ {
-		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyPEM)
-		if err != nil && p.StorageManager.IsRecoverable(err) {
-			log.Warnf("GetUuidForPublicKey error: %v: isRecoverable (%d / %d)", err, i, maxRecoveryAttempts)
-			continue
-		}
-		break
-	}
-	return uid, err
 }
 
 func (p *Protocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
