@@ -24,7 +24,14 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	client := &mockRegistrationClient{}
 
@@ -117,7 +124,14 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -143,7 +157,14 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -174,7 +195,14 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -205,7 +233,14 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -258,7 +293,14 @@ func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	p := NewProtocol(&mockStorageMngr{}, 1, test.Argon2idParams)
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,

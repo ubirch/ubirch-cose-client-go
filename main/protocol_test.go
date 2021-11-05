@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -164,7 +163,14 @@ func TestProtocolLoad(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	i := Identity{
 		Uid:          uuid.UUID{},
@@ -187,7 +193,14 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -210,7 +223,14 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilAuth(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -235,7 +255,14 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	testIdentity := Identity{
 		Uid:          test.Uuid,
@@ -275,7 +302,14 @@ func TestProtocol_Cache(t *testing.T) {
 }
 
 func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, 0, &pw.Argon2idParams{})
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
 
 	_, err := p.GetUuidForPublicKey(make([]byte, 64))
 	if err == nil {
