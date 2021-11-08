@@ -4,9 +4,10 @@
 
 ### Identity Registration
 
-Sending a registration request invokes the generation of a ECDSA key pair for signing COSE objects. Further, an auth
-token will be generated and registered at the certify-api. On success, the response contains an X.509 Certificate
-Signing Request in PEM format.
+To initialize an identity, a registration request can be sent to the `/register` endpoint. The registration request must
+contain a UUID which corresponds to a key, that is present in the HSM. At initialization, an auth token will be
+generated and registered at the certify-api. On success, the response contains an X.509 Certificate Signing Request in
+PEM format.
 
     curl ${host}/register -X PUT \
     -H "X-Auth-Token: <registerAuth>" \
