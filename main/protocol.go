@@ -41,11 +41,9 @@ type Protocol struct {
 	uidCache      *sync.Map // {<pub>: <uid>}
 }
 
-// Ensure Protocol implements the StorageManager interface
-var _ StorageManager = (*Protocol)(nil)
-
 func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
-	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism)
+	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
+		conf.KdParamKeyLen, conf.KdParamSaltLen)
 	params, _ := json.Marshal(argon2idParams)
 	log.Debugf("initialize argon2id key derivation with parameters %s", params)
 
