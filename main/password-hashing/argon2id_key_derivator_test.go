@@ -75,6 +75,14 @@ func TestDecode(t *testing.T) {
 	asserter.Equal(hash, testHash)
 }
 
+func TestGetArgon2idParams(t *testing.T) {
+	kd := &Argon2idKeyDerivator{}
+	defaultParams := kd.DefaultParams()
+	params := GetArgon2idParams(0, 0, 0, 0, 0)
+
+	assert.Equal(t, *defaultParams, *params)
+}
+
 func BenchmarkArgon2idKeyDerivator_Default(b *testing.B) {
 	kd := &Argon2idKeyDerivator{}
 	params := kd.DefaultParams()
