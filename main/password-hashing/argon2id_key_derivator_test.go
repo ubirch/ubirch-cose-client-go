@@ -15,7 +15,7 @@ import (
 func TestArgon2idKeyDerivator(t *testing.T) {
 	testAuth := generateRandomAuth()
 
-	kd := NewArgon2idKeyDerivator(15)
+	kd := NewArgon2idKeyDerivator(DefaultMemory)
 	params := kd.DefaultParams()
 
 	pw, err := kd.GeneratePasswordHash(context.Background(), testAuth, params)
@@ -75,6 +75,14 @@ func TestDecode(t *testing.T) {
 	asserter.Equal(hash, testHash)
 }
 
+func TestGetArgon2idParams(t *testing.T) {
+	kd := &Argon2idKeyDerivator{}
+	defaultParams := kd.DefaultParams()
+	params := GetArgon2idParams(0, 0, 0, 0, 0)
+
+	assert.Equal(t, *defaultParams, *params)
+}
+
 func BenchmarkArgon2idKeyDerivator_Default(b *testing.B) {
 	kd := &Argon2idKeyDerivator{}
 	params := kd.DefaultParams()
@@ -131,7 +139,7 @@ func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
 	threads := uint8(4)
 
 	kd := &Argon2idKeyDerivator{}
-	params := GetArgon2idParams(memMiB, time, threads)
+	params := GetArgon2idParams(memMiB, time, threads, DefaultKeyLen, DefaultSaltLen)
 	b.Log(argon2idParams(params))
 
 	auth := make([]byte, 32)

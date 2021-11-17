@@ -52,7 +52,9 @@ const (
 	defaultKeyDerivationMaxTotalMemory   = 30
 	defaultKeyDerivationParamMemory      = 15
 	defaultKeyDerivationParamTime        = 2
-	defaultKeyDerivationParamParallelism = 4
+	defaultKeyDerivationParamParallelism = 1
+	defaultKeyDerivationKeyLen           = 32
+	defaultKeyDerivationSaltLen          = 16
 
 	defaultRequestLimit        = 10
 	defaultRequestBacklogLimit = 5
@@ -86,6 +88,8 @@ type Config struct {
 	KdParamMemMiB             uint32 `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                    // memory parameter for key derivation, specifies the size of the memory in MiB
 	KdParamTime               uint32 `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`                         // time parameter for key derivation, specifies the number of passes over the memory
 	KdParamParallelism        uint8  `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"`           // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
+	KdParamKeyLen             uint32 `json:"kdParamKeyLen" envconfig:"KD_PARAM_KEY_LEN"`                    // key length parameter for key derivation, specifies the length of the resulting key in bytes
+	KdParamSaltLen            uint32 `json:"kdParamSaltLen" envconfig:"KD_PARAM_SALT_LEN"`                  // salt length parameter for key derivation, specifies the length of the random salt in bytes
 	RequestLimit              int    `json:"requestLimit" envconfig:"REQUEST_LIMIT"`                        // limits number of currently processed (incoming) requests at a time
 	RequestBacklogLimit       int    `json:"requestBacklogLimit" envconfig:"REQUEST_BACKLOG_LIMIT"`         // backlog for holding a finite number of pending requests
 	serverTLSCertFingerprints map[string][32]byte
@@ -257,6 +261,14 @@ func (c *Config) setKeyDerivationParams() {
 
 	if c.KdParamParallelism == 0 {
 		c.KdParamParallelism = defaultKeyDerivationParamParallelism
+	}
+
+	if c.KdParamKeyLen == 0 {
+		c.KdParamKeyLen = defaultKeyDerivationKeyLen
+	}
+
+	if c.KdParamSaltLen == 0 {
+		c.KdParamSaltLen = defaultKeyDerivationSaltLen
 	}
 }
 
