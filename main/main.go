@@ -44,21 +44,6 @@ func shutdown(cancel context.CancelFunc) {
 	sig := <-signals
 	log.Infof("shutting down after receiving: %v", sig)
 
-	//write the blocking profile at the moment of shutdown (if enabled by flag)
-	if *blockprofile != "" {
-		log.Infof("writing blocking profile data to file: %s", *blockprofile)
-		f, err := os.Create(*blockprofile)
-		if err != nil {
-			log.Fatal("could not create blocking profile file: ", err)
-		}
-		if err := pprof.Lookup("block").WriteTo(f, 0); err != nil {
-			log.Fatal("could not write blocking profile: ", err)
-		}
-		if err := f.Close(); err != nil {
-			log.Fatal("error when closing blocking profile file: ", err)
-		}
-	}
-
 	// cancel the go routines contexts
 	cancel()
 }
@@ -109,7 +94,7 @@ func main() {
 		defer func(myF *os.File) {
 			err := myF.Close()
 			if err != nil {
-				log.Fatalf("error when closing CPU profile file: %s", err)
+				log.Errorf("error when closing CPU profile file: %s", err)
 			}
 		}(f)
 		if err := pprof.StartCPUProfile(f); err != nil {
@@ -122,6 +107,23 @@ func main() {
 	if *blockprofile != "" {
 		log.Warn("blocking profiling enabled, this will affect performance, file: ", *blockprofile)
 		runtime.SetBlockProfileRate(1)
+		defer func() {
+			//write the blocking profile at the moment of shutdown
+			log.Infof("writing blocking profile data to file: %s", *blockprofile)
+			f, err := os.Create(*blockprofile)
+			if err != nil {
+				log.Errorf("could not create blocking profile file: %v", err)
+				return
+			}
+			if err := pprof.Lookup("block").WriteTo(f, 0); err != nil {
+				log.Errorf("could not write blocking profile: %v", err)
+				return
+			}
+			if err := f.Close(); err != nil {
+				log.Errorf("error when closing blocking profile file: %v", err)
+				return
+			}
+		}()
 	}
 
 	// initialize COSE service
