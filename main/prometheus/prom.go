@@ -61,6 +61,12 @@ var SignatureCreationCounter = promauto.NewCounter(
 		Help: "Number of successfully created signatures",
 	})
 
+var SignatureCreationFailCounter = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: "signature_creation_fail",
+		Help: "Number of failed signature creations",
+	})
+
 var SignatureCreationDuration = promauto.NewHistogram(
 	prometheus.HistogramOpts{
 		Name:    "signature_creation_duration",

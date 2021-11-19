@@ -24,6 +24,7 @@ import (
 	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"golang.org/x/sync/semaphore"
 
 	log "github.com/sirupsen/logrus"
@@ -121,6 +122,9 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
+	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	auditlogger.AuditLog("create", "COSE", infos)
+
 	return h.HTTPResponse{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": {h.BinType}},
@@ -150,7 +154,13 @@ func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash Sha25
 	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
 	defer timerSign.ObserveDuration()
 
-	return c.SignHash(uid, hash[:])
+	sig, err := c.SignHash(uid, hash[:])
+	if err != nil {
+		prom.SignatureCreationFailCounter.Inc()
+	} else {
+		prom.SignatureCreationCounter.Inc()
+	}
+	return sig, err
 }
 
 // getCOSE creates a COSE Single Signer Data Object (COSE_Sign1)
