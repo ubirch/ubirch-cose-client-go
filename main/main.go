@@ -144,12 +144,6 @@ func main() {
 		// a session on every incoming signing request.
 		log.Warnf("unable to set up session with HSM: %v", err)
 	}
-	defer func() {
-		err := cryptoCtx.TeardownSession()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
 	readinessChecks = append(readinessChecks, cryptoCtx.IsReady)
 
 	storageManager, err := GetStorageManager(conf)
