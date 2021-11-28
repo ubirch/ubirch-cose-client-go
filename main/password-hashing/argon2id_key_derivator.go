@@ -100,7 +100,7 @@ func (kd *Argon2idKeyDerivator) GeneratePasswordHash(ctx context.Context, pw str
 	return encodePasswordHash(params, salt, hash), nil
 }
 
-func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck string, pwHash string) (bool, error) {
+func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwHash, pwToCheck string) (bool, error) {
 	p, salt, hash, err := decodePasswordHash(pwHash)
 	if err != nil {
 		return false, fmt.Errorf("failed to decode argon2id password hash: %v", err)

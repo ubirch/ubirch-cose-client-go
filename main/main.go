@@ -184,9 +184,8 @@ func main() {
 	}
 
 	service := &COSEService{
-		GetIdentity: protocol.GetIdentity,
-		CheckAuth:   protocol.PwHasher.CheckPassword,
-		Sign:        coseSigner.Sign,
+		CheckAuth: protocol.CheckAuth,
+		Sign:      coseSigner.Sign,
 	}
 
 	// set up HTTP server

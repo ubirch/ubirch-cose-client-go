@@ -206,10 +206,6 @@ func mockGetSKIDReturnsErr(uuid.UUID) ([]byte, error) {
 	return nil, test.Error
 }
 
-func mockSign(uuid.UUID, []byte) ([]byte, error) {
-	return make([]byte, 64), nil
-}
-
 func mockSignReturnsError(uuid.UUID, []byte) ([]byte, error) {
 	return nil, test.Error
 }

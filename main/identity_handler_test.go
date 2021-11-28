@@ -43,7 +43,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	csrPEM, auth, err := idHandler.InitIdentity(context.Background(), test.Uuid)
+	csrPEM, auth, err := idHandler.InitIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Error("auth token returned by InitIdentity not equal to registered auth token")
 	}
 
-	ok, err := p.PwHasher.CheckPassword(context.Background(), client.Auth, initializedIdentity.Auth)
+	ok, err := p.pwHasher.CheckPassword(context.Background(), initializedIdentity.Auth, client.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,12 +141,12 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(context.Background(), test.Uuid)
+	_, _, err = idHandler.InitIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, _, err = idHandler.InitIdentity(context.Background(), test.Uuid)
+	_, _, err = idHandler.InitIdentity(test.Uuid)
 	if err != h.ErrAlreadyInitialized {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrAlreadyInitialized)
 	}
@@ -174,7 +174,7 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err := idHandler.InitIdentity(context.Background(), test.Uuid)
+	_, _, err := idHandler.InitIdentity(test.Uuid)
 	if err != h.ErrUnknown {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}
@@ -212,7 +212,7 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(context.Background(), test.Uuid)
+	_, _, err = idHandler.InitIdentity(test.Uuid)
 	if err != test.Error {
 		t.Errorf("unexpected error: %v, expected: %v", err, test.Error)
 	}
@@ -250,7 +250,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(context.Background(), test.Uuid)
+	_, _, err = idHandler.InitIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
