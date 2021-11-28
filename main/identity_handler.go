@@ -93,7 +93,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", err
 	}
 
-	err = i.Protocol.StoreNewIdentity(tx, identity)
+	err = i.Protocol.StoreIdentity(tx, identity)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not store new identity: %v", err)
 	}
@@ -103,7 +103,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", err
 	}
 
-	err = i.Protocol.CommitTransaction(tx)
+	err = tx.Commit()
 	if err != nil {
 		return nil, "", fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
 	}

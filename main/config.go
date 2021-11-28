@@ -49,7 +49,6 @@ const (
 
 	defaultPKCS11Module = "libcs_pkcs11_R3.so"
 
-	defaultKeyDerivationMaxTotalMemory   = 30
 	defaultKeyDerivationParamMemory      = 15
 	defaultKeyDerivationParamTime        = 2
 	defaultKeyDerivationParamParallelism = 1
@@ -90,6 +89,7 @@ type Config struct {
 	KdParamParallelism        uint8  `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"`           // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
 	KdParamKeyLen             uint32 `json:"kdParamKeyLen" envconfig:"KD_PARAM_KEY_LEN"`                    // key length parameter for key derivation, specifies the length of the resulting key in bytes
 	KdParamSaltLen            uint32 `json:"kdParamSaltLen" envconfig:"KD_PARAM_SALT_LEN"`                  // salt length parameter for key derivation, specifies the length of the random salt in bytes
+	KdUpdateParams            bool   `json:"kdUpdateParams" envconfig:"KD_UPDATE_PARAMS"`                   // update key derivation parameters of already existing password hashes
 	RequestLimit              int    `json:"requestLimit" envconfig:"REQUEST_LIMIT"`                        // limits number of currently processed (incoming) requests at a time
 	RequestBacklogLimit       int    `json:"requestBacklogLimit" envconfig:"REQUEST_BACKLOG_LIMIT"`         // backlog for holding a finite number of pending requests
 	serverTLSCertFingerprints map[string][32]byte
@@ -247,10 +247,6 @@ func (c *Config) setDefaultRequestLimits() {
 }
 
 func (c *Config) setKeyDerivationParams() {
-	if c.KdMaxTotalMemMiB == 0 {
-		c.KdMaxTotalMemMiB = defaultKeyDerivationMaxTotalMemory
-	}
-
 	if c.KdParamMemMiB == 0 {
 		c.KdParamMemMiB = defaultKeyDerivationParamMemory
 	}
