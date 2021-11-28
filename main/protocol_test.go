@@ -236,6 +236,152 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	}
 }
 
+func TestExtendedProtocol_CheckAuth(t *testing.T) {
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreNewIdentity(tx, *i)
+	require.NoError(t, err)
+
+	err = p.CommitTransaction(tx)
+	require.NoError(t, err)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, i.Auth)
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.True(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreNewIdentity(tx, *i)
+	require.NoError(t, err)
+
+	err = p.CommitTransaction(tx)
+	require.NoError(t, err)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, "invalid auth")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.False(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
+	storageMngr := &mockStorageMngr{}
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+	p := NewProtocol(storageMngr, conf)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreNewIdentity(tx, *i)
+	require.NoError(t, err)
+
+	err = p.CommitTransaction(tx)
+	require.NoError(t, err)
+
+	p.authCache.Store(i.Uid, storageMngr.id.Auth)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, "invalid auth")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.False(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
+
+	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
+	require.NoError(t, err)
+	assert.False(t, found)
+	assert.False(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreNewIdentity(tx, *i)
+	require.NoError(t, err)
+
+	err = p.CommitTransaction(tx)
+	require.NoError(t, err)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, i.Auth)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.True(t, ok)
+
+	cachedAuth, found := p.authCache.Load(i.Uid)
+	require.True(t, found)
+	assert.Equal(t, i.Auth, cachedAuth.(string))
+}
+
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
