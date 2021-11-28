@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -34,11 +35,11 @@ const (
 type Protocol struct {
 	StorageManager
 
-	PwHasher       *pw.Argon2idKeyDerivator
-	PwHasherParams *pw.Argon2idParams
+	pwHasher       *pw.Argon2idKeyDerivator
+	pwHasherParams *pw.Argon2idParams
 
-	identityCache *sync.Map // {<uid>: <*identity>}
-	uidCache      *sync.Map // {<pub>: <uid>}
+	authCache *sync.Map // {<uid>: <auth>}
+	uidCache  *sync.Map // {<pub>: <uid>}
 }
 
 func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
@@ -50,11 +51,11 @@ func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
 	return &Protocol{
 		StorageManager: storageManager,
 
-		PwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
-		PwHasherParams: argon2idParams,
+		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
+		pwHasherParams: argon2idParams,
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		authCache: &sync.Map{},
+		uidCache:  &sync.Map{},
 	}
 }
 
@@ -64,28 +65,24 @@ func (p *Protocol) StoreNewIdentity(transactionCtx interface{}, id Identity) err
 		return err
 	}
 
+	// hash auth token
+	id.Auth, err = p.pwHasher.GeneratePasswordHash(context.Background(), id.Auth, p.pwHasherParams)
+	if err != nil {
+		return fmt.Errorf("generating password hash failed: %v", err)
+	}
+
 	return p.StorageManager.StoreNewIdentity(transactionCtx, id)
 }
 
 func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
-	_id, found := p.identityCache.Load(uid)
-
-	if found {
-		id, found = _id.(Identity)
+	id, err = p.StorageManager.GetIdentity(uid)
+	if err != nil {
+		return id, err
 	}
 
-	if !found {
-		id, err = p.StorageManager.GetIdentity(uid)
-		if err != nil {
-			return id, err
-		}
-
-		err = checkIdentityAttributesNotNil(&id)
-		if err != nil {
-			return id, err
-		}
-
-		p.identityCache.Store(uid, id)
+	err = checkIdentityAttributesNotNil(&id)
+	if err != nil {
+		return id, err
 	}
 
 	return id, nil
@@ -122,6 +119,36 @@ func (p *Protocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
 	}
 
 	return true, nil
+}
+
+func (p *Protocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
+	_auth, found := p.authCache.Load(uid)
+
+	if found {
+		if auth, ok := _auth.(string); ok {
+			return auth == authToCheck, found, err
+		}
+	}
+
+	i, err := p.GetIdentity(uid)
+	if err == ErrNotExist {
+		return ok, found, nil
+	}
+	if err != nil {
+		return ok, found, err
+	}
+
+	found = true
+
+	ok, err = p.pwHasher.CheckPassword(ctx, i.Auth, authToCheck)
+	if err != nil || !ok {
+		return ok, found, err
+	}
+
+	// auth check was successful
+	p.authCache.Store(uid, authToCheck)
+
+	return ok, found, err
 }
 
 func checkIdentityAttributesNotNil(i *Identity) error {

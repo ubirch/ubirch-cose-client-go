@@ -38,7 +38,7 @@ type IdentityHandler struct {
 	subjectOrganization string
 }
 
-func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) (csrPEM []byte, auth string, err error) {
+func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth string, err error) {
 	err = i.Protocol.IsReady()
 	if err != nil {
 		return nil, "", err
@@ -79,15 +79,10 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID) (csrP
 		return nil, "", err
 	}
 
-	pwHash, err := i.Protocol.PwHasher.GeneratePasswordHash(ctx, pw, i.Protocol.PwHasherParams)
-	if err != nil {
-		return nil, "", err
-	}
-
 	identity := Identity{
 		Uid:          uid,
 		PublicKeyPEM: pubKeyPEM,
-		Auth:         pwHash,
+		Auth:         pw,
 	}
 
 	ctxForTransaction, cancel := context.WithCancel(context.Background())

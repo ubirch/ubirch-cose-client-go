@@ -3,12 +3,16 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
+	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -29,11 +33,14 @@ func TestProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	kd := &pw.Argon2idKeyDerivator{}
+
 	p := &Protocol{
 		StorageManager: &mockStorageMngr{},
-
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		pwHasher:       kd,
+		pwHasherParams: kd.DefaultParams(),
+		authCache:      &sync.Map{},
+		uidCache:       &sync.Map{},
 	}
 
 	testIdentity := Identity{
@@ -44,73 +51,46 @@ func TestProtocol(t *testing.T) {
 
 	// check not exists
 	_, err = p.GetIdentity(testIdentity.Uid)
-	if err != ErrNotExist {
-		t.Error("GetIdentity did not return ErrNotExist")
-	}
+	assert.Equal(t, ErrNotExist, err)
 
 	exists, err := p.IsInitialized(testIdentity.Uid)
-	if err != nil {
-		t.Error(err)
-	}
-	if exists {
-		t.Error("IsInitialized returned TRUE")
-	}
+	require.NoError(t, err)
+	assert.False(t, exists)
 
 	_, err = p.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
-	if err != ErrNotExist {
-		t.Error("GetUuidForPublicKey did not return ErrNotExist")
-	}
+	assert.Equal(t, ErrNotExist, err)
 
 	// store identity
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	tx, err := p.StartTransaction(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = p.StoreNewIdentity(tx, testIdentity)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = p.CommitTransaction(tx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// check exists
 	exists, err = p.IsInitialized(testIdentity.Uid)
-	if err != nil {
-		t.Error(err)
-	}
-	if !exists {
-		t.Error("IsInitialized returned FALSE")
-	}
+	require.NoError(t, err)
+	assert.True(t, exists)
 
 	storedIdentity, err := p.GetIdentity(testIdentity.Uid)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !bytes.Equal(storedIdentity.Uid[:], testIdentity.Uid[:]) {
-		t.Error("GetIdentity returned unexpected Uid value")
-	}
-	if !bytes.Equal(storedIdentity.PublicKeyPEM, testIdentity.PublicKeyPEM) {
-		t.Error("GetIdentity returned unexpected PublicKeyPEM value")
-	}
-	if storedIdentity.Auth != testIdentity.Auth {
-		t.Error("GetIdentity returned unexpected Auth value")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, testIdentity.Uid, storedIdentity.Uid)
+	assert.Equal(t, testIdentity.PublicKeyPEM, storedIdentity.PublicKeyPEM)
 
 	storedUid, err := p.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(storedUid[:], testIdentity.Uid[:]) {
-		t.Errorf("GetUuidForPublicKey returned unexpected value: %s, expected: %s", storedUid[:], testIdentity.Uid[:])
-	}
+	require.NoError(t, err)
+	assert.Equal(t, testIdentity.Uid, storedUid)
+
+	ok, found, err := p.CheckAuth(ctx, testIdentity.Uid, testIdentity.Auth)
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.True(t, ok)
 }
 
 func TestProtocolLoad(t *testing.T) {
@@ -122,11 +102,15 @@ func TestProtocolLoad(t *testing.T) {
 	}
 	defer cleanUpDB(t, dm)
 
+	kd := &pw.Argon2idKeyDerivator{}
+
 	p := &Protocol{
 		StorageManager: dm,
+		pwHasher:       kd,
+		pwHasherParams: kd.DefaultParams(),
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		authCache: &sync.Map{},
+		uidCache:  &sync.Map{},
 	}
 
 	// generate identities
@@ -153,7 +137,7 @@ func TestProtocolLoad(t *testing.T) {
 	for _, testId := range testIdentities {
 		wg.Add(1)
 		go func(id *Identity) {
-			err := checkIdentity(p, id, wg)
+			err := checkIdentity(p, id, protocolCheckAuth, wg)
 			if err != nil {
 				t.Errorf("%s: %v", id.Uid, err)
 			}
@@ -252,6 +236,152 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 	}
 }
 
+func TestExtendedProtocol_CheckAuth(t *testing.T) {
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreNewIdentity(tx, *i)
+	require.NoError(t, err)
+
+	err = p.CommitTransaction(tx)
+	require.NoError(t, err)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, i.Auth)
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.True(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreNewIdentity(tx, *i)
+	require.NoError(t, err)
+
+	err = p.CommitTransaction(tx)
+	require.NoError(t, err)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, "invalid auth")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.False(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
+	storageMngr := &mockStorageMngr{}
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+	p := NewProtocol(storageMngr, conf)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreNewIdentity(tx, *i)
+	require.NoError(t, err)
+
+	err = p.CommitTransaction(tx)
+	require.NoError(t, err)
+
+	p.authCache.Store(i.Uid, storageMngr.id.Auth)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, "invalid auth")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.False(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
+
+	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
+	require.NoError(t, err)
+	assert.False(t, found)
+	assert.False(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
+	conf := &Config{
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p := NewProtocol(&mockStorageMngr{}, conf)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreNewIdentity(tx, *i)
+	require.NoError(t, err)
+
+	err = p.CommitTransaction(tx)
+	require.NoError(t, err)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, i.Auth)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.True(t, ok)
+
+	cachedAuth, found := p.authCache.Load(i.Uid)
+	require.True(t, found)
+	assert.Equal(t, i.Auth, cachedAuth.(string))
+}
+
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
@@ -292,7 +422,7 @@ func TestProtocol_Cache(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			err := checkIdentity(p, &testIdentity, wg)
+			err := checkIdentity(p, &testIdentity, protocolCheckAuth, wg)
 			if err != nil {
 				t.Errorf("%s: %v", testIdentity.Uid, err)
 			}
@@ -315,6 +445,19 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	if err == nil {
 		t.Error("GetUuidForPublicKey did not return error for invalid public key")
 	}
+}
+
+func protocolCheckAuth(auth, authToCheck string) error {
+	pwHasher := &pw.Argon2idKeyDerivator{}
+
+	ok, err := pwHasher.CheckPassword(context.Background(), auth, authToCheck)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("protocolCheckAuth failed: %s != %s", auth, authToCheck)
+	}
+	return nil
 }
 
 type mockStorageMngr struct {

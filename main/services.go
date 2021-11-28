@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
@@ -45,9 +44,8 @@ type HTTPRequest struct {
 }
 
 type COSEService struct {
-	GetIdentity func(uuid.UUID) (Identity, error)
-	CheckAuth   func(context.Context, string, string) (bool, error)
-	Sign        func(HTTPRequest) h.HTTPResponse
+	CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
+	Sign      func(HTTPRequest) h.HTTPResponse
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
@@ -62,29 +60,23 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		identity, err := s.GetIdentity(uid)
-		if err == ErrNotExist {
-			h.Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			log.Errorf("%s: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
 		ctx := r.Context()
 		auth := r.Header.Get(h.AuthHeader)
 
-		authOk, err := s.CheckAuth(ctx, auth, identity.Auth)
+		authOk, found, err := s.CheckAuth(ctx, uid, auth)
 		if err != nil {
 			log.Errorf("%s: password check failed: %v", uid, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
+		if !found {
+			h.Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+			return
+		}
+
 		if !authOk {
-			h.Error(uid, w, fmt.Errorf(http.StatusText(http.StatusUnauthorized)), http.StatusUnauthorized)
+			h.Error(uid, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
 			return
 		}
 
@@ -105,16 +97,6 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			h.SendResponse(w, resp)
 		}
 	}
-}
-
-// getUUIDFromURL returns the UUID parameter from the request URL
-func getUUIDFromURL(r *http.Request) (uuid.UUID, error) {
-	uuidParam := chi.URLParam(r, h.UUIDKey)
-	uid, err := uuid.Parse(uuidParam)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
-	}
-	return uid, nil
 }
 
 func GetHashFromHashRequest() GetPayloadAndHash {

@@ -266,7 +266,7 @@ func TestDatabaseLoad(t *testing.T) {
 	for _, testId := range testIdentities {
 		wg.Add(1)
 		go func(id *Identity) {
-			err := checkIdentity(dm, id, wg)
+			err := checkIdentity(dm, id, dbCheckAuth, wg)
 			if err != nil {
 				t.Errorf("%s: %v", id.Uid, err)
 			}
@@ -392,7 +392,15 @@ func storeIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup)
 	return nil
 }
 
-func checkIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup) error {
+func dbCheckAuth(auth, authToCheck string) error {
+	if auth != authToCheck {
+		return fmt.Errorf("auth check failed")
+	}
+
+	return nil
+}
+
+func checkIdentity(storageMngr StorageManager, id *Identity, checkAuth func(string, string) error, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	idFromCtx, err := storageMngr.GetIdentity(id.Uid)
@@ -405,8 +413,10 @@ func checkIdentity(storageMngr StorageManager, id *Identity, wg *sync.WaitGroup)
 	if !bytes.Equal(idFromCtx.PublicKeyPEM, id.PublicKeyPEM) {
 		return fmt.Errorf("GetIdentity returned unexpected PublicKeyPEM value")
 	}
-	if idFromCtx.Auth != id.Auth {
-		return fmt.Errorf("GetIdentity returned unexpected Auth value")
+
+	err = checkAuth(idFromCtx.Auth, id.Auth)
+	if err != nil {
+		return fmt.Errorf("checkAuth: %v", err)
 	}
 
 	uid, err := storageMngr.GetUuidForPublicKey(id.PublicKeyPEM)

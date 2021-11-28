@@ -24,8 +24,8 @@ func TestNewSkidHandler(t *testing.T) {
 	p := &Protocol{
 		StorageManager: &mockStorageMngr{},
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		authCache: &sync.Map{},
+		uidCache:  &sync.Map{},
 	}
 
 	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
@@ -81,8 +81,8 @@ func TestSkidHandler_LoadSKIDs(t *testing.T) {
 	p := &Protocol{
 		StorageManager: &mockStorageMngr{},
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		authCache: &sync.Map{},
+		uidCache:  &sync.Map{},
 	}
 
 	s := &SkidHandler{
@@ -169,8 +169,8 @@ func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
 	p := &Protocol{
 		StorageManager: &mockStorageMngr{},
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+		authCache: &sync.Map{},
+		uidCache:  &sync.Map{},
 	}
 
 	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
