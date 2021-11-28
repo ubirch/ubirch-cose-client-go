@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
@@ -98,16 +97,6 @@ func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			h.SendResponse(w, resp)
 		}
 	}
-}
-
-// getUUIDFromURL returns the UUID parameter from the request URL
-func getUUIDFromURL(r *http.Request) (uuid.UUID, error) {
-	uuidParam := chi.URLParam(r, h.UUIDKey)
-	uid, err := uuid.Parse(uuidParam)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
-	}
-	return uid, nil
 }
 
 func GetHashFromHashRequest() GetPayloadAndHash {
