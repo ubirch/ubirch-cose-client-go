@@ -183,7 +183,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	service := &COSEService{
+	service := &h.COSEService{
 		CheckAuth: protocol.CheckAuth,
 		Sign:      coseSigner.Sign,
 	}
@@ -205,14 +205,14 @@ func main() {
 
 	// set up endpoint for CSRs
 	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
+	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, h.GetUUIDFromRequest, idHandler.CreateCSR))
 
 	// set up endpoints for COSE signing (UUID as URL parameter)
 	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(h.GetUUID, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
+	httpServer.Router.Post(directUuidEndpoint, service.HandleRequest(h.GetUUIDFromRequest, h.GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
 
 	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(h.GetUUID, GetHashFromHashRequest()))
+	httpServer.Router.Post(directUuidHashEndpoint, service.HandleRequest(h.GetUUIDFromRequest, h.GetHashFromHashRequest()))
 
 	// set up endpoints for liveness and readiness checks
 	httpServer.Router.Get("/healthz", h.Healthz(serverID))

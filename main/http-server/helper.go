@@ -28,8 +28,8 @@ func HttpFailed(StatusCode int) bool {
 	return !HttpSuccess(StatusCode)
 }
 
-// GetUUID returns the UUID parameter from the request URL
-func GetUUID(r *http.Request) (uuid.UUID, error) {
+// GetUUIDFromRequest returns the UUID parameter from the request URL
+func GetUUIDFromRequest(r *http.Request) (uuid.UUID, error) {
 	uuidParam := chi.URLParam(r, UUIDKey)
 	uid, err := uuid.Parse(uuidParam)
 	if err != nil {

@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
+	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
@@ -83,7 +84,7 @@ func TestCoseSign(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg := HTTPRequest{
+	msg := h.HTTPRequest{
 		ID:      test.Uuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
@@ -108,7 +109,7 @@ func TestCoseSignBadSkid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg := HTTPRequest{
+	msg := h.HTTPRequest{
 		ID:      test.Uuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
@@ -131,7 +132,7 @@ func TestCoseSignBadKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg := HTTPRequest{
+	msg := h.HTTPRequest{
 		ID:      test.Uuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
@@ -154,7 +155,7 @@ func TestCoseSignBadSignature(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg := HTTPRequest{
+	msg := h.HTTPRequest{
 		ID:      test.Uuid,
 		Hash:    sha256.Sum256([]byte("test")),
 		Payload: []byte("test"),
