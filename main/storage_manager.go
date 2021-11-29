@@ -34,7 +34,7 @@ type TransactionCtx interface {
 
 func GetStorageManager(c *Config) (StorageManager, error) {
 	if len(c.PostgresDSN) != 0 {
-		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName, c.dbParams)
+		return NewSqlDatabaseInfo(c.PostgresDSN, c.dbParams)
 	} else {
 		return nil, fmt.Errorf("file-based context management is not supported in the current version")
 	}

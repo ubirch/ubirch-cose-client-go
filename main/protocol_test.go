@@ -68,48 +68,6 @@ func TestProtocol(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestProtocolLoad(t *testing.T) {
-	wg := &sync.WaitGroup{}
-
-	dm, err := initDB()
-	require.NoError(t, err)
-	defer cleanUpDB(t, dm)
-
-	p := NewProtocol(dm, &Config{})
-
-	// generate identities
-	var testIdentities []Identity
-	for i := 0; i < testLoad/10; i++ {
-		testId := generateRandomIdentity()
-
-		testIdentities = append(testIdentities, testId)
-	}
-
-	// store identities
-	for _, testId := range testIdentities {
-		wg.Add(1)
-		go func(i Identity) {
-			err := storeIdentity(p, i, wg)
-			if err != nil {
-				t.Errorf("%s: identity could not be stored: %v", i.Uid, err)
-			}
-		}(testId)
-	}
-	wg.Wait()
-
-	// check identities
-	for _, testId := range testIdentities {
-		wg.Add(1)
-		go func(i Identity) {
-			err := checkIdentity(p, i, protocolCheckAuth, wg)
-			if err != nil {
-				t.Errorf("%s: %v", i.Uid, err)
-			}
-		}(testId)
-	}
-	wg.Wait()
-}
-
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	p := NewProtocol(&mockStorageMngr{}, &Config{})
 
@@ -369,11 +327,59 @@ func TestProtocol_Cache(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			err := checkIdentity(p, testIdentity, protocolCheckAuth, wg)
+			defer wg.Done()
+
+			err := checkIdentity(p, testIdentity, protocolCheckAuth)
 			if err != nil {
 				t.Errorf("%s: %v", testIdentity.Uid, err)
 			}
 		}()
+	}
+	wg.Wait()
+}
+
+func TestProtocolLoad(t *testing.T) {
+	wg := &sync.WaitGroup{}
+
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	p := NewProtocol(dm, &Config{})
+
+	// generate identities
+	var testIdentities []Identity
+	for i := 0; i < testLoad/10; i++ {
+		testId := generateRandomIdentity()
+
+		testIdentities = append(testIdentities, testId)
+	}
+
+	// store identities
+	for _, testId := range testIdentities {
+		wg.Add(1)
+		go func(i Identity) {
+			defer wg.Done()
+
+			err := storeIdentity(p, i)
+			if err != nil {
+				t.Errorf("%s: %v", i.Uid, err)
+			}
+		}(testId)
+	}
+	wg.Wait()
+
+	// check identities
+	for _, testId := range testIdentities {
+		wg.Add(1)
+		go func(i Identity) {
+			defer wg.Done()
+
+			err := checkIdentity(p, i, protocolCheckAuth)
+			if err != nil {
+				t.Errorf("%s: %v", i.Uid, err)
+			}
+		}(testId)
 	}
 	wg.Wait()
 }
