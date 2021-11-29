@@ -21,6 +21,7 @@ import (
 
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	"github.com/ubirch/ubirch-cose-client-go/main/profiling"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
@@ -33,7 +34,9 @@ var (
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
 	// declare flags
-	configDir = flag.String("configdirectory", "", "configuration `directory` to use")
+	cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to `file`")
+	blockprofile = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
+	configDir    = flag.String("configdirectory", "", "configuration `directory` to use")
 )
 
 func main() {
@@ -61,6 +64,18 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	// set up CPU profiling if enabled by flag
+	if *cpuprofile != "" {
+		file := profiling.RecordCPUProfile(*cpuprofile)
+		defer profiling.StopCPUProfileRecording(file)
+	}
+
+	// set up memory profiling if enabled by flag
+	if *blockprofile != "" {
+		file := profiling.RecordBlockProfile(*blockprofile)
+		defer profiling.StopBlockProfileRecording(file)
+	}
+
 	// initialize COSE service
 	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(conf.PKCS11Module, conf.PKCS11ModulePin,
 		conf.PKCS11ModuleSlotNr, true, 1, 50*time.Millisecond)
@@ -73,6 +88,7 @@ func main() {
 			log.Error(err)
 		}
 	}()
+	readinessChecks = append(readinessChecks, cryptoCtx.IsReady)
 
 	err = cryptoCtx.SetupSession()
 	if err != nil {
@@ -81,7 +97,6 @@ func main() {
 		// a session on every incoming signing request.
 		log.Warnf("unable to set up session with HSM: %v", err)
 	}
-	readinessChecks = append(readinessChecks, cryptoCtx.IsReady)
 
 	storageManager, err := GetStorageManager(conf)
 	if err != nil {
