@@ -24,12 +24,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
+	conf := &Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -61,7 +56,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Error(err)
 	}
 
-	initializedIdentity, err := p.GetIdentity(test.Uuid)
+	initializedIdentity, err := p.LoadIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +83,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Error("auth token returned by InitIdentity not equal to registered auth token")
 	}
 
-	ok, err := p.pwHasher.CheckPassword(context.Background(), initializedIdentity.Auth, client.Auth)
+	_, ok, err := p.pwHasher.CheckPassword(context.Background(), initializedIdentity.Auth, client.Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,12 +119,7 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
+	conf := &Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -157,12 +147,7 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	conf := &Config{
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
+	conf := &Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -179,7 +164,7 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}
 
-	_, err = p.GetIdentity(test.Uuid)
+	_, err = p.LoadIdentity(test.Uuid)
 	if err != ErrNotExist {
 		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
 	}
@@ -195,12 +180,7 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
+	conf := &Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -217,7 +197,7 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 		t.Errorf("unexpected error: %v, expected: %v", err, test.Error)
 	}
 
-	_, err = p.GetIdentity(test.Uuid)
+	_, err = p.LoadIdentity(test.Uuid)
 	if err != ErrNotExist {
 		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
 	}
@@ -233,12 +213,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
+	conf := &Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -273,7 +248,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		t.Error(err)
 	}
 
-	initializedIdentity, err := p.GetIdentity(test.Uuid)
+	initializedIdentity, err := p.LoadIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,12 +268,7 @@ func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	conf := &Config{
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
+	conf := &Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
