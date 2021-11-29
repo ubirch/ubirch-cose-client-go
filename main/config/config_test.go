@@ -69,6 +69,7 @@ func TestConfig_loadEnv(t *testing.T) {
 
 	conf := &Config{}
 	err = conf.loadEnv()
+	require.NoError(t, err)
 	assert.Equal(t, testRegisterAuth, conf.RegisterAuth)
 }
 

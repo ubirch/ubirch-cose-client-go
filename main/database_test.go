@@ -336,6 +336,7 @@ func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
 	require.NoError(t, err)
 
 	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
+	require.NoError(t, err)
 
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{},
