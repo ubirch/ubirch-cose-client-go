@@ -34,12 +34,9 @@ const (
 
 type Protocol struct {
 	StorageManager
-
-	pwHasher       *pw.Argon2idKeyDerivator
-	pwHasherParams *pw.Argon2idParams
-
+	pwHasher  *pw.Argon2idKeyDerivator
 	authCache *sync.Map // {<uid>: <auth>}
-	uidCache  *sync.Map // {<pub>: <uid>}
+	uidCache  *sync.Map // {<pub>: <uuid>}
 }
 
 func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
@@ -47,45 +44,48 @@ func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
 		conf.KdParamKeyLen, conf.KdParamSaltLen)
 	params, _ := json.Marshal(argon2idParams)
 	log.Debugf("initialize argon2id key derivation with parameters %s", params)
+	if conf.KdMaxTotalMemMiB != 0 {
+		log.Debugf("max. total memory to use for key derivation at a time: %d MiB", conf.KdMaxTotalMemMiB)
+	}
+	if conf.KdUpdateParams {
+		log.Debugf("key derivation parameter update for already existing password hashes enabled")
+	}
 
 	return &Protocol{
 		StorageManager: storageManager,
-
-		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
-		pwHasherParams: argon2idParams,
-
-		authCache: &sync.Map{},
-		uidCache:  &sync.Map{},
+		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB, argon2idParams, conf.KdUpdateParams),
+		authCache:      &sync.Map{},
+		uidCache:       &sync.Map{},
 	}
 }
 
-func (p *Protocol) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
-	err := checkIdentityAttributesNotNil(&id)
+func (p *Protocol) StoreIdentity(tx TransactionCtx, i Identity) error {
+	err := checkIdentityAttributesNotNil(&i)
 	if err != nil {
 		return err
 	}
 
 	// hash auth token
-	id.Auth, err = p.pwHasher.GeneratePasswordHash(context.Background(), id.Auth, p.pwHasherParams)
+	i.Auth, err = p.pwHasher.GeneratePasswordHash(context.Background(), i.Auth)
 	if err != nil {
 		return fmt.Errorf("generating password hash failed: %v", err)
 	}
 
-	return p.StorageManager.StoreNewIdentity(transactionCtx, id)
+	return p.StorageManager.StoreIdentity(tx, i)
 }
 
-func (p *Protocol) GetIdentity(uid uuid.UUID) (id Identity, err error) {
-	id, err = p.StorageManager.GetIdentity(uid)
+func (p *Protocol) LoadIdentity(uid uuid.UUID) (i *Identity, err error) {
+	i, err = p.StorageManager.LoadIdentity(uid)
 	if err != nil {
-		return id, err
+		return nil, err
 	}
 
-	err = checkIdentityAttributesNotNil(&id)
+	err = checkIdentityAttributesNotNil(i)
 	if err != nil {
-		return id, err
+		return nil, err
 	}
 
-	return id, nil
+	return i, nil
 }
 
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
@@ -110,7 +110,7 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 }
 
 func (p *Protocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
-	_, err = p.GetIdentity(uid)
+	_, err = p.LoadIdentity(uid)
 	if err == ErrNotExist {
 		return false, nil
 	}
@@ -130,7 +130,7 @@ func (p *Protocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck str
 		}
 	}
 
-	i, err := p.GetIdentity(uid)
+	i, err := p.LoadIdentity(uid)
 	if err == ErrNotExist {
 		return ok, found, nil
 	}
@@ -140,7 +140,7 @@ func (p *Protocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck str
 
 	found = true
 
-	ok, err = p.pwHasher.CheckPassword(ctx, i.Auth, authToCheck)
+	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, i.Auth, authToCheck)
 	if err != nil || !ok {
 		return ok, found, err
 	}
@@ -148,7 +148,47 @@ func (p *Protocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck str
 	// auth check was successful
 	p.authCache.Store(uid, authToCheck)
 
+	if needsUpdate {
+		if err := p.updatePwHash(uid, authToCheck); err != nil {
+			log.Errorf("%s: password hash update failed: %v", uid, err)
+		}
+	}
+
 	return ok, found, err
+}
+
+func (p *Protocol) updatePwHash(uid uuid.UUID, authToCheck string) error {
+	log.Infof("%s: updating password hash", uid)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("could not initialize transaction: %v", err)
+	}
+
+	_, err = p.StorageManager.LoadAuthForUpdate(tx, uid)
+	if err != nil {
+		return fmt.Errorf("could not aquire lock for update: %v", err)
+	}
+
+	updatedHash, err := p.pwHasher.GeneratePasswordHash(ctx, authToCheck)
+	if err != nil {
+		return fmt.Errorf("could not generate new password hash: %v", err)
+	}
+
+	err = p.StorageManager.StoreAuth(tx, uid, updatedHash)
+	if err != nil {
+		return fmt.Errorf("could not store updated password hash: %v", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("could not commit transaction after storing updated password hash: %v", err)
+	}
+
+	return nil
 }
 
 func checkIdentityAttributesNotNil(i *Identity) error {

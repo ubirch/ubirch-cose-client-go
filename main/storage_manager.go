@@ -13,16 +13,23 @@ var (
 )
 
 type StorageManager interface {
-	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	CommitTransaction(transactionCtx interface{}) error
+	StartTransaction(context.Context) (TransactionCtx, error)
 
-	StoreNewIdentity(transactionCtx interface{}, id Identity) error
-	GetIdentity(uid uuid.UUID) (Identity, error)
+	StoreIdentity(TransactionCtx, Identity) error
+	LoadIdentity(uuid.UUID) (*Identity, error)
 
-	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
+	GetUuidForPublicKey([]byte) (uuid.UUID, error)
+
+	StoreAuth(TransactionCtx, uuid.UUID, string) error
+	LoadAuthForUpdate(TransactionCtx, uuid.UUID) (string, error)
 
 	IsReady() error
 	Close()
+}
+
+type TransactionCtx interface {
+	Commit() error
+	Rollback() error
 }
 
 func GetStorageManager(c *Config) (StorageManager, error) {

@@ -130,20 +130,11 @@ func (dm *DatabaseManager) IsReady() error {
 	return nil
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx TransactionCtx, err error) {
 	return dm.db.BeginTx(ctx, dm.options)
 }
 
-func (dm *DatabaseManager) CommitTransaction(transactionCtx interface{}) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	return tx.Commit()
-}
-
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, id Identity) error {
+func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -153,28 +144,24 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, id Ident
 		"INSERT INTO %s (uid, public_key, auth) VALUES ($1, $2, $3);",
 		dm.tableName)
 
-	_, err := tx.Exec(query, &id.Uid, &id.PublicKeyPEM, &id.Auth)
-	if err != nil {
-		return err
-	}
+	_, err := tx.Exec(query, &i.Uid, &i.PublicKeyPEM, &i.Auth)
 
-	return nil
+	return err
 }
 
-func (dm *DatabaseManager) GetIdentity(uid uuid.UUID) (Identity, error) {
-	var id Identity
+func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*Identity, error) {
+	i := Identity{Uid: uid}
 
-	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
+	query := fmt.Sprintf(
+		"SELECT public_key, auth FROM %s WHERE uid = $1;",
+		dm.tableName)
 
-	err := dm.db.QueryRow(query, uid).Scan(&id.Uid, &id.PublicKeyPEM, &id.Auth)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return id, ErrNotExist
-		}
-		return id, err
+	err := dm.db.QueryRow(query, uid).Scan(&i.PublicKeyPEM, &i.Auth)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotExist
 	}
 
-	return id, nil
+	return &i, err
 }
 
 func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {
@@ -191,4 +178,33 @@ func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
 	}
 
 	return uid, nil
+}
+
+func (dm *DatabaseManager) StoreAuth(transactionCtx TransactionCtx, uid uuid.UUID, auth string) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET auth = $1 WHERE uid = $2;", dm.tableName)
+
+	_, err := tx.Exec(query, &auth, uid)
+
+	return err
+}
+
+func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid uuid.UUID) (auth string, err error) {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("SELECT auth FROM %s WHERE uid = $1 FOR UPDATE;", dm.tableName)
+
+	err = tx.QueryRow(query, uid).Scan(&auth)
+	if err == sql.ErrNoRows {
+		return "", ErrNotExist
+	}
+
+	return auth, err
 }
