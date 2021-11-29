@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	urlpkg "net/url"
 )
 
@@ -136,7 +135,7 @@ func (c *CertificateServerClient) getWithCertPinning(url string) ([]byte, error)
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if h.HttpFailed(resp.StatusCode) {
+	if HttpFailed(resp.StatusCode) {
 		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
 		return nil, fmt.Errorf("response: (%s) %s", resp.Status, string(respBodyBytes))
 	}
@@ -164,6 +163,14 @@ func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
 
 		return nil
 	}
+}
+
+func HttpSuccess(StatusCode int) bool {
+	return StatusCode >= 200 && StatusCode < 300
+}
+
+func HttpFailed(StatusCode int) bool {
+	return !HttpSuccess(StatusCode)
 }
 
 const (
