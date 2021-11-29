@@ -38,45 +38,40 @@ type IdentityHandler struct {
 	subjectOrganization string
 }
 
-func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth string, err error) {
-	err = i.Protocol.IsReady()
-	if err != nil {
-		return nil, "", err
-	}
-
+func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (auth string, csrPEM []byte, err error) {
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not check if identity is already initialized: %v", err)
+		return "", nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
 	}
 
 	if initialized {
-		return nil, "", h.ErrAlreadyInitialized
+		return "", nil, h.ErrAlreadyInitialized
 	}
 
 	keyExists, err := i.Crypto.PrivateKeyExists(uid)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to check for existence of private key: %v", err)
+		return "", nil, fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
 
 	if !keyExists {
-		return nil, "", h.ErrUnknown
+		return "", nil, h.ErrUnknown
 	}
 
 	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not generate CSR: %v", err)
+		return "", nil, fmt.Errorf("could not generate CSR: %v", err)
 	}
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
 	pubKeyPEM, err := i.Crypto.GetPublicKeyPEM(uid)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not get public key: %v", err)
+		return "", nil, fmt.Errorf("could not get public key: %v", err)
 	}
 
 	pw, err := generatePassword()
 	if err != nil {
-		return nil, "", err
+		return "", nil, err
 	}
 
 	identity := Identity{
@@ -90,28 +85,28 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 
 	tx, err := i.Protocol.StartTransaction(ctxForTransaction)
 	if err != nil {
-		return nil, "", err
+		return "", nil, err
 	}
 
 	err = i.Protocol.StoreIdentity(tx, identity)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not store new identity: %v", err)
+		return "", nil, fmt.Errorf("could not store new identity: %v", err)
 	}
 
 	err = i.RegisterAuth(uid, pw)
 	if err != nil {
-		return nil, "", err
+		return "", nil, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return nil, "", fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
+		return "", nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
 	}
 
 	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)
 	auditlogger.AuditLog("create", "device", infos)
 
-	return csrPEM, pw, nil
+	return pw, csrPEM, nil
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {

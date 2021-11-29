@@ -39,7 +39,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	csrPEM, auth, err := idHandler.InitIdentity(test.Uuid)
+	auth, csrPEM, err := idHandler.InitIdentity(test.Uuid)
 	if err != nil {
 		t.Fatal(err)
 	}
