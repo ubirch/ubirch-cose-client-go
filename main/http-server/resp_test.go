@@ -26,5 +26,5 @@ func TestSendResponse(t *testing.T) {
 	assert.Equal(t, resp.StatusCode, w.Code)
 	assert.Equal(t, TextType, w.Header().Get("Content-Type"))
 	assert.Equal(t, testAuth, w.Header().Get(AuthHeader))
-	assert.Equal(t, resp.Content, w.Body.Bytes())
+	assert.Equal(t, append(resp.Content, '\n'), w.Body.Bytes())
 }

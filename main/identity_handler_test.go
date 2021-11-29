@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
@@ -24,7 +25,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{}
+	conf := &config.Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -119,7 +120,7 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{}
+	conf := &config.Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -147,7 +148,7 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	conf := &Config{}
+	conf := &config.Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -180,7 +181,7 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{}
+	conf := &config.Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -213,7 +214,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conf := &Config{}
+	conf := &config.Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 
@@ -268,7 +269,7 @@ func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 		Keystore: &test.MockKeystorer{},
 	}
 
-	conf := &Config{}
+	conf := &config.Config{}
 
 	p := NewProtocol(&mockStorageMngr{}, conf)
 

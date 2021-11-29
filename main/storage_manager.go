@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 )
 
 var (
@@ -32,10 +33,11 @@ type TransactionCtx interface {
 	Rollback() error
 }
 
-func GetStorageManager(c *Config) (StorageManager, error) {
+func GetStorageManager(c *config.Config) (StorageManager, error) {
 	if len(c.PostgresDSN) != 0 {
-		return NewSqlDatabaseInfo(c.PostgresDSN, c.dbParams)
+		return NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
 	} else {
-		return nil, fmt.Errorf("file-based context management is not supported in the current version")
+		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
+			"Please set a postgres DSN in the configuration")
 	}
 }

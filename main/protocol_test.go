@@ -10,13 +10,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestProtocol(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	testIdentity := Identity{
 		Uid:          test.Uuid,
@@ -69,7 +70,7 @@ func TestProtocol(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	i := Identity{
 		Uid:          uuid.UUID{},
@@ -88,7 +89,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -107,7 +108,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilAuth(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -126,14 +127,14 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 }
 
 func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	_, err := p.GetUuidForPublicKey(make([]byte, 64))
 	assert.Error(t, err)
 }
 
 func TestExtendedProtocol_CheckAuth(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -161,7 +162,7 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -190,7 +191,7 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 
 func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 	storageMngr := &mockStorageMngr{}
-	p := NewProtocol(storageMngr, &Config{})
+	p := NewProtocol(storageMngr, &config.Config{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -220,7 +221,7 @@ func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
 	require.NoError(t, err)
@@ -230,7 +231,7 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 
 func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 	storageMngr := &mockStorageMngr{}
-	p := NewProtocol(storageMngr, &Config{KdMaxTotalMemMiB: pw.DefaultMemory, KdUpdateParams: true})
+	p := NewProtocol(storageMngr, &config.Config{KdMaxTotalMemMiB: pw.DefaultMemory, KdUpdateParams: true})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -269,7 +270,7 @@ func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	i := Identity{
 		Uid:          test.Uuid,
@@ -303,7 +304,7 @@ func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	p := NewProtocol(&mockStorageMngr{}, &Config{})
+	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	testIdentity := Identity{
 		Uid:          test.Uuid,
@@ -345,7 +346,7 @@ func TestProtocolLoad(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	p := NewProtocol(dm, &Config{})
+	p := NewProtocol(dm, &config.Config{})
 
 	// generate identities
 	var testIdentities []Identity

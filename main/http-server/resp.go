@@ -1,8 +1,9 @@
 package http_server
 
 import (
-	"github.com/google/uuid"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -13,13 +14,13 @@ type HTTPResponse struct {
 	Content    []byte      `json:"content"`
 }
 
-// SendResponse forwards response resp to client
+// SendResponse forwards a response to the client
 func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	for k, v := range resp.Header {
 		w.Header().Set(k, v[0])
 	}
 	w.WriteHeader(resp.StatusCode)
-	_, err := w.Write(resp.Content)
+	_, err := w.Write(append(resp.Content, '\n'))
 	if err != nil {
 		log.Errorf("unable to write response: %s", err)
 	}
@@ -36,21 +37,21 @@ func ErrorResponse(code int, message string) HTTPResponse {
 	}
 }
 
-// Healthz is a liveness probe.
-func Healthz(server string) http.HandlerFunc {
+// Health is a liveness probe.
+func Health(server string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Server", server)
 		w.Header().Set("Content-Type", TextType)
 		w.WriteHeader(http.StatusOK)
-		_, err := w.Write([]byte(http.StatusText(http.StatusOK)))
+		_, err := w.Write(append([]byte(http.StatusText(http.StatusOK)), '\n'))
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
 	}
 }
 
-// Readyz is a readiness probe.
-func Readyz(server string, readinessChecks []func() error) http.HandlerFunc {
+// Ready is a readiness probe.
+func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		status := http.StatusOK
 
@@ -65,7 +66,7 @@ func Readyz(server string, readinessChecks []func() error) http.HandlerFunc {
 		w.Header().Set("Server", server)
 		w.Header().Set("Content-Type", TextType)
 		w.WriteHeader(status)
-		_, err := w.Write([]byte(http.StatusText(status)))
+		_, err := w.Write(append([]byte(http.StatusText(status)), '\n'))
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}

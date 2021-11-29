@@ -42,9 +42,12 @@ type HTTPRequest struct {
 	Ctx     context.Context
 }
 
+type CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
+type Sign func(HTTPRequest) HTTPResponse
+
 type COSEService struct {
-	CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
-	Sign      func(HTTPRequest) h.HTTPResponse
+	CheckAuth
+	Sign
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)

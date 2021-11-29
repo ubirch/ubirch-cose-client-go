@@ -2,11 +2,13 @@ package main
 
 import (
 	"testing"
+
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 )
 
 func TestExtendedClient_RequestCertificateList(t *testing.T) {
-	conf := &Config{}
-	err := conf.loadServerTLSCertificates("demo_ubirch_tls_certs.json")
+	conf := &config.Config{}
+	err := conf.LoadServerTLSCertificates("demo_ubirch_tls_certs.json")
 	if err != nil {
 		t.Fatalf("loading TLS certificates failed: %v", err)
 	}
@@ -14,7 +16,7 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 	client := &CertificateServerClient{
 		CertificateServerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
 		CertificateServerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
-		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
+		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
 	}
 
 	certs, err := client.RequestCertificateList()

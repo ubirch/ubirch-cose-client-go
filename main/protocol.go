@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 
 	log "github.com/sirupsen/logrus"
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
@@ -39,7 +40,7 @@ type Protocol struct {
 	uidCache  *sync.Map // {<pub>: <uuid>}
 }
 
-func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
+func NewProtocol(storageManager StorageManager, conf *config.Config) *Protocol {
 	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
 		conf.KdParamKeyLen, conf.KdParamSaltLen)
 	params, _ := json.Marshal(argon2idParams)

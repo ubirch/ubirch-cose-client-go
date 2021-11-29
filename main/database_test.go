@@ -17,6 +17,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 )
 
 const (
@@ -147,7 +148,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(unreachableDSN, &DatabaseParams{})
+	dm, err := NewSqlDatabaseInfo(unreachableDSN, &config.DatabaseParams{})
 	require.NoError(t, err)
 	defer dm.Close()
 
@@ -162,7 +163,7 @@ func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
 	// use invalid DSN
 	c.PostgresDSN = "this is not a DSN"
 
-	_, err = NewSqlDatabaseInfo(c.PostgresDSN, c.dbParams)
+	_, err = NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
 	if err == nil {
 		t.Fatal("no error returned for invalid DSN")
 	}
@@ -250,9 +251,9 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 	c, err := getDatabaseConfig()
 	require.NoError(t, err)
 
-	c.dbParams.MaxOpenConns = 1
+	c.DbParams.MaxOpenConns = 1
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.dbParams)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -349,9 +350,9 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getDatabaseConfig()
 	require.NoError(t, err)
 
-	c.dbParams.MaxOpenConns = 101
+	c.DbParams.MaxOpenConns = 101
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.dbParams)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -379,7 +380,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	wg.Wait()
 }
 
-func getDatabaseConfig() (*Config, error) {
+func getDatabaseConfig() (*config.Config, error) {
 	configFileName := "config_test.json"
 	fileHandle, err := os.Open(configFileName)
 	if os.IsNotExist(err) {
@@ -396,7 +397,7 @@ func getDatabaseConfig() (*Config, error) {
 		return nil, err
 	}
 
-	c := &Config{}
+	c := &config.Config{}
 	err = json.NewDecoder(fileHandle).Decode(c)
 	if err != nil {
 		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
@@ -410,7 +411,7 @@ func getDatabaseConfig() (*Config, error) {
 		return nil, err
 	}
 
-	err = c.setDbParams()
+	err = c.SetDbParams()
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +425,7 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.dbParams)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
 	if err != nil {
 		return nil, err
 	}

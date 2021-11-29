@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -56,19 +57,12 @@ type DatabaseManager struct {
 	db      *sql.DB
 }
 
-type DatabaseParams struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	ConnMaxIdleTime time.Duration
-}
-
 // Ensure Database implements the StorageManager interface
 var _ StorageManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName string, dbParams *DatabaseParams) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(dataSourceName string, dbParams *config.DatabaseParams) (*DatabaseManager, error) {
 	log.Infof("preparing postgres usage")
 
 	pg, err := sql.Open(PostgreSql, dataSourceName)
