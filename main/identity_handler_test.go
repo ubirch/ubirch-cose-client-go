@@ -12,15 +12,14 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestIdentityHandler_InitIdentity(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
+		Keystore: &MockKeystorer{},
 	}
 
-	err := cryptoCtx.GenerateKey(test.Uuid)
+	err := cryptoCtx.GenerateKey(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +38,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	auth, csrPEM, err := idHandler.InitIdentity(test.Uuid)
+	auth, csrPEM, err := idHandler.InitIdentity(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,12 +56,12 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Error(err)
 	}
 
-	initializedIdentity, err := p.LoadIdentity(test.Uuid)
+	initializedIdentity, err := p.LoadIdentity(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pub, err := cryptoCtx.GetPublicKeyPEM(test.Uuid)
+	pub, err := cryptoCtx.GetPublicKeyPEM(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,12 +94,12 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 
 	data := []byte("test")
 
-	signature, err := cryptoCtx.Sign(test.Uuid, data)
+	signature, err := cryptoCtx.Sign(testUuid, data)
 	if err != nil {
 		t.Fatalf("signing failed: %v", err)
 	}
 
-	verified, err := cryptoCtx.Verify(test.Uuid, data, signature)
+	verified, err := cryptoCtx.Verify(testUuid, data, signature)
 	if err != nil {
 		t.Fatalf("verification failed: %v", err)
 	}
@@ -112,10 +111,10 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 
 func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
+		Keystore: &MockKeystorer{},
 	}
 
-	err := cryptoCtx.GenerateKey(test.Uuid)
+	err := cryptoCtx.GenerateKey(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,12 +131,12 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(test.Uuid)
+	_, _, err = idHandler.InitIdentity(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, _, err = idHandler.InitIdentity(test.Uuid)
+	_, _, err = idHandler.InitIdentity(testUuid)
 	if err != h.ErrAlreadyInitialized {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrAlreadyInitialized)
 	}
@@ -145,7 +144,7 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 
 func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
+		Keystore: &MockKeystorer{},
 	}
 
 	conf := &config.Config{}
@@ -160,12 +159,12 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err := idHandler.InitIdentity(test.Uuid)
+	_, _, err := idHandler.InitIdentity(testUuid)
 	if err != h.ErrUnknown {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}
 
-	_, err = p.LoadIdentity(test.Uuid)
+	_, err = p.LoadIdentity(testUuid)
 	if err != ErrNotExist {
 		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
 	}
@@ -173,10 +172,10 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 
 func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
+		Keystore: &MockKeystorer{},
 	}
 
-	err := cryptoCtx.GenerateKey(test.Uuid)
+	err := cryptoCtx.GenerateKey(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,12 +192,12 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(test.Uuid)
-	if err != test.Error {
-		t.Errorf("unexpected error: %v, expected: %v", err, test.Error)
+	_, _, err = idHandler.InitIdentity(testUuid)
+	if err != testError {
+		t.Errorf("unexpected error: %v, expected: %v", err, testError)
 	}
 
-	_, err = p.LoadIdentity(test.Uuid)
+	_, err = p.LoadIdentity(testUuid)
 	if err != ErrNotExist {
 		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
 	}
@@ -206,10 +205,10 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 
 func TestIdentityHandler_CreateCSR(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
+		Keystore: &MockKeystorer{},
 	}
 
-	err := cryptoCtx.GenerateKey(test.Uuid)
+	err := cryptoCtx.GenerateKey(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,12 +225,12 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(test.Uuid)
+	_, _, err = idHandler.InitIdentity(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	csrPEM, err := idHandler.CreateCSR(test.Uuid)
+	csrPEM, err := idHandler.CreateCSR(testUuid)
 	if err != nil {
 		t.Error(err)
 	}
@@ -249,7 +248,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		t.Error(err)
 	}
 
-	initializedIdentity, err := p.LoadIdentity(test.Uuid)
+	initializedIdentity, err := p.LoadIdentity(testUuid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +265,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 
 func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &test.MockKeystorer{},
+		Keystore: &MockKeystorer{},
 	}
 
 	conf := &config.Config{}
@@ -280,7 +279,7 @@ func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err := idHandler.CreateCSR(test.Uuid)
+	_, err := idHandler.CreateCSR(testUuid)
 	if err != h.ErrUnknown {
 		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
 	}
@@ -296,5 +295,5 @@ func (m *mockRegistrationClient) registerAuth(uid uuid.UUID, auth string) error 
 }
 
 func (m *mockRegistrationClient) registerAuthBad(uuid.UUID, string) error {
-	return test.Error
+	return testError
 }
