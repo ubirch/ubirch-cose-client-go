@@ -12,11 +12,11 @@ func RecordCPUProfile(filename string) *os.File {
 
 	f, err := os.Create(filename)
 	if err != nil {
-		log.Fatal("could not create CPU profile file: %s", err)
+		log.Errorf("could not create CPU profile file: %s", err)
 	}
 
 	if err := pprof.StartCPUProfile(f); err != nil {
-		log.Fatal("could not start CPU profile: %s", err)
+		log.Errorf("could not start CPU profile: %s", err)
 	}
 
 	return f

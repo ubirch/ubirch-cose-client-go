@@ -13,7 +13,7 @@ func RecordBlockProfile(filename string) *os.File {
 
 	f, err := os.Create(filename)
 	if err != nil {
-		log.Fatal("could not create blocking profile file: %v", err)
+		log.Errorf("could not create blocking profile file: %v", err)
 	}
 
 	runtime.SetBlockProfileRate(1)
