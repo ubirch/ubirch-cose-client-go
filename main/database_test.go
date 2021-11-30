@@ -9,19 +9,19 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 )
 
 const (
-	testTableName = "test_cose_identity"
-	testLoad      = 100
+	testLoad = 100
 )
 
 func TestDatabaseManager(t *testing.T) {
@@ -134,12 +134,21 @@ func TestDatabaseManager_StoreAuth(t *testing.T) {
 	assert.Equal(t, base64.StdEncoding.EncodeToString(newAuth), auth)
 }
 
+func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	err = dm.IsReady()
+	require.NoError(t, err)
+}
+
 func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	// use DSN that is valid, but not reachable
 	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(unreachableDSN, testTableName, &DatabaseParams{})
+	dm, err := NewSqlDatabaseInfo(unreachableDSN, &config.DatabaseParams{})
 	require.NoError(t, err)
 	defer dm.Close()
 
@@ -154,13 +163,11 @@ func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
 	// use invalid DSN
 	c.PostgresDSN = "this is not a DSN"
 
-	_, err = NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
-	if err == nil {
-		t.Fatal("no error returned for invalid DSN")
-	}
+	_, err = NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
+	assert.Errorf(t, err, "no error returned for invalid DSN")
 }
 
-func TestDatabaseManager_IsReady(t *testing.T) {
+func TestDatabaseManager_CreateTableAsErrorHandling(t *testing.T) {
 	c, err := getDatabaseConfig()
 	require.NoError(t, err)
 
@@ -172,21 +179,9 @@ func TestDatabaseManager_IsReady(t *testing.T) {
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
-		db:        pg,
-		tableName: testTableName,
+		db: pg,
 	}
 	defer cleanUpDB(t, dm)
-
-	// table does not exist yet
-	tableDoesNotExistError := fmt.Sprintf("relation \"%s\" does not exist", dm.tableName)
-
-	_, err = dm.LoadIdentity(uuid.New())
-	if err == nil || !strings.Contains(err.Error(), tableDoesNotExistError) {
-		t.Fatalf("unexpected error: %v, expected: %v", err, tableDoesNotExistError)
-	}
-
-	err = dm.IsReady()
-	require.NoError(t, err)
 
 	_, err = dm.LoadIdentity(uuid.New())
 	assert.Equal(t, ErrNotExist, err)
@@ -247,6 +242,46 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 	assert.Equal(t, ErrNotExist, err)
 }
 
+func TestDatabaseManager_StartTransaction(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	c, err := getDatabaseConfig()
+	require.NoError(t, err)
+
+	c.DbParams.MaxOpenConns = 1
+
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, tx)
+
+	tx2, err := dm.StartTransaction(ctx)
+	assert.EqualError(t, err, "context deadline exceeded")
+	assert.Nil(t, tx2)
+}
+
+func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	i := Identity{}
+	mockCtx := &mockTx{}
+
+	err = dm.StoreIdentity(mockCtx, i)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	err = dm.StoreAuth(mockCtx, i.Uid, "")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	_, err = dm.LoadAuthForUpdate(mockCtx, i.Uid)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+}
+
 func TestDatabaseLoad(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
@@ -264,9 +299,11 @@ func TestDatabaseLoad(t *testing.T) {
 	for _, testId := range testIdentities {
 		wg.Add(1)
 		go func(i Identity) {
-			err := storeIdentity(dm, i, wg)
+			defer wg.Done()
+
+			err := storeIdentity(dm, i)
 			if err != nil {
-				t.Errorf("%s: identity could not be stored: %v", i.Uid, err)
+				t.Errorf("%s: %v", i.Uid, err)
 			}
 		}(testId)
 	}
@@ -276,7 +313,9 @@ func TestDatabaseLoad(t *testing.T) {
 	for _, testId := range testIdentities {
 		wg.Add(1)
 		go func(i Identity) {
-			err := checkIdentity(dm, i, dbCheckAuth, wg)
+			defer wg.Done()
+
+			err := checkIdentity(dm, i, dbCheckAuth)
 			if err != nil {
 				t.Errorf("%s: %v", i.Uid, err)
 			}
@@ -290,20 +329,66 @@ func TestDatabaseLoad(t *testing.T) {
 	//}
 }
 
-type dbConfig struct {
-	PostgresDSN string
-	dbParams    *DatabaseParams
+func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
+	c, err := getDatabaseConfig()
+	require.NoError(t, err)
+
+	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
+	require.NoError(t, err)
+
+	dm := &DatabaseManager{
+		options: &sql.TxOptions{},
+		db:      pg,
+	}
+
+	_, err = dm.LoadIdentity(uuid.New())
+	assert.Equal(t, ErrNotExist, err)
 }
 
-func getDatabaseConfig() (*dbConfig, error) {
-	configFileName := "config.json"
+func TestDatabaseManager_Retry(t *testing.T) {
+	c, err := getDatabaseConfig()
+	require.NoError(t, err)
+
+	c.DbParams.MaxOpenConns = 101
+
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	wg := &sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for i := 0; i < 101; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			_, err := dm.StartTransaction(ctx)
+			if err != nil {
+				if pqErr, ok := err.(*pq.Error); ok {
+					switch pqErr.Code {
+					case "55P03", "53300", "53400":
+						return
+					}
+				}
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func getDatabaseConfig() (*config.Config, error) {
+	configFileName := "config_test.json"
 	fileHandle, err := os.Open(configFileName)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("%v \n"+
 			"--------------------------------------------------------------------------------\n"+
-			"Please provide a configuration file \"%s\" which contains a DSN for\n"+
-			"a postgres database in order to test the database connection.\n"+
-			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<database>\"\n}\n"+
+			"Please provide a configuration file \"%s\" in the main directory which contains\n"+
+			"a DSN for a postgres database in order to test the database context management.\n\n"+
+			"!!! THIS MUST BE DIFFERENT FROM THE DSN USED FOR THE ACTUAL CONTEXT !!!\n\n"+
+			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<TEST-database>\"\n}\n"+
 			"--------------------------------------------------------------------------------",
 			err, configFileName)
 	}
@@ -311,7 +396,7 @@ func getDatabaseConfig() (*dbConfig, error) {
 		return nil, err
 	}
 
-	c := &dbConfig{}
+	c := &config.Config{}
 	err = json.NewDecoder(fileHandle).Decode(c)
 	if err != nil {
 		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
@@ -325,11 +410,9 @@ func getDatabaseConfig() (*dbConfig, error) {
 		return nil, err
 	}
 
-	c.dbParams = &DatabaseParams{
-		MaxOpenConns:    10,
-		MaxIdleConns:    5,
-		ConnMaxLifetime: 2 * time.Minute,
-		ConnMaxIdleTime: 1 * time.Minute,
+	err = c.SetDbParams()
+	if err != nil {
+		return nil, err
 	}
 
 	return c, nil
@@ -341,12 +424,7 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.dbParams)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +433,7 @@ func initDB() (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t *testing.T, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", testTableName)
+	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", PostgreSqlIdentityTableName)
 	_, err := dm.db.Exec(dropTableQuery)
 	assert.NoError(t, err)
 
@@ -376,9 +454,7 @@ func generateRandomIdentity() Identity {
 	}
 }
 
-func storeIdentity(storageMngr StorageManager, id Identity, wg *sync.WaitGroup) error {
-	defer wg.Done()
-
+func storeIdentity(storageMngr StorageManager, id Identity) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -408,9 +484,7 @@ func dbCheckAuth(auth, authToCheck string) error {
 	return nil
 }
 
-func checkIdentity(storageMngr StorageManager, id Identity, checkAuth func(string, string) error, wg *sync.WaitGroup) error {
-	defer wg.Done()
-
+func checkIdentity(storageMngr StorageManager, id Identity, checkAuth func(string, string) error) error {
 	idFromCtx, err := storageMngr.LoadIdentity(id.Uid)
 	if err != nil {
 		return fmt.Errorf("LoadIdentity: %v", err)

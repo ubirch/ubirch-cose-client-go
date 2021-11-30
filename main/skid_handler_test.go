@@ -4,16 +4,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 const numberOfValidCerts = 4
@@ -22,67 +22,64 @@ func TestNewSkidHandler(t *testing.T) {
 	c := &ubirch.ECDSACryptoContext{}
 
 	p := &Protocol{
-		StorageManager: &mockStorageMngr{},
-
-		authCache: &sync.Map{},
-		uidCache:  &sync.Map{},
+		uuidCache: &sync.Map{},
 	}
 
 	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
 
-	if len(s.skidStore) != numberOfValidCerts {
-		t.Errorf("loading SKIDs failed: len=%d, expected: %d", len(s.skidStore), numberOfValidCerts)
-	}
-
-	if s.maxCertLoadFailCount != 3 {
-		t.Errorf("wrong interval set: %d, expected: 3", s.maxCertLoadFailCount)
-	}
-
-	if s.certLoadFailCounter != 0 {
-		t.Errorf("s.certLoadFailCounter != 0: is %d", s.certLoadFailCounter)
-	}
-
-	if s.certLoadInterval != time.Hour {
-		t.Errorf("wrong interval set: %s, expected: %s", s.certLoadInterval, time.Hour)
-	}
-
-	// check for unknown uuid
-	_, err := s.GetSKID(uuid.New())
-	if err == nil {
-		t.Error("GetSKID did not return error for unknown UUID")
-	}
+	assert.Equal(t, 3, s.maxCertLoadFailCount)
+	assert.Equal(t, 0, s.certLoadFailCounter)
+	assert.Equal(t, time.Hour, s.certLoadInterval)
+	assert.Equal(t, numberOfValidCerts, len(s.skidStore))
 }
 
 func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
 	c := &ubirch.ECDSACryptoContext{}
 
+	p := &Protocol{
+		uuidCache: &sync.Map{},
+	}
+
+	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, true)
+
+	assert.Equal(t, 60, s.maxCertLoadFailCount)
+	assert.Equal(t, 0, s.certLoadFailCounter)
+	assert.Equal(t, time.Minute, s.certLoadInterval)
+	assert.Equal(t, numberOfValidCerts, len(s.skidStore))
+
+	// the following lines test the scheduler to trigger the loadSKIDs method after one minute
+	// since the execution of this test takes over a minute it is commented out
+	//certs = certs[1:]
+	//
+	//time.Sleep(s.certLoadInterval + time.Second)
+	//
+	//assert.Equal(t, numberOfValidCerts-1, len(s.skidStore))
+	//
+	//// reset cert list
+	//certs = []Certificate{}
+}
+
+func TestNewSkidHandler_GetUuidFindsNothing(t *testing.T) {
+	c := &ubirch.ECDSACryptoContext{}
+
 	s := NewSkidHandler(mockGetCertificateList, mockGetUuidFindsNothing, c.EncodePublicKey, true)
 
-	if len(s.skidStore) != 0 {
-		t.Errorf("SKIDs were loaded with mockGetUuidFindsNothing")
-	}
+	assert.Empty(t, s.skidStore)
+}
 
-	if s.maxCertLoadFailCount != 60 {
-		t.Errorf("wrong interval set: %d, expected: 60", s.maxCertLoadFailCount)
-	}
+func TestSkidHandler_GetUuidReturnsError(t *testing.T) {
+	c := &ubirch.ECDSACryptoContext{}
 
-	if s.certLoadFailCounter != 0 {
-		t.Errorf("s.certLoadFailCounter != 0: is %d", s.certLoadFailCounter)
-	}
+	s := NewSkidHandler(mockGetCertificateList, mockGetUuidReturnsError, c.EncodePublicKey, true)
 
-	if s.certLoadInterval != time.Minute {
-		t.Errorf("wrong interval set: %s, expected: %s", s.certLoadInterval, time.Minute)
-	}
+	assert.Empty(t, s.skidStore)
 }
 
 func TestSkidHandler_LoadSKIDs(t *testing.T) {
 	c := &ubirch.ECDSACryptoContext{}
 
 	p := &Protocol{
-		StorageManager: &mockStorageMngr{},
-
-		authCache: &sync.Map{},
-		uidCache:  &sync.Map{},
+		uuidCache: &sync.Map{},
 	}
 
 	s := &SkidHandler{
@@ -92,20 +89,23 @@ func TestSkidHandler_LoadSKIDs(t *testing.T) {
 		certLoadFailCounter:  0,
 		maxCertLoadFailCount: 3,
 
-		getCerts:  mockGetCertificateListReturnsFewerCertsAfterFirstCall,
+		getCerts:  mockGetCertificateList,
 		getUuid:   p.mockGetUuidForPublicKey,
 		encPubKey: c.EncodePublicKey,
 	}
 
 	s.loadSKIDs()
 
-	len1 := len(s.skidStore)
+	assert.Equal(t, numberOfValidCerts, len(s.skidStore))
+
+	certs = certs[1:]
 
 	s.loadSKIDs()
 
-	if len(s.skidStore) == len1 {
-		t.Errorf("SKIDs were not overwritten")
-	}
+	assert.Equal(t, numberOfValidCerts-1, len(s.skidStore))
+
+	// reset cert list
+	certs = []Certificate{}
 }
 
 func TestSkidHandler_LoadSKIDs_BadGetCertificateList(t *testing.T) {
@@ -116,13 +116,13 @@ func TestSkidHandler_LoadSKIDs_BadGetCertificateList(t *testing.T) {
 		certLoadFailCounter:  0,
 		maxCertLoadFailCount: 3,
 
-		getCerts: mockBadGetCertificateList,
+		getCerts: mockGetCertificateListBad,
 	}
 
 	s.loadSKIDs()
 
 	if len(s.skidStore) != 0 {
-		t.Errorf("SKIDs were loaded with mockBadGetCertificateList")
+		t.Errorf("SKIDs were loaded with mockGetCertificateListBad")
 	}
 
 	if s.certLoadFailCounter != 1 {
@@ -138,7 +138,7 @@ func TestSkidHandler_LoadSKIDs_BadGetCertificateList_MaxCertLoadFailCount(t *tes
 		certLoadFailCounter:  0,
 		maxCertLoadFailCount: 3,
 
-		getCerts: mockBadGetCertificateList,
+		getCerts: mockGetCertificateListBad,
 	}
 
 	testSkidStoreLen := 2
@@ -167,10 +167,7 @@ func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
 	c := &ubirch.ECDSACryptoContext{}
 
 	p := &Protocol{
-		StorageManager: &mockStorageMngr{},
-
-		authCache: &sync.Map{},
-		uidCache:  &sync.Map{},
+		uuidCache: &sync.Map{},
 	}
 
 	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
@@ -178,6 +175,37 @@ func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
 	require.False(t, containsSKID(s.skidStore, "DPMxfW4lzOE="))
 	require.False(t, containsSKID(s.skidStore, "xOdxdmCwzas="))
 	require.False(t, containsSKID(s.skidStore, "icUT/qzCb4M="))
+}
+
+func TestSkidHandler_GetSKID(t *testing.T) {
+	s := SkidHandler{
+		skidStore:      map[uuid.UUID][]byte{},
+		skidStoreMutex: &sync.RWMutex{},
+	}
+
+	for i := 0; i < 100; i++ {
+		randSKID := make([]byte, 8)
+		rand.Read(randSKID)
+		s.skidStore[uuid.New()] = randSKID
+	}
+
+	wg := &sync.WaitGroup{}
+
+	for uid, skid := range s.skidStore {
+		wg.Add(1)
+		go func(uid uuid.UUID, skid []byte, wg *sync.WaitGroup) {
+			defer wg.Done()
+			storedSKID, err := s.GetSKID(uid)
+			require.NoError(t, err)
+			assert.Equal(t, skid, storedSKID)
+		}(uid, skid, wg)
+	}
+
+	wg.Wait()
+
+	// check for unknown uuid
+	_, err := s.GetSKID(uuid.New())
+	assert.Error(t, err)
 }
 
 func containsSKID(m map[uuid.UUID][]byte, v string) bool {
@@ -216,32 +244,22 @@ func mockGetCertificateList() ([]Certificate, error) {
 	return certs, nil
 }
 
-var alreadyCalled bool
-
-func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, error) {
-	if !alreadyCalled {
-		alreadyCalled = true
-		return mockGetCertificateList()
-	} else {
-		if len(certs) > 0 {
-			return certs[:1], nil
-		}
-		return certs, nil
-	}
-}
-
-func mockBadGetCertificateList() ([]Certificate, error) {
-	return nil, test.Error
+func mockGetCertificateListBad() ([]Certificate, error) {
+	return nil, testError
 }
 
 func mockGetUuidFindsNothing([]byte) (uuid.UUID, error) {
 	return uuid.Nil, ErrNotExist
 }
 
+func mockGetUuidReturnsError([]byte) (uuid.UUID, error) {
+	return uuid.Nil, testError
+}
+
 func (p *Protocol) mockGetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
 	pubKeyID := getPubKeyID(publicKeyPEM)
 
-	_uid, found := p.uidCache.Load(pubKeyID)
+	_uid, found := p.uuidCache.Load(pubKeyID)
 
 	if found {
 		uid, found = _uid.(uuid.UUID)
@@ -249,7 +267,7 @@ func (p *Protocol) mockGetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, 
 
 	if !found {
 		uid = uuid.New()
-		p.uidCache.Store(pubKeyID, uid)
+		p.uuidCache.Store(pubKeyID, uid)
 	}
 
 	return uid, nil

@@ -106,7 +106,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	}, nil
 }
 
-func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
+func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	log.Debugf("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	skid, err := c.GetSKID(msg.ID)
@@ -132,7 +132,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) h.HTTPResponse {
 	}
 }
 
-func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash Sha256Sum, kid, payload []byte) ([]byte, error) {
+func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum, kid, payload []byte) ([]byte, error) {
 	signature, err := c.getSignature(ctx, uid, hash)
 	if err != nil {
 		return nil, err
@@ -141,7 +141,7 @@ func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash S
 	return c.getCOSE(kid, payload, signature)
 }
 
-func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash Sha256Sum) ([]byte, error) {
+func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum) ([]byte, error) {
 	timerWait := prometheus.NewTimer(prom.SignatureCreationWithWaitDuration)
 	defer timerWait.ObserveDuration()
 

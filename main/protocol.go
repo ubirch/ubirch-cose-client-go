@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 
 	log "github.com/sirupsen/logrus"
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
@@ -36,10 +37,10 @@ type Protocol struct {
 	StorageManager
 	pwHasher  *pw.Argon2idKeyDerivator
 	authCache *sync.Map // {<uid>: <auth>}
-	uidCache  *sync.Map // {<pub>: <uuid>}
+	uuidCache *sync.Map // {<pub>: <uuid>}
 }
 
-func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
+func NewProtocol(storageManager StorageManager, conf *config.Config) *Protocol {
 	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
 		conf.KdParamKeyLen, conf.KdParamSaltLen)
 	params, _ := json.Marshal(argon2idParams)
@@ -55,7 +56,7 @@ func NewProtocol(storageManager StorageManager, conf *Config) *Protocol {
 		StorageManager: storageManager,
 		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB, argon2idParams, conf.KdUpdateParams),
 		authCache:      &sync.Map{},
-		uidCache:       &sync.Map{},
+		uuidCache:      &sync.Map{},
 	}
 }
 
@@ -91,7 +92,7 @@ func (p *Protocol) LoadIdentity(uid uuid.UUID) (i *Identity, err error) {
 func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
 	pubKeyID := getPubKeyID(publicKeyPEM)
 
-	_uid, found := p.uidCache.Load(pubKeyID)
+	_uid, found := p.uuidCache.Load(pubKeyID)
 
 	if found {
 		uid, found = _uid.(uuid.UUID)
@@ -103,7 +104,7 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 			return uuid.Nil, err
 		}
 
-		p.uidCache.Store(pubKeyID, uid)
+		p.uuidCache.Store(pubKeyID, uid)
 	}
 
 	return uid, nil

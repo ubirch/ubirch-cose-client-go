@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"path"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/go-chi/cors"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 
 	log "github.com/sirupsen/logrus"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
@@ -22,11 +25,14 @@ const (
 	WriteTimeout    = 60 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
 	IdleTimeout     = 60 * time.Second // time to wait for the next request when keep-alives are enabled
 
-	UUIDKey          = "uuid"
-	CBORPath         = "/cbor"
-	HashEndpoint     = "/hash"
-	RegisterEndpoint = "/register"
-	CSREndpoint      = "/csr"
+	UUIDKey                = "uuid"
+	CBORPath               = "/cbor"
+	HashEndpoint           = "/hash"
+	RegisterEndpoint       = "/register"
+	CSREndpoint            = "/csr"
+	MetricsEndpoint        = "/metrics"
+	LivenessCheckEndpoint  = "/healthz"
+	ReadinessCheckEndpoint = "/readyz"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
@@ -47,9 +53,7 @@ type ServerEndpoint struct {
 	Service
 }
 
-func (*ServerEndpoint) HandleOptions(http.ResponseWriter, *http.Request) {
-	return
-}
+func (*ServerEndpoint) HandleOptions(http.ResponseWriter, *http.Request) {}
 
 type HTTPServer struct {
 	Router   *chi.Mux
@@ -67,29 +71,53 @@ func NewRouter(limit, backlogLimit int) *chi.Mux {
 	return router
 }
 
-func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
-	srv.Router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   allowedOrigins,
-		AllowedMethods:   []string{"POST", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
-		ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
-		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
-		Debug:            debug,
-	}))
+func InitHTTPServer(conf *config.Config,
+	checkAuth CheckAuth, sign Sign,
+	initialize InitializeIdentity, getCSR GetCSR,
+	getCBORFromJSON GetCBORFromJSON, getSigStructBytes GetSigStructBytes,
+	serverID string, readinessChecks []func() error) *HTTPServer {
+
+	httpServer := &HTTPServer{
+		Router:   NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
+
+	signingService := &COSEService{
+		CheckAuth: checkAuth,
+		Sign:      sign,
+	}
+
+	// set up metrics
+	httpServer.Router.Method(http.MethodGet, MetricsEndpoint, prom.Handler())
+
+	// set up endpoint for identity registration
+	httpServer.Router.Put(RegisterEndpoint, Register(conf.RegisterAuth, initialize))
+
+	// set up endpoint for CSRs
+	fetchCSREndpoint := path.Join(UUIDPath, CSREndpoint) // /<uuid>/csr
+	httpServer.Router.Get(fetchCSREndpoint, FetchCSR(conf.RegisterAuth, GetUUIDFromRequest, getCSR))
+
+	// set up endpoints for COSE signing (UUID as URL parameter)
+	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
+	httpServer.Router.Post(directUuidEndpoint, signingService.HandleRequest(GetUUIDFromRequest, GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
+
+	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
+	httpServer.Router.Post(directUuidHashEndpoint, signingService.HandleRequest(GetUUIDFromRequest, GetHashFromHashRequest()))
+
+	// set up endpoints for liveness and readiness checks
+	httpServer.Router.Get(LivenessCheckEndpoint, Health(serverID))
+	httpServer.Router.Get(ReadinessCheckEndpoint, Ready(serverID, readinessChecks))
+
+	return httpServer
 }
 
-func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
+func (srv *HTTPServer) Serve() error {
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	go shutdown(cancel)
 
-	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
-	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
-
-	srv.Router.Options(endpoint.Path, endpoint.HandleOptions)
-	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
-}
-
-func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
 	server := &http.Server{
 		Addr:         srv.Addr,
 		Handler:      srv.Router,
@@ -97,13 +125,15 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
 		WriteTimeout: WriteTimeout,
 		IdleTimeout:  IdleTimeout,
 	}
+
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	go func() {
 		<-cancelCtx.Done()
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
-		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, ShutdownTimeout)
+		shutdownWithTimeoutCtx, shutdownWithTimeoutCancel := context.WithTimeout(shutdownCtx, ShutdownTimeout)
+		defer shutdownWithTimeoutCancel()
 		defer shutdownCancel()
 
 		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {
@@ -128,4 +158,17 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
 	// wait for server to shut down gracefully
 	<-shutdownCtx.Done()
 	return nil
+}
+
+// shutdown handles graceful shutdown of the server when SIGINT or SIGTERM is received
+func shutdown(cancel context.CancelFunc) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+	// block until we receive a SIGINT or SIGTERM
+	sig := <-signals
+	log.Infof("shutting down after receiving: %v", sig)
+
+	// cancel the contexts
+	cancel()
 }

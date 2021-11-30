@@ -2,42 +2,31 @@ package main
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 )
 
 func TestGetStorageManagerDB(t *testing.T) {
-	dbConf, err := getDatabaseConfig()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	conf := &Config{
-		PostgresDSN: dbConf.PostgresDSN,
-		dbParams:    dbConf.dbParams,
-	}
+	conf, err := getDatabaseConfig()
+	require.NoError(t, err)
 
 	storageMngr, err := GetStorageManager(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	_, ok := storageMngr.(*DatabaseManager)
-	if !ok {
-		t.Error("unexpected StorageManager type")
-	}
+	assert.Truef(t, ok, "unexpected StorageManager type")
 
 	storageMngr.Close()
 }
 
 func TestGetStorageManagerFile(t *testing.T) {
-	conf := &Config{}
+	conf := &config.Config{}
 
 	expectedErr := "file-based context management is not supported in the current version"
 
 	_, err := GetStorageManager(conf)
-	if err == nil {
-		t.Fatalf("GetStorageManager did not return expected error for file manager initialization: %s", expectedErr)
-	}
-	if err.Error() != expectedErr {
-		t.Error(err)
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), expectedErr)
 }

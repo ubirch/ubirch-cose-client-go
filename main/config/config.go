@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package config
 
 import (
 	"crypto/sha256"
@@ -92,8 +92,15 @@ type Config struct {
 	KdUpdateParams            bool   `json:"kdUpdateParams" envconfig:"KD_UPDATE_PARAMS"`                   // update key derivation parameters of already existing password hashes
 	RequestLimit              int    `json:"requestLimit" envconfig:"REQUEST_LIMIT"`                        // limits number of currently processed (incoming) requests at a time
 	RequestBacklogLimit       int    `json:"requestBacklogLimit" envconfig:"REQUEST_BACKLOG_LIMIT"`         // backlog for holding a finite number of pending requests
-	serverTLSCertFingerprints map[string][32]byte
-	dbParams                  *DatabaseParams
+	ServerTLSCertFingerprints map[string][32]byte
+	DbParams                  *DatabaseParams
+}
+
+type DatabaseParams struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -122,7 +129,7 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	err = c.loadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env)))
+	err = c.LoadServerTLSCertificates(filepath.Join(configDir, fmt.Sprintf(tlsCertsFileName, c.Env)))
 	if err != nil {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
@@ -132,7 +139,7 @@ func (c *Config) Load(configDir, filename string) error {
 	c.setDefaultTLS(configDir)
 	c.setDefaultRequestLimits()
 	c.setKeyDerivationParams()
-	return c.setDbParams()
+	return c.SetDbParams()
 }
 
 // loadEnv reads the configuration from environment variables
@@ -163,27 +170,27 @@ func (c *Config) loadFile(filename string) error {
 
 func (c *Config) checkMandatory() error {
 	if len(c.RegisterAuth) == 0 {
-		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
+		return fmt.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
 	}
 
 	if len(c.CertificateServer) == 0 {
-		return fmt.Errorf("missing 'certificateServer' in configuration")
+		return fmt.Errorf("missing 'certificateServer' / 'UBIRCH_CERTIFICATE_SERVER' in configuration")
 	}
 
 	if len(c.CertificateServerPubKey) == 0 {
-		return fmt.Errorf("missing 'certificateServerPubKey' in configuration")
+		return fmt.Errorf("missing 'certificateServerPubKey' / 'UBIRCH_CERTIFICATE_SERVER_PUBKEY' in configuration")
 	}
 
 	if len(c.CertifyApiUrl) == 0 {
-		return fmt.Errorf("missing 'certifyApiUrl' in configuration")
+		return fmt.Errorf("missing 'certifyApiUrl' / 'UBIRCH_CERTIFY_API_URL' in configuration")
 	}
 
 	if len(c.CertifyApiAuth) == 0 {
-		return fmt.Errorf("missing 'certifyApiAuth' in configuration")
+		return fmt.Errorf("missing 'certifyApiAuth' / 'UBIRCH_CERTIFY_API_AUTH' in configuration")
 	}
 
 	if len(c.PKCS11ModulePin) == 0 {
-		return fmt.Errorf("missing 'pkcs11ModulePin / UBIRCH_PKCS11_MODULE_PIN' in configuration")
+		return fmt.Errorf("missing 'pkcs11ModulePin' / 'UBIRCH_PKCS11_MODULE_PIN' in configuration")
 	}
 
 	if len(c.Env) == 0 {
@@ -268,53 +275,53 @@ func (c *Config) setKeyDerivationParams() {
 	}
 }
 
-func (c *Config) setDbParams() error {
-	c.dbParams = &DatabaseParams{}
+func (c *Config) SetDbParams() error {
+	c.DbParams = &DatabaseParams{}
 
 	if c.DbMaxOpenConns == "" {
-		c.dbParams.MaxOpenConns = defaultDbMaxOpenConns
+		c.DbParams.MaxOpenConns = defaultDbMaxOpenConns
 	} else {
 		i, err := strconv.Atoi(c.DbMaxOpenConns)
 		if err != nil {
 			return fmt.Errorf("failed to set DB parameter MaxOpenConns: %v", err)
 		}
-		c.dbParams.MaxOpenConns = i
+		c.DbParams.MaxOpenConns = i
 	}
 
 	if c.DbMaxIdleConns == "" {
-		c.dbParams.MaxIdleConns = defaultDbMaxIdleConns
+		c.DbParams.MaxIdleConns = defaultDbMaxIdleConns
 	} else {
 		i, err := strconv.Atoi(c.DbMaxIdleConns)
 		if err != nil {
 			return fmt.Errorf("failed to set DB parameter MaxIdleConns: %v", err)
 		}
-		c.dbParams.MaxIdleConns = i
+		c.DbParams.MaxIdleConns = i
 	}
 
 	if c.DbConnMaxLifetime == "" {
-		c.dbParams.ConnMaxLifetime = defaultDbConnMaxLifetime * time.Minute
+		c.DbParams.ConnMaxLifetime = defaultDbConnMaxLifetime * time.Minute
 	} else {
 		i, err := strconv.Atoi(c.DbConnMaxLifetime)
 		if err != nil {
 			return fmt.Errorf("failed to set DB parameter ConnMaxLifetime: %v", err)
 		}
-		c.dbParams.ConnMaxLifetime = time.Duration(i) * time.Minute
+		c.DbParams.ConnMaxLifetime = time.Duration(i) * time.Minute
 	}
 
 	if c.DbConnMaxIdleTime == "" {
-		c.dbParams.ConnMaxIdleTime = defaultDbConnMaxIdleTime * time.Minute
+		c.DbParams.ConnMaxIdleTime = defaultDbConnMaxIdleTime * time.Minute
 	} else {
 		i, err := strconv.Atoi(c.DbConnMaxIdleTime)
 		if err != nil {
 			return fmt.Errorf("failed to set DB parameter ConnMaxIdleTime: %v", err)
 		}
-		c.dbParams.ConnMaxIdleTime = time.Duration(i) * time.Minute
+		c.DbParams.ConnMaxIdleTime = time.Duration(i) * time.Minute
 	}
 
 	return nil
 }
 
-func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
+func (c *Config) LoadServerTLSCertificates(serverTLSCertFile string) error {
 	fileHandle, err := os.Open(filepath.Clean(serverTLSCertFile))
 	if err != nil {
 		return err
@@ -340,7 +347,7 @@ func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
 	}
 	log.Infof("found %d entries in file %s", len(serverTLSCertBuffer), serverTLSCertFile)
 
-	c.serverTLSCertFingerprints = make(map[string][32]byte)
+	c.ServerTLSCertFingerprints = make(map[string][32]byte)
 
 	for host, cert := range serverTLSCertBuffer {
 		x509cert, err := x509.ParseCertificate(cert)
@@ -350,7 +357,7 @@ func (c *Config) loadServerTLSCertificates(serverTLSCertFile string) error {
 		}
 
 		fingerprint := sha256.Sum256(x509cert.RawSubjectPublicKeyInfo)
-		c.serverTLSCertFingerprints[host] = fingerprint
+		c.ServerTLSCertFingerprints[host] = fingerprint
 	}
 
 	return nil
