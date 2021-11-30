@@ -2,26 +2,77 @@ package main
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestExtendedClient_RequestCertificateList(t *testing.T) {
-	conf := &Config{}
-	err := conf.loadServerTLSCertificates("demo_ubirch_tls_certs.json")
-	if err != nil {
-		t.Fatalf("loading TLS certificates failed: %v", err)
+	testCases := []struct {
+		name             string
+		tlsCertFile      string
+		CertSerURL       string
+		CertSerPubKeyURL string
+		tcChecks         func(t *testing.T, certs []Certificate, err error)
+	}{
+		{
+			name:             "happy path",
+			tlsCertFile:      "demo_ubirch_tls_certs.json",
+			CertSerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
+			CertSerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
+			tcChecks: func(t *testing.T, certs []Certificate, err error) {
+				require.NoError(t, err)
+				require.Greater(t, len(certs), 0)
+			},
+		},
+		{
+			name:             "client with wrong server tls cert fingerprint",
+			tlsCertFile:      "demo_ubirch_tls_certs.json",
+			CertSerURL:       "https://de.dev.dscg.ubirch.com/trustList/DSC/DE/",
+			CertSerPubKeyURL: "https://de.dev.dscg.ubirch.com/pubkey.pem",
+			tcChecks: func(t *testing.T, certs []Certificate, err error) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "retrieving public key certificate list failed")
+				require.Nil(t, certs)
+			},
+		},
+		{
+			name:             "client with wrong cert server url",
+			tlsCertFile:      "demo_ubirch_tls_certs.json",
+			CertSerURL:       "",
+			CertSerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
+			tcChecks: func(t *testing.T, certs []Certificate, err error) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "retrieving public key certificate list failed")
+				require.Nil(t, certs)
+			},
+		},
+		{
+			name:             "client with wrong cert server url",
+			tlsCertFile:      "demo_ubirch_tls_certs.json",
+			CertSerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
+			CertSerPubKeyURL: "",
+			tcChecks: func(t *testing.T, certs []Certificate, err error) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "unable to retrieve public key for certificate list verification")
+				require.Nil(t, certs)
+			},
+		},
 	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			conf := &Config{}
 
-	client := &CertificateServerClient{
-		CertificateServerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
-		CertificateServerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
-		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
-	}
+			err := conf.loadServerTLSCertificates(c.tlsCertFile)
+			require.NoError(t, err)
 
-	certs, err := client.RequestCertificateList()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(certs) == 0 {
-		t.Errorf("loaded empty certificate list without error")
+			client := &CertificateServerClient{
+				CertificateServerURL:       c.CertSerURL,
+				CertificateServerPubKeyURL: c.CertSerPubKeyURL,
+				ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
+			}
+
+			certs, err := client.RequestCertificateList()
+			c.tcChecks(t, certs, err)
+		})
 	}
 }

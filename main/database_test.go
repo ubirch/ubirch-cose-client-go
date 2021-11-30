@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -281,6 +283,12 @@ func TestDatabaseLoad(t *testing.T) {
 	//if dm.db.Stats().OpenConnections > dm.db.Stats().Idle {
 	//	t.Errorf("%d open connections, %d idle", dm.db.Stats().OpenConnections, dm.db.Stats().Idle)
 	//}
+}
+
+func TestDatabaseManager_IsRecoverable(t *testing.T) {
+	dm := DatabaseManager{}
+	recoverable := dm.IsRecoverable(fmt.Errorf(pq.ErrorCode("53300").Name()))
+	require.True(t, recoverable)
 }
 
 type dbConfig struct {
