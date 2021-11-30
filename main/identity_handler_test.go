@@ -35,7 +35,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	auth, csrPEM, err := idHandler.InitIdentity(testUuid)
+	csrPEM, auth, err := idHandler.InitIdentity(testUuid)
 	require.NoError(t, err)
 
 	block, rest := pem.Decode(csrPEM)
