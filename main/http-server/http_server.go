@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+
 	log "github.com/sirupsen/logrus"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
