@@ -164,9 +164,7 @@ func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
 	c.PostgresDSN = "this is not a DSN"
 
 	_, err = NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
-	if err == nil {
-		t.Fatal("no error returned for invalid DSN")
-	}
+	assert.Errorf(t, err, "no error returned for invalid DSN")
 }
 
 func TestDatabaseManager_CreateTableAsErrorHandling(t *testing.T) {

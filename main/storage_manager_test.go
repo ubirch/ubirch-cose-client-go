@@ -4,24 +4,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
 )
 
 func TestGetStorageManagerDB(t *testing.T) {
 	conf, err := getDatabaseConfig()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	storageMngr, err := GetStorageManager(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	_, ok := storageMngr.(*DatabaseManager)
-	if !ok {
-		t.Error("unexpected StorageManager type")
-	}
+	assert.Truef(t, ok, "unexpected StorageManager type")
 
 	storageMngr.Close()
 }
