@@ -2,13 +2,14 @@ package http_server
 
 import (
 	"errors"
-	"github.com/go-chi/chi"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"path"
 	"testing"
+
+	"github.com/go-chi/chi"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 const testAuth = "auth"

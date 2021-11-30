@@ -2,9 +2,10 @@ package http_server
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestHttpSuccess(t *testing.T) {

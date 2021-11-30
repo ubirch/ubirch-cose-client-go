@@ -7,8 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/lib/pq"
-	"github.com/stretchr/testify/require"
 	"math/rand"
 	"os"
 	"strings"
@@ -17,6 +15,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/stretchr/testify/require"
 )
 
 const (

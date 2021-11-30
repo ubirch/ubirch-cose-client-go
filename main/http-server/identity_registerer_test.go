@@ -3,12 +3,13 @@ package http_server
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/go-chi/chi"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/go-chi/chi"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRegister(t *testing.T) {

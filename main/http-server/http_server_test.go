@@ -3,9 +3,10 @@ package http_server
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestServeError(t *testing.T) {
@@ -71,7 +72,7 @@ func TestServe_Health_Ready(t *testing.T) {
 		{
 			name:   "error readiness func",
 			reqUrl: "http://localhost:1234/readyz",
-			readyFunc:  func() error {
+			readyFunc: func() error {
 				return fmt.Errorf("something")
 			},
 			tcChecks: func(t *testing.T, err error, resp *http.Response) {
