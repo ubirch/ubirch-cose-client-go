@@ -26,9 +26,9 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 		},
 		{
 			name:             "client with wrong server tls cert fingerprint",
-			tlsCertFile:      "",
-			CertSerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
-			CertSerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
+			tlsCertFile:      "demo_ubirch_tls_certs.json",
+			CertSerURL:       "https://de.dev.dscg.ubirch.com/trustList/DSC/DE/",
+			CertSerPubKeyURL: "https://de.dev.dscg.ubirch.com/pubkey.pem",
 			tcChecks: func(t *testing.T, certs []Certificate, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "retrieving public key certificate list failed")
@@ -62,8 +62,8 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			conf := &Config{}
 
-			//no error handling since this is not the functionality we want to test
-			conf.loadServerTLSCertificates(c.tlsCertFile)
+			err := conf.loadServerTLSCertificates(c.tlsCertFile)
+			require.NoError(t, err)
 
 			client := &CertificateServerClient{
 				CertificateServerURL:       c.CertSerURL,
