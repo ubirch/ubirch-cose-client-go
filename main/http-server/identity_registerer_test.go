@@ -31,8 +31,8 @@ func TestRegister(t *testing.T) {
 			body: RegistrationPayload{
 				Uid: uuid.New(),
 			},
-			initId: func(uid uuid.UUID) (csr []byte, err error) {
-				return byteStr, nil
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, string(byteStr), recorder.Body.String())
@@ -46,8 +46,8 @@ func TestRegister(t *testing.T) {
 			body: RegistrationPayload{
 				Uid: uuid.New(),
 			},
-			initId: func(uid uuid.UUID) (csr []byte, err error) {
-				return byteStr, nil
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), "invalid content-type")
@@ -61,8 +61,8 @@ func TestRegister(t *testing.T) {
 			body: RegistrationPayload{
 				Uid: uuid.Nil,
 			},
-			initId: func(uid uuid.UUID) (csr []byte, err error) {
-				return byteStr, nil
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), "empty uuid")
@@ -77,8 +77,8 @@ func TestRegister(t *testing.T) {
 				Uid: uuid.New(),
 				Pwd: "not supported anymore",
 			},
-			initId: func(uid uuid.UUID) (csr []byte, err error) {
-				return byteStr, nil
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), "setting password is not longer supported.")
@@ -92,8 +92,8 @@ func TestRegister(t *testing.T) {
 			body: RegistrationPayload{
 				Uid: uuid.New(),
 			},
-			initId: func(uid uuid.UUID) (csr []byte, err error) {
-				return byteStr, nil
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized))
@@ -107,8 +107,8 @@ func TestRegister(t *testing.T) {
 			body: RegistrationPayload{
 				Uid: uuid.New(),
 			},
-			initId: func(uid uuid.UUID) (csr []byte, err error) {
-				return nil, ErrAlreadyInitialized
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return nil, "", ErrAlreadyInitialized
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), ErrAlreadyInitialized.Error())
