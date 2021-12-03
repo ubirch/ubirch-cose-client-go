@@ -21,36 +21,17 @@ var (
 )
 
 func main() {
-	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
-
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		*configFile = defaultConfigFile
-	}
-
 	c := Config{}
-	err := c.Load(*configFile)
+	err := c.load()
 	if err != nil {
-		log.Fatalf("ERROR: unable to load configuration: %s", err)
+		log.Fatalf("could not load configuration: %v", err)
 	}
 
-	identities := c.getTestIdentities()
 	sender := NewSender()
 
-	for id := range identities {
-		auth, err := sender.register(c.Url, id, c.RegisterAuth)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if auth != "" {
-			identities[id] = auth
-			err = c.PersistAuth(*configFile, id, auth)
-			if err != nil {
-				log.Fatalf("auth token for identity %s could not be persisted: %v (auth token: %s) ", id, err, auth)
-			}
-		}
+	identities, err := c.initTestIdentities(sender)
+	if err != nil {
+		log.Fatalf("could not initialize identities: %v", err)
 	}
 
 	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(identities), numberOfRequestsPerID, len(identities)*numberOfRequestsPerID)

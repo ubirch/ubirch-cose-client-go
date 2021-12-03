@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -14,8 +16,16 @@ type Config struct {
 	Token        map[string]string `json:"token"`
 }
 
-func (c *Config) Load(filename string) error {
-	fileHandle, err := os.Open(filepath.Clean(filename))
+func (c *Config) load() error {
+	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
+
+	flag.Parse()
+	if len(*configFile) == 0 {
+		*configFile = defaultConfigFile
+	}
+	log.Infof("loading config: %s", *configFile)
+
+	fileHandle, err := os.Open(filepath.Clean(*configFile))
 	if err != nil {
 		return err
 	}
@@ -31,10 +41,10 @@ func (c *Config) Load(filename string) error {
 	return fileHandle.Close()
 }
 
-func (c *Config) PersistAuth(filename, id, auth string) error {
+func (c *Config) persistAuth(id, auth string) error {
 	c.Token[id] = auth
 
-	fileHandle, err := os.Create(filepath.Clean(filename))
+	fileHandle, err := os.Create(filepath.Clean(*configFile))
 	if err != nil {
 		return err
 	}
@@ -50,15 +60,28 @@ func (c *Config) PersistAuth(filename, id, auth string) error {
 	return fileHandle.Close()
 }
 
-func (c *Config) getTestIdentities() map[string]string {
-	testIdentities := make(map[string]string, numberOfTestIDs)
+func (c *Config) initTestIdentities(sender *Sender) (identities map[string]string, err error) {
+	identities = make(map[string]string, numberOfTestIDs)
 
 	for uid, auth := range c.Token {
-		testIdentities[uid] = auth
-		if len(testIdentities) == numberOfTestIDs {
+		if auth == "" {
+			auth, err = sender.register(c.Url, uid, c.RegisterAuth)
+			if err != nil {
+				return nil, err
+			}
+
+			err = c.persistAuth(uid, auth)
+			if err != nil {
+				return nil, fmt.Errorf("%s: persisting auth token failed: %v (auth token: %s) ", uid, err, auth)
+			}
+		}
+
+		identities[uid] = auth
+
+		if len(identities) == numberOfTestIDs {
 			break
 		}
 	}
 
-	return testIdentities
+	return identities, nil
 }

@@ -62,16 +62,19 @@ func (s *Sender) register(clientBaseURL, id, registerAuth string) (auth string, 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		log.Infof("registered new identity: %s", id)
-	case http.StatusConflict:
-		log.Debugf("%s: identity already registered", id)
-	default:
-		return "", fmt.Errorf("%s: registration returned: %s", id, resp.Status)
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := ioutil.ReadAll(resp.Body)
+		return "", fmt.Errorf("%s: registration returned: %s: %s", id, resp.Status, respBody)
 	}
 
-	return resp.Header.Get("X-Auth-Token"), nil
+	log.Infof("registered new identity: %s", id)
+
+	auth = resp.Header.Get("X-Auth-Token")
+	if auth == "" {
+		return "", fmt.Errorf("%s: registration returned empty X-Auth-Token header: %s", id, resp.Status)
+	}
+
+	return auth, nil
 }
 
 func (s *Sender) sendRequests(clientBaseURL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
