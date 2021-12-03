@@ -7,10 +7,12 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"path"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	urlpkg "net/url"
 )
 
 type Sender struct {
@@ -41,8 +43,8 @@ func NewSender() *Sender {
 	}
 }
 
-func (s *Sender) register(clientBaseURL, id, registerAuth string) (auth string, err error) {
-	url := clientBaseURL + "register"
+func (s *Sender) register(url urlpkg.URL, id, registerAuth string) (auth string, err error) {
+	url.Path = path.Join(url.Path, "register")
 
 	header := http.Header{}
 	header.Set("Content-Type", "application/json")
@@ -57,7 +59,7 @@ func (s *Sender) register(clientBaseURL, id, registerAuth string) (auth string, 
 		return "", err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPut, url.String(), bytes.NewBuffer(body))
 	if err != nil {
 		return "", err
 	}
@@ -87,10 +89,11 @@ func (s *Sender) register(clientBaseURL, id, registerAuth string) (auth string, 
 	return auth, nil
 }
 
-func (s *Sender) sendRequests(clientBaseURL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
+func (s *Sender) sendRequests(url urlpkg.URL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	clientURL := clientBaseURL + uid + "/cbor/hash"
+	url.Path = path.Join(url.Path, uid, "cbor/hash")
+
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
@@ -99,7 +102,7 @@ func (s *Sender) sendRequests(clientBaseURL, uid, auth string, offset time.Durat
 
 	for i := 0; i < numberOfRequestsPerID; i++ {
 		wg.Add(1)
-		go s.sendAndCheckResponse(clientURL, header, wg)
+		go s.sendAndCheckResponse(url.String(), header, wg)
 
 		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
@@ -126,7 +129,8 @@ func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *
 		log.Error(err)
 		return
 	}
-	duration := time.Now().Sub(start)
+
+	duration := time.Since(start)
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()

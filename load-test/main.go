@@ -48,12 +48,11 @@ func main() {
 		i += 1
 
 		wg.Add(1)
-		go sender.sendRequests(c.Url, uid, auth, offset, wg)
+		go sender.sendRequests(*c.url, uid, auth, offset, wg)
 	}
 
 	wg.Wait()
-	end := time.Now()
-	duration := end.Sub(start)
+	duration := time.Since(start)
 	log.Infof("[ %6d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
 
 	for status, count := range sender.statusCounter {

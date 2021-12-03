@@ -8,12 +8,14 @@ import (
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
+	urlpkg "net/url"
 )
 
 type Config struct {
 	Url          string            `json:"url"`
 	RegisterAuth string            `json:"registerAuth"`
 	Token        map[string]string `json:"token"`
+	url          *urlpkg.URL
 }
 
 func (c *Config) load() error {
@@ -38,7 +40,17 @@ func (c *Config) load() error {
 		return err
 	}
 
-	return fileHandle.Close()
+	err = fileHandle.Close()
+	if err != nil {
+		return err
+	}
+
+	c.url, err = urlpkg.Parse(c.Url)
+	if err != nil {
+		return fmt.Errorf("client base URL could not be parsed: %v", err)
+	}
+
+	return nil
 }
 
 func (c *Config) persistAuth(id, auth string) error {
@@ -65,7 +77,7 @@ func (c *Config) initTestIdentities(sender *Sender) (identities map[string]strin
 
 	for uid, auth := range c.Token {
 		if auth == "" {
-			auth, err = sender.register(c.Url, uid, c.RegisterAuth)
+			auth, err = sender.register(*c.url, uid, c.RegisterAuth)
 			if err != nil {
 				return nil, err
 			}
