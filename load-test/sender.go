@@ -23,8 +23,18 @@ type Sender struct {
 }
 
 func NewSender() *Sender {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 500
+	transport.MaxConnsPerHost = 500
+	transport.MaxIdleConnsPerHost = 500
+
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}
+
 	return &Sender{
-		httpClient:       &http.Client{Timeout: 30 * time.Second},
+		httpClient:       client,
 		statusCounter:    map[string]int{},
 		statusCounterMtx: &sync.Mutex{},
 		requestTimerMtx:  &sync.Mutex{},
@@ -120,11 +130,11 @@ func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
+	respBodyBytes, _ := ioutil.ReadAll(resp.Body)
 
 	if resp.StatusCode == http.StatusOK {
 		s.addTime(duration)
 	} else {
-		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
 		log.Warnf("%d: %s", resp.StatusCode, respBodyBytes)
 	}
 
