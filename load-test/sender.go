@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"path"
 	"sync"
@@ -108,11 +107,10 @@ func (s *Sender) sendRequests(url urlpkg.URL, uid, auth string, offset time.Dura
 	}
 }
 
+var hash = make([]byte, 32)
+
 func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	hash := make([]byte, 32)
-	rand.Read(hash)
 
 	req, err := http.NewRequest(http.MethodPost, clientURL, bytes.NewBuffer(hash))
 	if err != nil {
