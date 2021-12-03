@@ -25,9 +25,9 @@ type Sender struct {
 
 func NewSender() *Sender {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.MaxIdleConns = 500
-	transport.MaxConnsPerHost = 500
-	transport.MaxIdleConnsPerHost = 500
+	transport.MaxIdleConns = 200
+	transport.MaxConnsPerHost = 200
+	transport.MaxIdleConnsPerHost = 200
 
 	client := &http.Client{
 		Timeout:   30 * time.Second,
