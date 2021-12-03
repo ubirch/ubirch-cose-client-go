@@ -20,7 +20,7 @@ func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 		w.Header().Set(k, v[0])
 	}
 	w.WriteHeader(resp.StatusCode)
-	_, err := w.Write(append(resp.Content, '\n'))
+	_, err := w.Write(resp.Content)
 	if err != nil {
 		log.Errorf("unable to write response: %s", err)
 	}
