@@ -42,7 +42,7 @@ func main() {
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
 	log.Infof("%3d requests per second overall", len(identities)*requestsPerSecondPerID)
 	log.Infof("http connection pool size: %3d", httpConnectionPoolSize)
-	log.Infof("http client timeout [s]:   %3d", httpClientTimeoutSec)
+	log.Infof("  http client timeout [s]: %3d", httpClientTimeoutSec)
 
 	wg := &sync.WaitGroup{}
 	start := time.Now()
@@ -67,12 +67,10 @@ func main() {
 
 	successCount := sender.statusCounter["200 OK"]
 	successRate := (float32(successCount) / float32(totalNumberOfRequests)) * 100.
-	log.Infof("error rate: %3.2f", 100.-successRate)
 
-	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
-	avgReqsPerSec := float64(totalNumberOfRequests) / duration.Seconds()
-	log.Infof("avg total throughput: %7.3f requests/second", avgReqsPerSec)
-	avgReqsPerSecSuccess := float64(successCount) / duration.Seconds()
-	log.Infof("avg successful throughput: %7.3f requests/second", avgReqsPerSecSuccess)
+	log.Infof("               error rate: %3.2f", 100.-successRate)
+	log.Infof("        avg response time: %s", sender.getAvgRequestDuration().String())
+	log.Infof("     avg total throughput: %7.3f requests/second", float64(totalNumberOfRequests)/duration.Seconds())
+	log.Infof("avg successful throughput: %7.3f requests/second", float64(successCount)/duration.Seconds())
 	fmt.Print("\n\n========================================================================================================================\n\n")
 }
