@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	numberOfTestIDs        = 100
-	numberOfRequestsPerID  = 10
-	requestsPerSecondPerID = 1
+	numberOfTestIDs        = 10
+	requestsPerSecondPerID = 300 / numberOfTestIDs
+	numberOfRequestsPerID  = requestsPerSecondPerID * 60 * 10
+
+	httpConnectionPoolSize = 50
+	httpClientTimeoutSec   = 2
 )
 
 var (
@@ -34,9 +37,12 @@ func main() {
 		log.Fatalf("could not initialize identities: %v", err)
 	}
 
-	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(identities), numberOfRequestsPerID, len(identities)*numberOfRequestsPerID)
+	totalNumberOfRequests := len(identities) * numberOfRequestsPerID
+	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(identities), numberOfRequestsPerID, totalNumberOfRequests)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
 	log.Infof("%3d requests per second overall", len(identities)*requestsPerSecondPerID)
+	log.Infof("http connection pool size: %3d", httpConnectionPoolSize)
+	log.Infof("http client timeout [s]:   %3d", httpClientTimeoutSec)
 
 	wg := &sync.WaitGroup{}
 	start := time.Now()
@@ -53,16 +59,20 @@ func main() {
 
 	wg.Wait()
 	duration := time.Since(start)
-	log.Infof("[ %6d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
+	log.Infof("[ %6d ] requests done after [ %7.3f ] seconds ", totalNumberOfRequests, duration.Seconds())
 
 	for status, count := range sender.statusCounter {
 		log.Infof("[ %6d ] x %s", count, status)
 	}
 
+	successCount := sender.statusCounter["200 OK"]
+	successRate := (float32(successCount) / float32(totalNumberOfRequests)) * 100.
+	log.Infof("error rate: %3.2f", 100.-successRate)
+
 	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
-	avgReqsPerSec := float64(len(identities)*numberOfRequestsPerID) / duration.Seconds()
+	avgReqsPerSec := float64(totalNumberOfRequests) / duration.Seconds()
 	log.Infof("avg total throughput: %7.3f requests/second", avgReqsPerSec)
-	avgReqsPerSecSuccess := float64(sender.statusCounter["200 OK"]) / duration.Seconds()
+	avgReqsPerSecSuccess := float64(successCount) / duration.Seconds()
 	log.Infof("avg successful throughput: %7.3f requests/second", avgReqsPerSecSuccess)
 	fmt.Print("\n\n========================================================================================================================\n\n")
 }

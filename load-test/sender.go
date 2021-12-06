@@ -25,17 +25,15 @@ type Sender struct {
 
 func NewSender() *Sender {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.MaxIdleConns = 200
-	transport.MaxConnsPerHost = 200
-	transport.MaxIdleConnsPerHost = 200
-
-	client := &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: transport,
-	}
+	transport.MaxIdleConns = httpConnectionPoolSize
+	transport.MaxConnsPerHost = httpConnectionPoolSize
+	transport.MaxIdleConnsPerHost = httpConnectionPoolSize
 
 	return &Sender{
-		httpClient:       client,
+		httpClient: &http.Client{
+			Timeout:   httpClientTimeoutSec * time.Second,
+			Transport: transport,
+		},
 		statusCounter:    map[string]int{},
 		statusCounterMtx: &sync.Mutex{},
 		requestTimerMtx:  &sync.Mutex{},
