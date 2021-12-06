@@ -39,12 +39,9 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	block, rest := pem.Decode(csrPEM)
-	if block == nil || block.Type != "CERTIFICATE REQUEST" {
-		t.Error("failed to decode PEM block containing CSR")
-	}
-	if len(rest) != 0 {
-		t.Errorf("rest: %q", rest)
-	}
+	require.NotNilf(t, block, "failed to decode PEM block containing CSR")
+	assert.Empty(t, rest)
+	assert.Equal(t, "CERTIFICATE REQUEST", block.Type)
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	require.NoError(t, err)
@@ -172,12 +169,9 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 	require.NoError(t, err)
 
 	block, rest := pem.Decode(csrPEM)
-	if block == nil || block.Type != "CERTIFICATE REQUEST" {
-		t.Error("failed to decode PEM block containing CSR")
-	}
-	if len(rest) != 0 {
-		t.Errorf("rest: %q", rest)
-	}
+	require.NotNilf(t, block, "failed to decode PEM block containing CSR")
+	assert.Empty(t, rest)
+	assert.Equal(t, "CERTIFICATE REQUEST", block.Type)
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	require.NoError(t, err)
