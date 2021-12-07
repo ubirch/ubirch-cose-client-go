@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	ErrCertServerNotAvailable = errors.New("certificate server is not available")
-	ErrCertNotFound           = errors.New("certificate not found")
-	ErrCertExpired            = errors.New("certificate is expired")
-	ErrCertNotYetValid        = errors.New("certificate is not yet valid")
+	ErrCertServerNotAvailable = errors.New("X.509 public key certificate server (dscg) is not available")
+	ErrCertNotFound           = errors.New("X.509 public key certificate for identity not found")
+	ErrCertExpired            = errors.New("X.509 public key certificate for identity is expired")
+	ErrCertNotYetValid        = errors.New("X.509 public key certificate for identity is not yet valid")
 )
 
 type GetCertificateList func() ([]Certificate, error)
