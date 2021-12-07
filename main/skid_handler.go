@@ -5,13 +5,22 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
+)
+
+var (
+	ErrCertServerNotAvailable = errors.New("certificate server is not available")
+	ErrCertNotFound           = errors.New("certificate not found")
+	ErrCertExpired            = errors.New("certificate is expired")
+	ErrCertNotYetValid        = errors.New("certificate is not yet valid")
 )
 
 type GetCertificateList func() ([]Certificate, error)
@@ -29,6 +38,8 @@ type SkidHandler struct {
 	getCerts  GetCertificateList
 	getUuid   GetUuid
 	encPubKey EncodePublicKey
+
+	isCertServerAvailable atomic.Value
 }
 
 // NewSkidHandler loads SKIDs from the public key certificate list and updates it frequently
@@ -77,6 +88,8 @@ func (s *SkidHandler) loadSKIDs() {
 			" clearing local KID lookup after %d failed attempts",
 			s.certLoadFailCounter, s.maxCertLoadFailCount)
 
+		s.isCertServerAvailable.Store(false)
+
 		// if we have not yet reached the maximum amount of failed attempts to load the certificate list,
 		// return and try again later
 		if s.certLoadFailCounter != s.maxCertLoadFailCount {
@@ -90,6 +103,7 @@ func (s *SkidHandler) loadSKIDs() {
 	} else {
 		// reset fail counter if certs were loaded successfully
 		s.certLoadFailCounter = 0
+		s.isCertServerAvailable.Store(true)
 	}
 
 	tempSkidStore := map[uuid.UUID][]byte{}
@@ -172,6 +186,10 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, error) {
 	s.skidStoreMutex.RUnlock()
 
 	if !exists {
+		if !s.isCertServerAvailable.Load().(bool) {
+			return nil, ErrCertServerNotAvailable
+		}
+
 		return nil, fmt.Errorf("SKID unknown for identity %s (missing X.509 public key certificate)", uid)
 	}
 
