@@ -8,13 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHttpSuccess(t *testing.T) {
-	failedTrue := HttpFailed(http.StatusHTTPVersionNotSupported)
-	require.True(t, failedTrue)
-	failedFalse := HttpFailed(http.StatusOK)
-	require.False(t, failedFalse)
-}
-
 func TestContentEncoding(t *testing.T) {
 	header := http.Header{}
 	header.Set("Content-Transfer-Encoding", "BASE64")

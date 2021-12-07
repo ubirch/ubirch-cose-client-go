@@ -40,7 +40,7 @@ func TestHealth(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, server, w.Header().Get("Server"))
 	assert.Equal(t, TextType, w.Header().Get("Content-Type"))
-	assert.Equal(t, []byte(http.StatusText(http.StatusOK)), w.Body.Bytes())
+	assert.Equal(t, []byte(http.StatusText(http.StatusOK)+"\n"), w.Body.Bytes())
 }
 
 func TestReady(t *testing.T) {
@@ -79,7 +79,7 @@ func TestReady(t *testing.T) {
 			assert.Equal(t, c.code, w.Code)
 			assert.Equal(t, server, w.Header().Get("Server"))
 			assert.Equal(t, TextType, w.Header().Get("Content-Type"))
-			assert.Equal(t, []byte(http.StatusText(c.code)), w.Body.Bytes())
+			assert.Equal(t, []byte(http.StatusText(c.code)+"\n"), w.Body.Bytes())
 		})
 	}
 }

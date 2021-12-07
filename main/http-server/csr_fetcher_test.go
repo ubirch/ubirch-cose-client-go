@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testAuth = "auth"
-
 func TestFetchCSR(t *testing.T) {
 
 	testUuid := uuid.New()
@@ -22,6 +20,7 @@ func TestFetchCSR(t *testing.T) {
 		callerUrl string
 		auth      string
 		getCsR    GetCSR
+		getUuid   GetUUID
 		tcChecks  func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
@@ -31,6 +30,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return uid.NodeID(), nil
 			},
+			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, testUuid.NodeID(), recorder.Body.Bytes())
 				require.Equal(t, http.StatusOK, recorder.Code)
@@ -43,6 +43,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return uid.NodeID(), nil
 			},
+			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized))
 				require.Equal(t, http.StatusUnauthorized, recorder.Code)
@@ -55,6 +56,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return uid.NodeID(), nil
 			},
+			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), "invalid UUID")
 				require.Equal(t, http.StatusNotFound, recorder.Code)
@@ -67,6 +69,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return nil, ErrUnknown
 			},
+			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Contains(t, recorder.Body.String(), "unknown identity")
 				require.Equal(t, http.StatusNotFound, recorder.Code)
@@ -79,6 +82,7 @@ func TestFetchCSR(t *testing.T) {
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
 				return nil, errors.New("unknown error")
 			},
+			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.NotEmpty(t, recorder.Body.String())
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
@@ -91,7 +95,7 @@ func TestFetchCSR(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			url := path.Join(UUIDPath, CSREndpoint)
-			router.Get(url, FetchCSR(testAuth, c.getCsR))
+			router.Get(url, FetchCSR(testAuth, c.getUuid, c.getCsR))
 
 			req := httptest.NewRequest(http.MethodGet, c.callerUrl, nil)
 			req.Header.Add(AuthHeader, c.auth)

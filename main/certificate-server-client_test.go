@@ -1,8 +1,10 @@
 package main
 
 import (
+	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
 )
@@ -76,4 +78,23 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 			c.tcChecks(t, certs, err)
 		})
 	}
+}
+
+func TestHttpFailed(t *testing.T) {
+	failedTrue := HttpFailed(http.StatusBadRequest)
+	assert.True(t, failedTrue)
+
+	failedFalse := HttpFailed(http.StatusOK)
+	assert.False(t, failedFalse)
+}
+
+func TestHttpSuccess(t *testing.T) {
+	successTrue := HttpSuccess(http.StatusOK)
+	assert.True(t, successTrue)
+
+	successTrue = HttpSuccess(http.StatusCreated)
+	assert.True(t, successTrue)
+
+	successFalse := HttpSuccess(http.StatusInternalServerError)
+	assert.False(t, successFalse)
 }
