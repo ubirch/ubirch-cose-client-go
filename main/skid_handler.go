@@ -22,12 +22,19 @@ var (
 	ErrCertNotYetValid        = errors.New("X.509 public key certificate for identity is not yet valid")
 )
 
+type skid struct {
+	Bytes     []byte
+	Valid     bool
+	Expired   bool
+	NotBefore time.Time
+}
+
 type GetCertificateList func() ([]Certificate, error)
 type EncodePublicKey func(pub interface{}) (pemEncoded []byte, err error)
 type GetUuid func(pubKey []byte) (uuid.UUID, error)
 
 type SkidHandler struct {
-	skidStore      map[uuid.UUID][]byte
+	skidStore      map[uuid.UUID]skid
 	skidStoreMutex *sync.RWMutex
 
 	certLoadInterval     time.Duration
@@ -44,7 +51,7 @@ type SkidHandler struct {
 // NewSkidHandler loads SKIDs from the public key certificate list and updates it frequently
 func NewSkidHandler(certs GetCertificateList, uid GetUuid, enc EncodePublicKey, reloadEveryMinute bool) *SkidHandler {
 	s := &SkidHandler{
-		skidStore:      map[uuid.UUID][]byte{},
+		skidStore:      map[uuid.UUID]skid{},
 		skidStoreMutex: &sync.RWMutex{},
 
 		certLoadFailCounter: 0,
@@ -105,69 +112,79 @@ func (s *SkidHandler) loadSKIDs() {
 		s.isCertServerAvailable.Store(true)
 	}
 
-	tempSkidStore := map[uuid.UUID][]byte{}
-	tempCerts := map[uuid.UUID]*x509.Certificate{}
+	tempSkidStore := map[uuid.UUID]skid{}
 
 	// go through certificate list and match known public keys
 	for _, cert := range certs {
-		kid := base64.StdEncoding.EncodeToString(cert.Kid)
+		skidString := base64.StdEncoding.EncodeToString(cert.Kid)
 
 		if len(cert.Kid) != SkidLen {
-			log.Errorf("%s: invalid KID length: %d, expected: %d", kid, len(cert.Kid), SkidLen)
+			log.Errorf("%s: invalid KID length: %d, expected: %d", skidString, len(cert.Kid), SkidLen)
 			continue
 		}
 
 		// get public key from certificate
 		certificate, err := x509.ParseCertificate(cert.RawData)
 		if err != nil {
-			log.Errorf("%s: %v", kid, err)
+			log.Errorf("%s: parsing x509 certificate failed: %v", skidString, err)
 			continue
 		}
 
 		pubKeyPEM, err := s.encPubKey(certificate.PublicKey)
 		if err != nil {
-			//log.Debugf("%s: unable to encode public key: %v", kid, err)
+			log.Debugf("%s: unable to encode public key from x509 certificate: %v", skidString, err)
 			continue
 		}
 
 		// look up matching UUID for public key
 		uid, err := s.getUuid(pubKeyPEM)
 		if err != nil {
-			if err != ErrNotExist {
-				log.Errorf("%s: %v", kid, err)
+			if err == ErrNotExist {
+				log.Debugf("%s: public key from x509 certificate does not match any known identity", skidString)
+			} else {
+				log.Errorf("%s: public key lookup failed: %v", skidString, err)
 			}
 			continue
 		}
-		//log.Debugf("%s: public key certificate match", kid)
+		log.Debugf("%s: public key match: %s", skidString, uid)
+
+		matchedSkid := skid{
+			Bytes:     cert.Kid,
+			NotBefore: certificate.NotBefore,
+		}
 
 		// check validity of certificate
 		now := time.Now()
 
 		if now.After(certificate.NotAfter) {
-			log.Debugf("%s: certifcate expired: valid until %s", kid, certificate.NotAfter.String())
-			continue
+			log.Debugf("%s: certifcate expired: valid until %s", skidString, certificate.NotAfter.String())
+			matchedSkid.Expired = true
+		} else if now.Before(certificate.NotBefore) {
+			log.Debugf("%s: certifcate not yet valid: valid from %s", skidString, certificate.NotBefore.String())
+		} else {
+			matchedSkid.Valid = true
 		}
 
-		if now.Before(certificate.NotBefore) {
-			log.Debugf("%s: certifcate not yet valid: valid from %s", kid, certificate.NotBefore.String())
-			continue
-		}
-
-		// if there are more than one valid certificates, use the newer one, i.e. the one that starts being valid at a later time
-		if tempCert, ok := tempCerts[uid]; ok {
-			if certificate.NotBefore.Before(tempCert.NotBefore) {
+		if previouslyMatchedSkid, ok := tempSkidStore[uid]; ok {
+			if previouslyMatchedSkid.Valid && !matchedSkid.Valid {
 				continue
+			}
+
+			// if there is more than one valid certificate, use the newer one, i.e. the one that starts being valid at a later time
+			if (previouslyMatchedSkid.Valid && matchedSkid.Valid) || (!previouslyMatchedSkid.Valid && !matchedSkid.Valid) {
+				if matchedSkid.NotBefore.Before(previouslyMatchedSkid.NotBefore) {
+					continue
+				}
 			}
 		}
 
-		tempCerts[uid] = certificate
-		tempSkidStore[uid] = cert.Kid
+		tempSkidStore[uid] = matchedSkid
 	}
 
 	s.setSkidStore(tempSkidStore)
 }
 
-func (s *SkidHandler) setSkidStore(newSkidStore map[uuid.UUID][]byte) {
+func (s *SkidHandler) setSkidStore(newSkidStore map[uuid.UUID]skid) {
 	s.skidStoreMutex.Lock()
 	prevSKIDs, _ := json.Marshal(s.skidStore)
 	s.skidStore = newSkidStore
@@ -192,5 +209,13 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, error) {
 		return nil, ErrCertNotFound
 	}
 
-	return skid, nil
+	if skid.Valid {
+		return skid.Bytes, nil
+	}
+
+	if skid.Expired {
+		return nil, ErrCertExpired
+	}
+
+	return nil, ErrCertNotYetValid
 }
