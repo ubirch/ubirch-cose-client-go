@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -190,7 +189,7 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, error) {
 			return nil, ErrCertServerNotAvailable
 		}
 
-		return nil, fmt.Errorf("SKID unknown for identity %s (missing X.509 public key certificate)", uid)
+		return nil, ErrCertNotFound
 	}
 
 	return skid, nil

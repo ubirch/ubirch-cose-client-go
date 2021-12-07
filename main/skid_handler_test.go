@@ -208,6 +208,18 @@ func TestSkidHandler_GetSKID(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestSkidHandler_GetSKID2(t *testing.T) {
+	s := SkidHandler{}
+
+	s.isCertServerAvailable.Store(false)
+
+	assert.False(t, s.isCertServerAvailable.Load().(bool))
+
+	s.isCertServerAvailable.Store(true)
+
+	assert.True(t, s.isCertServerAvailable.Load().(bool))
+}
+
 func containsSKID(m map[uuid.UUID][]byte, v string) bool {
 	for _, skid := range m {
 		if base64.StdEncoding.EncodeToString(skid) == v {
