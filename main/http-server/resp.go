@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -43,10 +44,7 @@ func Health(server string) http.HandlerFunc {
 		w.Header().Set("Server", server)
 		w.Header().Set("Content-Type", TextType)
 		w.WriteHeader(http.StatusOK)
-		_, err := w.Write(append([]byte(http.StatusText(http.StatusOK)), '\n'))
-		if err != nil {
-			log.Errorf("unable to write response: %s", err)
-		}
+		fmt.Fprintln(w, http.StatusText(http.StatusOK))
 	}
 }
 
@@ -66,10 +64,7 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 		w.Header().Set("Server", server)
 		w.Header().Set("Content-Type", TextType)
 		w.WriteHeader(status)
-		_, err := w.Write(append([]byte(http.StatusText(status)), '\n'))
-		if err != nil {
-			log.Errorf("unable to write response: %s", err)
-		}
+		fmt.Fprintln(w, http.StatusText(status))
 	}
 }
 
