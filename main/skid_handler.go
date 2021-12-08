@@ -27,6 +27,7 @@ type skid struct {
 	Valid     bool
 	Expired   bool
 	NotBefore time.Time
+	NotAfter  time.Time
 }
 
 type GetCertificateList func() ([]Certificate, error)
@@ -151,16 +152,17 @@ func (s *SkidHandler) loadSKIDs() {
 		matchedSkid := skid{
 			Bytes:     cert.Kid,
 			NotBefore: certificate.NotBefore,
+			NotAfter:  certificate.NotAfter,
 		}
 
 		// check validity of certificate
 		now := time.Now()
 
-		if now.After(certificate.NotAfter) {
-			log.Debugf("%s: certifcate expired: valid until %s", skidString, certificate.NotAfter.String())
+		if now.After(matchedSkid.NotAfter) {
+			log.Debugf("%s: certifcate expired: valid until %s", skidString, matchedSkid.NotAfter.String())
 			matchedSkid.Expired = true
-		} else if now.Before(certificate.NotBefore) {
-			log.Debugf("%s: certifcate not yet valid: valid from %s", skidString, certificate.NotBefore.String())
+		} else if now.Before(matchedSkid.NotBefore) {
+			log.Debugf("%s: certifcate not yet valid: valid from %s", skidString, matchedSkid.NotBefore.String())
 		} else {
 			matchedSkid.Valid = true
 		}
