@@ -16,7 +16,10 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-var testSKID = []byte{0xa3, 0x78, 0xce, 0x33, 0x3d, 0xd4, 0xf7, 0x76} // "o3jOMz3U93Y="
+var (
+	testSKID  = []byte{0xa3, 0x78, 0xce, 0x33, 0x3d, 0xd4, 0xf7, 0x76} // "o3jOMz3U93Y="
+	testSKID2 = []byte{0x33, 0x3d, 0xd4, 0xf7, 0xa3, 0x78, 0xce, 0x76}
+)
 
 func TestSkidHandler(t *testing.T) {
 	crypto := ubirch.ECDSACryptoContext{Keystore: &MockKeystorer{}}
@@ -49,9 +52,9 @@ func TestSkidHandler(t *testing.T) {
 			certs: mockGetCertificateList([]validity{
 				{
 					PrivPEM:   priv,
-					PubPEM:    pub,
 					NotBefore: time.Now(),
 					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
 				},
 			}),
 			uid:               testUUIDs.mockGetUuidForPublicKey,
@@ -79,9 +82,9 @@ func TestSkidHandler(t *testing.T) {
 			certs: mockGetCertificateList([]validity{
 				{
 					PrivPEM:   priv,
-					PubPEM:    pub,
 					NotBefore: time.Now(),
 					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
 				},
 			}),
 			uid:               testUUIDs.mockGetUuidForPublicKey,
@@ -126,9 +129,9 @@ func TestSkidHandler(t *testing.T) {
 			certs: mockGetCertificateList([]validity{
 				{
 					PrivPEM:   priv,
-					PubPEM:    pub,
 					NotBefore: time.Now(),
 					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
 				},
 			}),
 			uid:               testUUIDs.mockGetUuidForPublicKey,
@@ -138,7 +141,7 @@ func TestSkidHandler(t *testing.T) {
 				s.getCerts = mockGetCertificateListBad
 
 				for i := 0; i < s.maxCertLoadFailCount; i++ {
-					assert.Equal(t, 1, len(s.skidStore))
+					assert.NotEmpty(t, len(s.skidStore))
 					assert.Equal(t, i, s.certLoadFailCounter)
 
 					s.loadSKIDs()
@@ -153,9 +156,8 @@ func TestSkidHandler(t *testing.T) {
 			certs: func() ([]Certificate, error) {
 				return []Certificate{{Kid: []byte{0x78, 0xce, 0x33, 0x3d, 0xd4, 0xf7, 0x76}}}, nil
 			},
-			uid:               testUUIDs.mockGetUuidForPublicKey,
-			enc:               crypto.EncodePublicKey,
-			reloadEveryMinute: false,
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				assert.Empty(t, s.skidStore)
 				assert.Empty(t, s.certLoadFailCounter)
@@ -167,9 +169,8 @@ func TestSkidHandler(t *testing.T) {
 			certs: func() ([]Certificate, error) {
 				return []Certificate{{Kid: make([]byte, SkidLen), RawData: make([]byte, 64)}}, nil
 			},
-			uid:               testUUIDs.mockGetUuidForPublicKey,
-			enc:               crypto.EncodePublicKey,
-			reloadEveryMinute: false,
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				assert.Empty(t, s.skidStore)
 				assert.Empty(t, s.certLoadFailCounter)
@@ -181,9 +182,9 @@ func TestSkidHandler(t *testing.T) {
 			certs: mockGetCertificateList([]validity{
 				{
 					PrivPEM:   priv,
-					PubPEM:    pub,
 					NotBefore: time.Now(),
 					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
 				},
 			}),
 			uid: testUUIDs.mockGetUuidForPublicKey,
@@ -201,14 +202,13 @@ func TestSkidHandler(t *testing.T) {
 			certs: mockGetCertificateList([]validity{
 				{
 					PrivPEM:   priv,
-					PubPEM:    pub,
 					NotBefore: time.Now(),
 					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
 				},
 			}),
-			uid:               mockGetUuidFindsNothing,
-			enc:               crypto.EncodePublicKey,
-			reloadEveryMinute: false,
+			uid: mockGetUuidFindsNothing,
+			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				assert.Empty(t, s.skidStore)
 			},
@@ -218,14 +218,13 @@ func TestSkidHandler(t *testing.T) {
 			certs: mockGetCertificateList([]validity{
 				{
 					PrivPEM:   priv,
-					PubPEM:    pub,
 					NotBefore: time.Now(),
 					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
 				},
 			}),
-			uid:               mockGetUuidReturnsError,
-			enc:               crypto.EncodePublicKey,
-			reloadEveryMinute: false,
+			uid: mockGetUuidReturnsError,
+			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				assert.Empty(t, s.skidStore)
 			},
@@ -235,14 +234,13 @@ func TestSkidHandler(t *testing.T) {
 			certs: mockGetCertificateList([]validity{
 				{
 					PrivPEM:   priv,
-					PubPEM:    pub,
 					NotBefore: time.Now().Add(-time.Hour),
-					NotAfter:  time.Now().Add(-time.Second),
+					NotAfter:  time.Now().Add(-time.Minute),
+					SKID:      testSKID,
 				},
 			}),
-			uid:               testUUIDs.mockGetUuidForPublicKey,
-			enc:               crypto.EncodePublicKey,
-			reloadEveryMinute: false,
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				_, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertExpired, err)
@@ -253,14 +251,84 @@ func TestSkidHandler(t *testing.T) {
 			certs: mockGetCertificateList([]validity{
 				{
 					PrivPEM:   priv,
-					PubPEM:    pub,
 					NotBefore: time.Now().Add(time.Minute),
 					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
 				},
 			}),
-			uid:               testUUIDs.mockGetUuidForPublicKey,
-			enc:               crypto.EncodePublicKey,
-			reloadEveryMinute: false,
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				_, err := s.GetSKID(uid)
+				assert.Equal(t, ErrCertNotYetValid, err)
+			},
+		},
+		{
+			name: "do not overwrite previouslyMatchedSkid",
+			certs: mockGetCertificateList([]validity{
+				{
+					PrivPEM:   priv,
+					NotBefore: time.Now(),
+					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
+				},
+				{
+					PrivPEM:   priv,
+					NotBefore: time.Now().Add(time.Minute),
+					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID2,
+				},
+			}),
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Equal(t, testSKID, skid)
+			},
+		},
+		{
+			name: "use newer of two valid certificates",
+			certs: mockGetCertificateList([]validity{
+				{
+					PrivPEM:   priv,
+					NotBefore: time.Now(),
+					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
+				},
+				{
+					PrivPEM:   priv,
+					NotBefore: time.Now().Add(-time.Hour),
+					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID2,
+				},
+			}),
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Equal(t, testSKID, skid)
+			},
+		},
+		{
+			name: "use newer of two invalid certificates",
+			certs: mockGetCertificateList([]validity{
+				{
+					PrivPEM:   priv,
+					NotBefore: time.Now().Add(time.Minute),
+					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
+				},
+				{
+					PrivPEM:   priv,
+					NotBefore: time.Now().Add(-time.Hour),
+					NotAfter:  time.Now().Add(-time.Minute),
+					SKID:      testSKID2,
+				},
+			}),
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				_, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertNotYetValid, err)
@@ -339,11 +407,10 @@ func TestSkidHandler(t *testing.T) {
 //}
 
 type validity struct {
-	//Uid uuid.UUID
 	PrivPEM   []byte
-	PubPEM    []byte
 	NotBefore time.Time
 	NotAfter  time.Time
+	SKID      []byte
 }
 
 func mockGetCertificateList(v []validity) GetCertificateList {
@@ -357,47 +424,25 @@ func mockGetCertificateList(v []validity) GetCertificateList {
 				panic(err)
 			}
 
-			pub, err := decodePublicKey(valid.PubPEM)
-			if err != nil {
-				panic(err)
-			}
-
 			template := &x509.Certificate{
-				SerialNumber: big.NewInt(1234567890),
-				//SignatureAlgorithm: x509.ECDSAWithSHA256,
-				//Subject: pkix.Name{
-				//	CommonName: valid.Uid.String(),
-				//},
-				NotBefore: valid.NotBefore,
-				NotAfter:  valid.NotAfter,
+				SerialNumber: big.NewInt(1342),
+				NotBefore:    valid.NotBefore,
+				NotAfter:     valid.NotAfter,
 			}
 
-			certificate, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
+			certificate, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
 			if err != nil {
 				panic(err)
 			}
 
 			certList = append(certList, Certificate{
-				Kid:     testSKID,
+				Kid:     valid.SKID,
 				RawData: certificate,
 			})
 
 		}
 		return certList, nil
 	}
-}
-
-// decodePublicKey decodes a Public Key from the x509 PEM format and returns the Public Key
-func decodePublicKey(pemEncoded []byte) (*ecdsa.PublicKey, error) {
-	block, _ := pem.Decode(pemEncoded)
-	if block == nil {
-		return nil, fmt.Errorf("unable to parse PEM block")
-	}
-	genericPublicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	return genericPublicKey.(*ecdsa.PublicKey), nil
 }
 
 // decodePrivateKey decodes a Private Key from the x509 PEM format and returns the Private Key
