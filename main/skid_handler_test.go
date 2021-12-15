@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"sync"
 	"testing"
 	"time"
 
@@ -107,6 +108,39 @@ func TestSkidHandler(t *testing.T) {
 				//time.Sleep(s.certLoadInterval + time.Second)
 				//
 				//assert.Equal(t, 0, len(s.skidStore))
+			},
+		},
+		{
+			name: "loadSKIDs",
+			certs: mockGetCertificateList([]validity{
+				{
+					PrivPEM:   priv,
+					NotBefore: time.Now(),
+					NotAfter:  time.Now().Add(time.Hour),
+					SKID:      testSKID,
+				},
+			}),
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				require.Equal(t, testSKID, skid)
+
+				s.getCerts = mockGetCertificateList([]validity{
+					{
+						PrivPEM:   priv,
+						NotBefore: time.Now(),
+						NotAfter:  time.Now().Add(time.Hour),
+						SKID:      testSKID2,
+					},
+				})
+
+				s.loadSKIDs()
+
+				skid, err = s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Equal(t, testSKID2, skid)
 			},
 		},
 		{
@@ -343,68 +377,37 @@ func TestSkidHandler(t *testing.T) {
 	}
 }
 
-//func TestSkidHandler_LoadSKIDs(t *testing.T) {
-//	c := &ubirch.ECDSACryptoContext{}
-//
-//	p := &Protocol{
-//		uuidCache: &sync.Map{},
-//	}
-//
-//	s := &SkidHandler{
-//		skidStore:      map[uuid.UUID]skid{},
-//		skidStoreMutex: &sync.RWMutex{},
-//
-//		certLoadFailCounter:  0,
-//		maxCertLoadFailCount: 3,
-//
-//		getCerts:  mockGetCertificateList,
-//		getUuid:   p.mockGetUuidForPublicKey,
-//		encPubKey: c.EncodePublicKey,
-//	}
-//
-//	s.loadSKIDs()
-//
-//	assert.Equal(t, numberOfMatchingCerts, len(s.skidStore))
-//
-//	certs = certs[1:]
-//
-//	s.loadSKIDs()
-//
-//	assert.Equal(t, numberOfMatchingCerts-1, len(s.skidStore))
-//
-//	// reset cert list
-//	certs = []Certificate{}
-//}
+func TestSkidHandler_GetSKID(t *testing.T) {
+	s := SkidHandler{
+		skidStore:      map[uuid.UUID]skid{},
+		skidStoreMutex: &sync.RWMutex{},
+	}
 
-//func TestSkidHandler_GetSKID(t *testing.T) {
-//	s := SkidHandler{
-//		skidStore:      map[uuid.UUID]skid{},
-//		skidStoreMutex: &sync.RWMutex{},
-//	}
-//
-//	for i := 0; i < 100; i++ {
-//		randSKID := make([]byte, 8)
-//		rand.Read(randSKID)
-//		s.skidStore[uuid.New()] = skid{
-//			Bytes: randSKID,
-//			Valid: true,
-//		}
-//	}
-//
-//	wg := &sync.WaitGroup{}
-//
-//	for uid, skid := range s.skidStore {
-//		wg.Add(1)
-//		go func(uid uuid.UUID, skid []byte, wg *sync.WaitGroup) {
-//			defer wg.Done()
-//			storedSKID, err := s.GetSKID(uid)
-//			require.NoError(t, err)
-//			assert.Equal(t, skid, storedSKID)
-//		}(uid, skid.Bytes, wg)
-//	}
-//
-//	wg.Wait()
-//}
+	for i := 0; i < 100; i++ {
+		randSKID := make([]byte, 8)
+		_, err := rand.Read(randSKID)
+		require.NoError(t, err)
+
+		s.skidStore[uuid.New()] = skid{
+			Bytes: randSKID,
+			Valid: true,
+		}
+	}
+
+	wg := &sync.WaitGroup{}
+
+	for uid, skid := range s.skidStore {
+		wg.Add(1)
+		go func(uid uuid.UUID, skid []byte, wg *sync.WaitGroup) {
+			defer wg.Done()
+			storedSKID, err := s.GetSKID(uid)
+			require.NoError(t, err)
+			assert.Equal(t, skid, storedSKID)
+		}(uid, skid.Bytes, wg)
+	}
+
+	wg.Wait()
+}
 
 type validity struct {
 	PrivPEM   []byte
