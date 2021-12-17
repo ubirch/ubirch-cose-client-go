@@ -37,29 +37,21 @@ func TestCoseSigner(t *testing.T) {
 	c := setupCryptoCtx(t, testUuid)
 
 	pubKeyBytes, err := c.GetPublicKeyBytes(testUuid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Logf("public key: %x", pubKeyBytes)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Logf("payload [JSON]: %s", payloadJSON)
 
 	payloadCBOR, err := coseSigner.GetCBORFromJSON([]byte(payloadJSON))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Logf("payload [CBOR]: %x", payloadCBOR)
 
 	toBeSigned, err := coseSigner.GetSigStructBytes(payloadCBOR)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Logf("Sig_structure [CBOR]: %x", toBeSigned)
 
@@ -70,9 +62,7 @@ func TestCoseSigner(t *testing.T) {
 	ctx := context.Background()
 
 	coseBytes, err := coseSigner.createSignedCOSE(ctx, testUuid, hash, testUuid[:], payloadCBOR)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Logf("signed COSE [CBOR]: %x", coseBytes)
 }
@@ -81,9 +71,7 @@ func TestCoseSign(t *testing.T) {
 	c := setupCryptoCtx(t, testUuid)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	msg := h.HTTPRequest{
 		ID:      testUuid,
@@ -170,11 +158,33 @@ func TestCoseSignBadGetSKID(t *testing.T) {
 	}
 }
 
-func TestCoseSignBadKey(t *testing.T) {
-	coseSigner, err := NewCoseSigner(mockSignReturnsError, mockGetSKID)
-	if err != nil {
-		t.Fatal(err)
+func TestCoseSignBadContext(t *testing.T) {
+	c := setupCryptoCtx(t, testUuid)
+
+	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
+	require.NoError(t, err)
+
+	err = coseSigner.signSem.Acquire(context.Background(), 1)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	msg := h.HTTPRequest{
+		ID:      testUuid,
+		Hash:    sha256.Sum256([]byte("test")),
+		Payload: []byte("test"),
+		Ctx:     ctx,
 	}
+
+	_, err = coseSigner.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, testSKID, msg.Payload)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to acquire semaphore for signing")
+}
+
+func TestCoseSignBadSign(t *testing.T) {
+	coseSigner, err := NewCoseSigner(mockSignReturnsError, mockGetSKID)
+	require.NoError(t, err)
 
 	msg := h.HTTPRequest{
 		ID:      testUuid,
@@ -195,9 +205,7 @@ func TestCoseSignBadKey(t *testing.T) {
 
 func TestCoseSignBadSignature(t *testing.T) {
 	coseSigner, err := NewCoseSigner(mockSignReturnsNilSignature, mockGetSKID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	msg := h.HTTPRequest{
 		ID:      testUuid,
@@ -216,18 +224,20 @@ func TestCoseSignBadSignature(t *testing.T) {
 	}
 }
 
+func TestCoseSigner_GetSigStructBytes(t *testing.T) {
+	coseSigner := CoseSigner{}
+	_, err := coseSigner.GetSigStructBytes([]byte(""))
+	assert.EqualError(t, err, "empty payload")
+}
+
 func TestCoseBadGetCBORFromJSON(t *testing.T) {
 	c := setupCryptoCtx(t, testUuid)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	_, err = coseSigner.GetCBORFromJSON(nil)
-	if err == nil {
-		t.Errorf("GetCBORFromJSON(nil) returned no error")
-	}
+	assert.Error(t, err)
 }
 
 func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
@@ -236,9 +246,7 @@ func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
 	}
 
 	err := cryptoCtx.SetKey(uid, testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	return cryptoCtx
 }
