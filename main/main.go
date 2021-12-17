@@ -76,21 +76,6 @@ func main() {
 		defer profiling.StopBlockProfileRecording(file)
 	}
 
-	storageManager, err := GetStorageManager(conf)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer storageManager.Close()
-	readinessChecks = append(readinessChecks, storageManager.IsReady)
-
-	err = storageManager.IsReady()
-	for err != nil {
-		log.Infof("db not ready yet")
-		time.Sleep(200 * time.Millisecond)
-		err = storageManager.IsReady()
-	}
-	log.Info("db ready")
-
 	// initialize COSE service
 	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(conf.PKCS11Module, conf.PKCS11ModulePin,
 		conf.PKCS11ModuleSlotNr, true, 1, 50*time.Millisecond)
@@ -112,6 +97,13 @@ func main() {
 		// a session on every incoming signing request.
 		log.Warnf("unable to set up session with HSM: %v", err)
 	}
+
+	storageManager, err := GetStorageManager(conf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer storageManager.Close()
+	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
 	protocol := NewProtocol(storageManager, conf)
 
