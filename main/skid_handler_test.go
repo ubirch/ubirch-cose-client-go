@@ -379,7 +379,7 @@ func TestSkidHandler(t *testing.T) {
 
 func TestSkidHandler_GetSKID(t *testing.T) {
 	s := SkidHandler{
-		skidStore:      map[uuid.UUID]skid{},
+		skidStore:      map[uuid.UUID]skidCtx{},
 		skidStoreMutex: &sync.RWMutex{},
 	}
 
@@ -388,8 +388,8 @@ func TestSkidHandler_GetSKID(t *testing.T) {
 		_, err := rand.Read(randSKID)
 		require.NoError(t, err)
 
-		s.skidStore[uuid.New()] = skid{
-			Bytes: randSKID,
+		s.skidStore[uuid.New()] = skidCtx{
+			SKID:  randSKID,
 			Valid: true,
 		}
 	}
@@ -403,7 +403,7 @@ func TestSkidHandler_GetSKID(t *testing.T) {
 			storedSKID, err := s.GetSKID(uid)
 			require.NoError(t, err)
 			assert.Equal(t, skid, storedSKID)
-		}(uid, skid.Bytes, wg)
+		}(uid, skid.SKID, wg)
 	}
 
 	wg.Wait()

@@ -22,8 +22,8 @@ var (
 	ErrCertNotYetValid        = errors.New("X.509 public key certificate for identity is not yet valid")
 )
 
-type skid struct {
-	Bytes     []byte
+type skidCtx struct {
+	SKID      []byte
 	Valid     bool
 	Expired   bool
 	NotBefore time.Time
@@ -35,7 +35,7 @@ type EncodePublicKey func(pub interface{}) (pemEncoded []byte, err error)
 type GetUuid func(pubKey []byte) (uuid.UUID, error)
 
 type SkidHandler struct {
-	skidStore      map[uuid.UUID]skid
+	skidStore      map[uuid.UUID]skidCtx
 	skidStoreMutex *sync.RWMutex
 
 	certLoadInterval     time.Duration
@@ -52,7 +52,7 @@ type SkidHandler struct {
 // NewSkidHandler loads SKIDs from the public key certificate list and updates it frequently
 func NewSkidHandler(certs GetCertificateList, uid GetUuid, enc EncodePublicKey, reloadEveryMinute bool) *SkidHandler {
 	s := &SkidHandler{
-		skidStore:      map[uuid.UUID]skid{},
+		skidStore:      map[uuid.UUID]skidCtx{},
 		skidStoreMutex: &sync.RWMutex{},
 
 		certLoadFailCounter: 0,
@@ -113,7 +113,7 @@ func (s *SkidHandler) loadSKIDs() {
 		s.isCertServerAvailable.Store(true)
 	}
 
-	tempSkidStore := map[uuid.UUID]skid{}
+	tempSkidStore := map[uuid.UUID]skidCtx{}
 
 	// go through certificate list and match known public keys
 	for _, cert := range certs {
@@ -149,8 +149,8 @@ func (s *SkidHandler) loadSKIDs() {
 		}
 		log.Debugf("%s: public key match: %s", skidString, uid)
 
-		matchedSkid := skid{
-			Bytes:     cert.Kid,
+		matchedSkid := skidCtx{
+			SKID:      cert.Kid,
 			NotBefore: certificate.NotBefore,
 			NotAfter:  certificate.NotAfter,
 		}
@@ -186,7 +186,7 @@ func (s *SkidHandler) loadSKIDs() {
 	s.setSkidStore(tempSkidStore)
 }
 
-func (s *SkidHandler) setSkidStore(newSkidStore map[uuid.UUID]skid) {
+func (s *SkidHandler) setSkidStore(newSkidStore map[uuid.UUID]skidCtx) {
 	s.skidStoreMutex.Lock()
 	prevSKIDs, _ := json.Marshal(s.skidStore)
 	s.skidStore = newSkidStore
@@ -212,7 +212,7 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, error) {
 	}
 
 	if skid.Valid {
-		return skid.Bytes, nil
+		return skid.SKID, nil
 	}
 
 	if skid.Expired {
