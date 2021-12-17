@@ -111,8 +111,21 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 	skid, err := c.GetSKID(msg.ID)
 	if err != nil {
-		log.Error(err)
-		return h.ErrorResponse(http.StatusTooEarly, err.Error())
+		log.Errorf("%s: %v", msg.ID, err)
+		var respStatusCode int
+		switch err {
+		case ErrCertServerNotAvailable:
+			respStatusCode = http.StatusServiceUnavailable
+		case ErrCertNotFound:
+			respStatusCode = http.StatusNotFound
+		case ErrCertExpired:
+			respStatusCode = http.StatusInternalServerError
+		case ErrCertNotYetValid:
+			respStatusCode = http.StatusTooEarly
+		default:
+			respStatusCode = http.StatusInternalServerError
+		}
+		return h.ErrorResponse(respStatusCode, err.Error())
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)

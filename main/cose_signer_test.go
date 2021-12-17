@@ -18,6 +18,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
 
@@ -100,26 +102,71 @@ func TestCoseSign(t *testing.T) {
 	}
 }
 
-func TestCoseSignBadSkid(t *testing.T) {
-	coseSigner, err := NewCoseSigner(mockSign, mockGetSKIDReturnsErr)
-	if err != nil {
-		t.Fatal(err)
+func TestCoseSignBadGetSKID(t *testing.T) {
+
+	testCases := []struct {
+		name       string
+		getSKID    GetSKID
+		StatusCode int
+		Content    []byte
+	}{
+		{
+			name: "ErrCertServerNotAvailable",
+			getSKID: func(uid uuid.UUID) ([]byte, error) {
+				return nil, ErrCertServerNotAvailable
+			},
+			StatusCode: http.StatusServiceUnavailable,
+			Content:    []byte(ErrCertServerNotAvailable.Error()),
+		},
+		{
+			name: "ErrCertNotFound",
+			getSKID: func(uid uuid.UUID) ([]byte, error) {
+				return nil, ErrCertNotFound
+			},
+			StatusCode: http.StatusNotFound,
+			Content:    []byte(ErrCertNotFound.Error()),
+		},
+		{
+			name: "ErrCertExpired",
+			getSKID: func(uid uuid.UUID) ([]byte, error) {
+				return nil, ErrCertExpired
+			},
+			StatusCode: http.StatusInternalServerError,
+			Content:    []byte(ErrCertExpired.Error()),
+		},
+		{
+			name: "ErrCertNotYetValid",
+			getSKID: func(uid uuid.UUID) ([]byte, error) {
+				return nil, ErrCertNotYetValid
+			},
+			StatusCode: http.StatusTooEarly,
+			Content:    []byte(ErrCertNotYetValid.Error()),
+		},
+		{
+			name: "unexpected error",
+			getSKID: func(uid uuid.UUID) ([]byte, error) {
+				return nil, testError
+			},
+			StatusCode: http.StatusInternalServerError,
+			Content:    []byte(testError.Error()),
+		},
 	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			coseSigner, err := NewCoseSigner(mockSign, c.getSKID)
+			require.NoError(t, err)
 
-	msg := h.HTTPRequest{
-		ID:      testUuid,
-		Hash:    sha256.Sum256([]byte("test")),
-		Payload: []byte("test"),
-	}
+			msg := h.HTTPRequest{
+				ID:      testUuid,
+				Hash:    sha256.Sum256([]byte("test")),
+				Payload: []byte("test"),
+			}
 
-	resp := coseSigner.Sign(msg)
+			resp := coseSigner.Sign(msg)
 
-	if resp.StatusCode != http.StatusTooEarly {
-		t.Errorf("response status code: %d", resp.StatusCode)
-	}
-
-	if resp.Content == nil {
-		t.Errorf("empty response content")
+			assert.Equal(t, c.StatusCode, resp.StatusCode)
+			assert.Equal(t, c.Content, resp.Content)
+		})
 	}
 }
 
@@ -198,10 +245,6 @@ func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
 
 func mockGetSKID(uuid.UUID) ([]byte, error) {
 	return base64.StdEncoding.DecodeString("6ZaL9M6NcG0=")
-}
-
-func mockGetSKIDReturnsErr(uuid.UUID) ([]byte, error) {
-	return nil, testError
 }
 
 func mockSign(uuid.UUID, []byte) ([]byte, error) {
