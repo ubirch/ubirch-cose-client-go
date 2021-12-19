@@ -118,7 +118,7 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 		case ErrCertServerNotAvailable:
 			respStatusCode = http.StatusServiceUnavailable
 		case ErrCertNotFound:
-			respStatusCode = http.StatusNotFound
+			respStatusCode = http.StatusTooEarly
 		case ErrCertExpired:
 			respStatusCode = http.StatusInternalServerError
 		case ErrCertNotYetValid:
