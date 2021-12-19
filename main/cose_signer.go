@@ -38,6 +38,7 @@ const (
 	COSE_Kid_Label     = 4            // key identifier label (Common COSE Headers Parameters: https://cose-wg.github.io/cose-spec/#rfc.section.3.1)
 	COSE_Sign1_Tag     = 18           // CBOR tag TBD7 identifies tagged COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.2)
 	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
+	ES256_Sig_Len      = 64           // length of ECDSA P-256 signatures in bytes
 )
 
 // 	COSE_Sign1 = [
@@ -261,8 +262,8 @@ func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error
 			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
 																							payload is unknown
 	*/
-	if signatureBytes == nil {
-		return nil, fmt.Errorf("empty signature")
+	if len(signatureBytes) != ES256_Sig_Len {
+		return nil, fmt.Errorf("invalid signature length: expected %d, got %d", ES256_Sig_Len, len(signatureBytes))
 	}
 
 	// create COSE_Sign1 object
