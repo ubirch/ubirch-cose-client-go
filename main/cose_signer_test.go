@@ -15,22 +15,25 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
 var (
-	payloadJSON = "{\"test\": \"hello\"}"
+	payloadJSON   = "{\"test\": \"hello\"}"
+	testSignature = []byte{0x52, 0xfd, 0xfc, 0x7, 0x21, 0x82, 0x65, 0x4f, 0x16, 0x3f, 0x5f, 0xf, 0x9a, 0x62, 0x1d, 0x72, 0x95, 0x66, 0xc7, 0x4d, 0x10, 0x3, 0x7c, 0x4d, 0x7b, 0xbb, 0x4, 0x7, 0xd1, 0xe2, 0xc6, 0x49, 0x81, 0x85, 0x5a, 0xd8, 0x68, 0x1d, 0xd, 0x86, 0xd1, 0xe9, 0x1e, 0x0, 0x16, 0x79, 0x39, 0xcb, 0x66, 0x94, 0xd2, 0xc4, 0x22, 0xac, 0xd2, 0x8, 0xa0, 0x7, 0x29, 0x39, 0x48, 0x7f, 0x69, 0x99}
 )
 
 func TestCoseSigner(t *testing.T) {
@@ -59,89 +62,121 @@ func TestCoseSigner(t *testing.T) {
 
 	t.Logf("sha256 hash [base64]: %s", base64.StdEncoding.EncodeToString(hash[:]))
 
-	ctx := context.Background()
-
-	coseBytes, err := coseSigner.createSignedCOSE(ctx, testUuid, hash, testUuid[:], payloadCBOR)
-	require.NoError(t, err)
-
-	t.Logf("signed COSE [CBOR]: %x", coseBytes)
-}
-
-func TestCoseSign(t *testing.T) {
-	c := setupCryptoCtx(t, testUuid)
-
-	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
-	require.NoError(t, err)
-
 	msg := h.HTTPRequest{
 		ID:      testUuid,
-		Hash:    sha256.Sum256([]byte("test")),
-		Payload: []byte("test"),
+		Hash:    hash,
+		Payload: payloadCBOR,
+		Ctx:     context.Background(),
 	}
 
 	resp := coseSigner.Sign(msg)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("response status code: %d", resp.StatusCode)
+	t.Logf("signed COSE [CBOR]: %x", resp.Content)
+
+	// verify response
+	respCoseObj := &COSE_Sign1{}
+	dec := cbor.NewDecoder(bytes.NewReader(resp.Content))
+	require.NoError(t, dec.Decode(respCoseObj))
+
+	respSigStruct := &Sig_structure{
+		Context:         "Signature1",
+		ProtectedHeader: respCoseObj.Protected,
+		External:        []byte{},
+		Payload:         respCoseObj.Payload,
 	}
 
-	if resp.Content == nil {
-		t.Errorf("empty response content")
-	}
+	respToBeSigned, err := coseSigner.encMode.Marshal(respSigStruct)
+	require.NoError(t, err)
+
+	verified, err := c.Verify(msg.ID, respToBeSigned, respCoseObj.Signature)
+	require.NoError(t, err)
+	assert.True(t, verified)
 }
 
-func TestCoseSignBadGetSKID(t *testing.T) {
+func TestCoseSigner_Sign(t *testing.T) {
 
 	testCases := []struct {
 		name       string
 		getSKID    GetSKID
+		signHash   SignHash
 		StatusCode int
 		Content    []byte
 	}{
 		{
-			name: "ErrCertServerNotAvailable",
+			name:       "happy path",
+			getSKID:    mockGetSKID,
+			signHash:   mockSign,
+			StatusCode: http.StatusOK,
+			Content:    []byte{0xd2, 0x84, 0x43, 0xa1, 0x1, 0x26, 0xa1, 0x4, 0x48, 0xa3, 0x78, 0xce, 0x33, 0x3d, 0xd4, 0xf7, 0x76, 0x44, 0x74, 0x65, 0x73, 0x74, 0x58, 0x40, 0x52, 0xfd, 0xfc, 0x7, 0x21, 0x82, 0x65, 0x4f, 0x16, 0x3f, 0x5f, 0xf, 0x9a, 0x62, 0x1d, 0x72, 0x95, 0x66, 0xc7, 0x4d, 0x10, 0x3, 0x7c, 0x4d, 0x7b, 0xbb, 0x4, 0x7, 0xd1, 0xe2, 0xc6, 0x49, 0x81, 0x85, 0x5a, 0xd8, 0x68, 0x1d, 0xd, 0x86, 0xd1, 0xe9, 0x1e, 0x0, 0x16, 0x79, 0x39, 0xcb, 0x66, 0x94, 0xd2, 0xc4, 0x22, 0xac, 0xd2, 0x8, 0xa0, 0x7, 0x29, 0x39, 0x48, 0x7f, 0x69, 0x99},
+		},
+		{
+			name: "getSKID ErrCertServerNotAvailable",
 			getSKID: func(uid uuid.UUID) ([]byte, error) {
 				return nil, ErrCertServerNotAvailable
 			},
+			signHash:   mockSign,
 			StatusCode: http.StatusServiceUnavailable,
 			Content:    []byte(ErrCertServerNotAvailable.Error()),
 		},
 		{
-			name: "ErrCertNotFound",
+			name: "getSKID ErrCertNotFound",
 			getSKID: func(uid uuid.UUID) ([]byte, error) {
 				return nil, ErrCertNotFound
 			},
+			signHash:   mockSign,
 			StatusCode: http.StatusNotFound,
 			Content:    []byte(ErrCertNotFound.Error()),
 		},
 		{
-			name: "ErrCertExpired",
+			name: "getSKID ErrCertExpired",
 			getSKID: func(uid uuid.UUID) ([]byte, error) {
 				return nil, ErrCertExpired
 			},
+			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
 			Content:    []byte(ErrCertExpired.Error()),
 		},
 		{
-			name: "ErrCertNotYetValid",
+			name: "getSKID ErrCertNotYetValid",
 			getSKID: func(uid uuid.UUID) ([]byte, error) {
 				return nil, ErrCertNotYetValid
 			},
+			signHash:   mockSign,
 			StatusCode: http.StatusTooEarly,
 			Content:    []byte(ErrCertNotYetValid.Error()),
 		},
 		{
-			name: "unexpected error",
+			name: "getSKID unexpected error",
 			getSKID: func(uid uuid.UUID) ([]byte, error) {
 				return nil, testError
 			},
+			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
-			Content:    []byte(testError.Error()),
+			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
+		},
+		{
+			name:    "signHash bad",
+			getSKID: mockGetSKID,
+			signHash: func(uuid.UUID, []byte) ([]byte, error) {
+				return nil, testError
+			},
+			StatusCode: http.StatusInternalServerError,
+			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
+		},
+		{
+			name:    "signHash nil signature",
+			getSKID: mockGetSKID,
+			signHash: func(uuid.UUID, []byte) ([]byte, error) {
+				return nil, nil
+			},
+			StatusCode: http.StatusInternalServerError,
+			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
 		},
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
-			coseSigner, err := NewCoseSigner(mockSign, c.getSKID)
+			coseSigner, err := NewCoseSigner(c.signHash, c.getSKID)
 			require.NoError(t, err)
 
 			msg := h.HTTPRequest{
@@ -159,9 +194,7 @@ func TestCoseSignBadGetSKID(t *testing.T) {
 }
 
 func TestCoseSignBadContext(t *testing.T) {
-	c := setupCryptoCtx(t, testUuid)
-
-	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
+	coseSigner, err := NewCoseSigner(mockSign, mockGetSKID)
 	require.NoError(t, err)
 
 	err = coseSigner.signSem.Acquire(context.Background(), 1)
@@ -182,55 +215,13 @@ func TestCoseSignBadContext(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to acquire semaphore for signing")
 }
 
-func TestCoseSignBadSign(t *testing.T) {
-	coseSigner, err := NewCoseSigner(mockSignReturnsError, mockGetSKID)
-	require.NoError(t, err)
-
-	msg := h.HTTPRequest{
-		ID:      testUuid,
-		Hash:    sha256.Sum256([]byte("test")),
-		Payload: []byte("test"),
-	}
-
-	resp := coseSigner.Sign(msg)
-
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("response status code: %d", resp.StatusCode)
-	}
-
-	if resp.Content == nil {
-		t.Errorf("empty response content")
-	}
-}
-
-func TestCoseSignBadSignature(t *testing.T) {
-	coseSigner, err := NewCoseSigner(mockSignReturnsNilSignature, mockGetSKID)
-	require.NoError(t, err)
-
-	msg := h.HTTPRequest{
-		ID:      testUuid,
-		Hash:    sha256.Sum256([]byte("test")),
-		Payload: []byte("test"),
-	}
-
-	resp := coseSigner.Sign(msg)
-
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("response status code: %d", resp.StatusCode)
-	}
-
-	if resp.Content == nil {
-		t.Errorf("empty response content")
-	}
-}
-
 func TestCoseSigner_GetSigStructBytes(t *testing.T) {
 	coseSigner := CoseSigner{}
 	_, err := coseSigner.GetSigStructBytes([]byte(""))
 	assert.EqualError(t, err, "empty payload")
 }
 
-func TestCoseBadGetCBORFromJSON(t *testing.T) {
+func TestCoseSigner_GetCBORFromJSON_Bad(t *testing.T) {
 	c := setupCryptoCtx(t, testUuid)
 
 	coseSigner, err := NewCoseSigner(c.SignHash, mockGetSKID)
@@ -252,17 +243,9 @@ func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
 }
 
 func mockGetSKID(uuid.UUID) ([]byte, error) {
-	return base64.StdEncoding.DecodeString("6ZaL9M6NcG0=")
+	return testSKID, nil
 }
 
 func mockSign(uuid.UUID, []byte) ([]byte, error) {
-	return make([]byte, 64), nil
-}
-
-func mockSignReturnsError(uuid.UUID, []byte) ([]byte, error) {
-	return nil, testError
-}
-
-func mockSignReturnsNilSignature(uuid.UUID, []byte) ([]byte, error) {
-	return nil, nil
+	return testSignature, nil
 }
