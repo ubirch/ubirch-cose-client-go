@@ -124,14 +124,15 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 		case ErrCertNotYetValid:
 			respStatusCode = http.StatusTooEarly
 		default:
-			respStatusCode = http.StatusInternalServerError
+			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
+			return h.ErrorResponse(http.StatusInternalServerError, "")
 		}
 		return h.ErrorResponse(respStatusCode, err.Error())
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
-		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
+		log.Errorf("%s: could not create COSE object: %v", msg.ID, err)
 		return h.ErrorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
