@@ -71,7 +71,7 @@ type Sig_structure struct {
 }
 
 type SignHash func(id uuid.UUID, hash []byte) ([]byte, error)
-type GetSKID func(uid uuid.UUID) ([]byte, error)
+type GetSKID func(uid uuid.UUID) ([]byte, string, error)
 
 type CoseSigner struct {
 	encMode         cbor.EncMode
@@ -110,9 +110,9 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	log.Debugf("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	skid, err := c.GetSKID(msg.ID)
+	skid, errMsg, err := c.GetSKID(msg.ID)
 	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
+		log.Errorf("%s: %s", msg.ID, errMsg)
 		var respStatusCode int
 		switch err {
 		case ErrCertServerNotAvailable:
@@ -123,7 +123,7 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
 			return h.ErrorResponse(http.StatusInternalServerError, "")
 		}
-		return h.ErrorResponse(respStatusCode, err.Error())
+		return h.ErrorResponse(respStatusCode, errMsg)
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)

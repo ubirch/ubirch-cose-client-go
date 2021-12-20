@@ -70,12 +70,15 @@ func TestSkidHandler(t *testing.T) {
 
 				assert.True(t, s.isCertServerAvailable.Load().(bool))
 
-				skid, err := s.GetSKID(uid)
+				skid, errMsg, err := s.GetSKID(uid)
 				require.NoError(t, err)
+				assert.Empty(t, errMsg)
 				assert.Equal(t, testSKID, skid)
 
-				_, err = s.GetSKID(uuid.New())
+				_, errMsg, err = s.GetSKID(uuid.New())
 				assert.Equal(t, ErrCertNotFound, err)
+				assert.Contains(t, errMsg, TrustListErrorInfo)
+				assert.Contains(t, errMsg, ErrCertNotFound.Error())
 			},
 		},
 		{
@@ -123,8 +126,9 @@ func TestSkidHandler(t *testing.T) {
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				skid, err := s.GetSKID(uid)
+				skid, errMsg, err := s.GetSKID(uid)
 				require.NoError(t, err)
+				assert.Empty(t, errMsg)
 				require.Equal(t, testSKID, skid)
 
 				s.getCerts = mockGetCertificateList([]validity{
@@ -138,8 +142,9 @@ func TestSkidHandler(t *testing.T) {
 
 				s.loadSKIDs()
 
-				skid, err = s.GetSKID(uid)
+				skid, errMsg, err = s.GetSKID(uid)
 				require.NoError(t, err)
+				assert.Empty(t, errMsg)
 				assert.Equal(t, testSKID2, skid)
 			},
 		},
@@ -154,8 +159,11 @@ func TestSkidHandler(t *testing.T) {
 				assert.Equal(t, 1, s.certLoadFailCounter)
 				assert.False(t, s.isCertServerAvailable.Load().(bool))
 
-				_, err := s.GetSKID(uid)
+				_, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertServerNotAvailable, err)
+				assert.Contains(t, errMsg, TrustListErrorInfo)
+				assert.Contains(t, errMsg, ErrCertServerNotAvailable.Error())
+				assert.Contains(t, errMsg, "trustList could not be loaded for 1h0m0s")
 			},
 		},
 		{
@@ -276,8 +284,11 @@ func TestSkidHandler(t *testing.T) {
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				_, err := s.GetSKID(uid)
+				_, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertExpired, err)
+				assert.Contains(t, errMsg, TrustListErrorInfo)
+				assert.Contains(t, errMsg, ErrCertExpired.Error())
+				assert.Contains(t, errMsg, s.skidStore[uid].NotAfter.String())
 			},
 		},
 		{
@@ -293,8 +304,11 @@ func TestSkidHandler(t *testing.T) {
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				_, err := s.GetSKID(uid)
+				_, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertNotYetValid, err)
+				assert.Contains(t, errMsg, TrustListErrorInfo)
+				assert.Contains(t, errMsg, ErrCertNotYetValid.Error())
+				assert.Contains(t, errMsg, s.skidStore[uid].NotBefore.String())
 			},
 		},
 		{
@@ -316,8 +330,9 @@ func TestSkidHandler(t *testing.T) {
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				skid, err := s.GetSKID(uid)
+				skid, errMsg, err := s.GetSKID(uid)
 				require.NoError(t, err)
+				assert.Empty(t, errMsg)
 				assert.Equal(t, testSKID, skid)
 			},
 		},
@@ -340,8 +355,9 @@ func TestSkidHandler(t *testing.T) {
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				skid, err := s.GetSKID(uid)
+				skid, errMsg, err := s.GetSKID(uid)
 				require.NoError(t, err)
+				assert.Empty(t, errMsg)
 				assert.Equal(t, testSKID, skid)
 			},
 		},
@@ -364,7 +380,7 @@ func TestSkidHandler(t *testing.T) {
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				_, err := s.GetSKID(uid)
+				_, _, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertNotYetValid, err)
 			},
 		},
@@ -400,7 +416,7 @@ func TestSkidHandler_GetSKID(t *testing.T) {
 		wg.Add(1)
 		go func(uid uuid.UUID, skid []byte, wg *sync.WaitGroup) {
 			defer wg.Done()
-			storedSKID, err := s.GetSKID(uid)
+			storedSKID, _, err := s.GetSKID(uid)
 			require.NoError(t, err)
 			assert.Equal(t, skid, storedSKID)
 		}(uid, skid.SKID, wg)

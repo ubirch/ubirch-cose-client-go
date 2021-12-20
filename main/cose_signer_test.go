@@ -112,8 +112,8 @@ func TestCoseSigner_Sign(t *testing.T) {
 		},
 		{
 			name: "getSKID ErrCertServerNotAvailable",
-			getSKID: func(uid uuid.UUID) ([]byte, error) {
-				return nil, ErrCertServerNotAvailable
+			getSKID: func(uid uuid.UUID) ([]byte, string, error) {
+				return nil, ErrCertServerNotAvailable.Error(), ErrCertServerNotAvailable
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusServiceUnavailable,
@@ -121,8 +121,8 @@ func TestCoseSigner_Sign(t *testing.T) {
 		},
 		{
 			name: "getSKID ErrCertNotFound",
-			getSKID: func(uid uuid.UUID) ([]byte, error) {
-				return nil, ErrCertNotFound
+			getSKID: func(uid uuid.UUID) ([]byte, string, error) {
+				return nil, ErrCertNotFound.Error(), ErrCertNotFound
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
@@ -130,8 +130,8 @@ func TestCoseSigner_Sign(t *testing.T) {
 		},
 		{
 			name: "getSKID ErrCertExpired",
-			getSKID: func(uid uuid.UUID) ([]byte, error) {
-				return nil, ErrCertExpired
+			getSKID: func(uid uuid.UUID) ([]byte, string, error) {
+				return nil, ErrCertExpired.Error(), ErrCertExpired
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
@@ -139,8 +139,8 @@ func TestCoseSigner_Sign(t *testing.T) {
 		},
 		{
 			name: "getSKID ErrCertNotYetValid",
-			getSKID: func(uid uuid.UUID) ([]byte, error) {
-				return nil, ErrCertNotYetValid
+			getSKID: func(uid uuid.UUID) ([]byte, string, error) {
+				return nil, ErrCertNotYetValid.Error(), ErrCertNotYetValid
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
@@ -148,8 +148,8 @@ func TestCoseSigner_Sign(t *testing.T) {
 		},
 		{
 			name: "getSKID unexpected error",
-			getSKID: func(uid uuid.UUID) ([]byte, error) {
-				return nil, testError
+			getSKID: func(uid uuid.UUID) ([]byte, string, error) {
+				return nil, testError.Error(), testError
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
@@ -242,8 +242,8 @@ func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
 	return cryptoCtx
 }
 
-func mockGetSKID(uuid.UUID) ([]byte, error) {
-	return testSKID, nil
+func mockGetSKID(uuid.UUID) ([]byte, string, error) {
+	return testSKID, "", nil
 }
 
 func mockSign(uuid.UUID, []byte) ([]byte, error) {
