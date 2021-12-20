@@ -117,12 +117,8 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 		switch err {
 		case ErrCertServerNotAvailable:
 			respStatusCode = http.StatusServiceUnavailable
-		case ErrCertNotFound:
-			respStatusCode = http.StatusTooEarly
-		case ErrCertExpired:
+		case ErrCertNotFound, ErrCertExpired, ErrCertNotYetValid:
 			respStatusCode = http.StatusInternalServerError
-		case ErrCertNotYetValid:
-			respStatusCode = http.StatusTooEarly
 		default:
 			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
 			return h.ErrorResponse(http.StatusInternalServerError, "")

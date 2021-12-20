@@ -125,7 +125,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 				return nil, ErrCertNotFound
 			},
 			signHash:   mockSign,
-			StatusCode: http.StatusTooEarly,
+			StatusCode: http.StatusInternalServerError,
 			Content:    []byte(ErrCertNotFound.Error()),
 		},
 		{
@@ -143,7 +143,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 				return nil, ErrCertNotYetValid
 			},
 			signHash:   mockSign,
-			StatusCode: http.StatusTooEarly,
+			StatusCode: http.StatusInternalServerError,
 			Content:    []byte(ErrCertNotYetValid.Error()),
 		},
 		{
