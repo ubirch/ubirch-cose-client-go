@@ -33,10 +33,6 @@ var (
 	Version = "local build"
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
-	// declare flags
-	cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to `file`")
-	blockprofile = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
-	configDir    = flag.String("configdirectory", "", "configuration `directory` to use")
 )
 
 func main() {
@@ -48,9 +44,14 @@ func main() {
 	var (
 		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
 		readinessChecks []func() error
+
+		// declare command-line flags
+		cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to `file`")
+		blockprofile = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
+		configDir    = flag.String("configdirectory", "", "configuration `directory` to use")
 	)
 
-	// parse commandline flags
+	// parse command-line flags
 	flag.Parse()
 
 	log.SetFormatter(&log.JSONFormatter{})
