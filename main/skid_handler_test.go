@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
@@ -23,7 +24,7 @@ var (
 )
 
 func TestSkidHandler(t *testing.T) {
-	crypto := ubirch.ECDSACryptoContext{Keystore: &MockKeystorer{}}
+	crypto := &ubirch.ECDSACryptoContext{Keystore: &MockKeystorer{}}
 
 	uid := uuid.New()
 
@@ -425,6 +426,32 @@ func TestSkidHandler_GetSKID(t *testing.T) {
 	wg.Wait()
 }
 
+func TestSkidHandler_LoadFromActualServer(t *testing.T) {
+	conf := &config.Config{}
+	err := conf.Load("", "config.json")
+	require.NoError(t, err)
+
+	if len(conf.CertificateServer) == 0 || len(conf.CertificateServerPubKey) == 0 {
+		t.Skip()
+	}
+
+	certClient := &CertificateServerClient{
+		CertificateServerURL:       conf.CertificateServer,
+		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
+		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
+	}
+
+	protocol := &Protocol{uuidCache: &sync.Map{}}
+
+	cryptoCtx := &ubirch.ECDSACryptoContext{Keystore: &MockKeystorer{}}
+
+	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.mockGetUuidForPublicKey,
+		cryptoCtx.EncodePublicKey, false)
+
+	assert.Empty(t, skidHandler.certLoadFailCounter)
+	assert.NotEmpty(t, skidHandler.skidStore)
+}
+
 type validity struct {
 	PrivPEM   []byte
 	NotBefore time.Time
@@ -495,6 +522,23 @@ func (m *mockUuidCache) mockGetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID,
 
 	if !found {
 		return uuid.Nil, ErrNotExist
+	}
+
+	return uid, nil
+}
+
+func (p *Protocol) mockGetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
+	pubKeyID := getPubKeyID(publicKeyPEM)
+
+	_uid, found := p.uuidCache.Load(pubKeyID)
+
+	if found {
+		uid, found = _uid.(uuid.UUID)
+	}
+
+	if !found {
+		uid = uuid.New()
+		p.uuidCache.Store(pubKeyID, uid)
 	}
 
 	return uid, nil
