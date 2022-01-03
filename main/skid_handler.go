@@ -27,7 +27,7 @@ var (
 type skidCtx struct {
 	SKID      []byte
 	Valid     bool
-	Expired   bool
+	expired   bool
 	NotBefore time.Time
 	NotAfter  time.Time
 }
@@ -162,7 +162,7 @@ func (s *SkidHandler) loadSKIDs() {
 
 		if now.After(matchedSkid.NotAfter) {
 			log.Debugf("%s: certifcate expired: valid until %s", skidString, matchedSkid.NotAfter.String())
-			matchedSkid.Expired = true
+			matchedSkid.expired = true
 		} else if now.Before(matchedSkid.NotBefore) {
 			log.Debugf("%s: certifcate not yet valid: valid from %s", skidString, matchedSkid.NotBefore.String())
 		} else {
@@ -219,7 +219,7 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, string, error) {
 	}
 
 	if !skid.Valid {
-		if skid.Expired {
+		if skid.expired {
 			errMsg := fmt.Sprintf("%s: %v: certificate was valid until %s",
 				TrustListErrorInfo, ErrCertExpired, skid.NotAfter)
 			return nil, errMsg, ErrCertExpired
