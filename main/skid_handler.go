@@ -17,9 +17,8 @@ import (
 )
 
 var (
-	TrustListErrorInfo        = "trustList (dscg server) related error"
-	ErrCertServerNotAvailable = errors.New("server is not available")
-	ErrCertNotFound           = errors.New("X.509 public key certificate for identity not found")
+	ErrCertServerNotAvailable = errors.New("dscg server (trustList) is not available")
+	ErrCertNotFound           = errors.New("X.509 public key certificate for identity not found in trustList")
 	ErrCertExpired            = errors.New("X.509 public key certificate for identity is expired")
 	ErrCertNotYetValid        = errors.New("X.509 public key certificate for identity is not yet valid")
 )
@@ -207,25 +206,21 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, string, error) {
 
 	if !exists {
 		if !s.isCertServerAvailable.Load().(bool) {
-			errMsg := fmt.Sprintf("%s: %v: trustList could not be loaded for %s",
-				TrustListErrorInfo, ErrCertServerNotAvailable,
-				(time.Duration(s.certLoadFailCounter) * s.certLoadInterval).String())
+			errMsg := fmt.Sprintf("%v: trustList could not be loaded for %s",
+				ErrCertServerNotAvailable, (time.Duration(s.certLoadFailCounter) * s.certLoadInterval).String())
 			return nil, errMsg, ErrCertServerNotAvailable
 		}
 
-		errMsg := fmt.Sprintf("%s: %v",
-			TrustListErrorInfo, ErrCertNotFound)
+		errMsg := fmt.Sprintf("SKID unknown: %v", ErrCertNotFound)
 		return nil, errMsg, ErrCertNotFound
 	}
 
 	if !skid.Valid {
 		if skid.expired {
-			errMsg := fmt.Sprintf("%s: %v: certificate was valid until %s",
-				TrustListErrorInfo, ErrCertExpired, skid.NotAfter)
+			errMsg := fmt.Sprintf("%v: certificate was valid until %s", ErrCertExpired, skid.NotAfter)
 			return nil, errMsg, ErrCertExpired
 		} else {
-			errMsg := fmt.Sprintf("%s: %v: certificate will be valid from %s",
-				TrustListErrorInfo, ErrCertNotYetValid, skid.NotBefore)
+			errMsg := fmt.Sprintf("%v: certificate will be valid from %s", ErrCertNotYetValid, skid.NotBefore)
 			return nil, errMsg, ErrCertNotYetValid
 		}
 	}
