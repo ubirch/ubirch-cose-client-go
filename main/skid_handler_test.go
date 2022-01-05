@@ -78,7 +78,6 @@ func TestSkidHandler(t *testing.T) {
 
 				_, errMsg, err = s.GetSKID(uuid.New())
 				assert.Equal(t, ErrCertNotFound, err)
-				assert.Contains(t, errMsg, TrustListErrorInfo)
 				assert.Contains(t, errMsg, ErrCertNotFound.Error())
 			},
 		},
@@ -162,7 +161,6 @@ func TestSkidHandler(t *testing.T) {
 
 				_, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertServerNotAvailable, err)
-				assert.Contains(t, errMsg, TrustListErrorInfo)
 				assert.Contains(t, errMsg, ErrCertServerNotAvailable.Error())
 				assert.Contains(t, errMsg, "trustList could not be loaded for 1h0m0s")
 			},
@@ -287,7 +285,6 @@ func TestSkidHandler(t *testing.T) {
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				_, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertExpired, err)
-				assert.Contains(t, errMsg, TrustListErrorInfo)
 				assert.Contains(t, errMsg, ErrCertExpired.Error())
 				assert.Contains(t, errMsg, s.skidStore[uid].NotAfter.String())
 			},
@@ -307,7 +304,6 @@ func TestSkidHandler(t *testing.T) {
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				_, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertNotYetValid, err)
-				assert.Contains(t, errMsg, TrustListErrorInfo)
 				assert.Contains(t, errMsg, ErrCertNotYetValid.Error())
 				assert.Contains(t, errMsg, s.skidStore[uid].NotBefore.String())
 			},
