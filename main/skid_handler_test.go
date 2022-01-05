@@ -429,10 +429,8 @@ func TestSkidHandler_GetSKID(t *testing.T) {
 func TestSkidHandler_LoadFromActualServer(t *testing.T) {
 	conf := &config.Config{}
 	err := conf.Load("", "config.json")
-	require.NoError(t, err)
-
-	if len(conf.CertificateServer) == 0 || len(conf.CertificateServerPubKey) == 0 {
-		t.Skip()
+	if err != nil {
+		t.Skipf("skipping %s: %v", t.Name(), err)
 	}
 
 	certClient := &CertificateServerClient{
