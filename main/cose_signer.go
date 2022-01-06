@@ -38,6 +38,7 @@ const (
 	COSE_Kid_Label     = 4            // key identifier label (Common COSE Headers Parameters: https://cose-wg.github.io/cose-spec/#rfc.section.3.1)
 	COSE_Sign1_Tag     = 18           // CBOR tag TBD7 identifies tagged COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.2)
 	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
+	ES256_Sig_Len      = 64           // length of ECDSA P-256 signatures in bytes
 )
 
 // 	COSE_Sign1 = [
@@ -70,7 +71,7 @@ type Sig_structure struct {
 }
 
 type SignHash func(id uuid.UUID, hash []byte) ([]byte, error)
-type GetSKID func(uid uuid.UUID) ([]byte, error)
+type GetSKID func(uid uuid.UUID) ([]byte, string, error)
 
 type CoseSigner struct {
 	encMode         cbor.EncMode
@@ -109,15 +110,25 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	log.Debugf("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	skid, err := c.GetSKID(msg.ID)
+	skid, errMsg, err := c.GetSKID(msg.ID)
 	if err != nil {
-		log.Error(err)
-		return h.ErrorResponse(http.StatusTooEarly, err.Error())
+		log.Errorf("%s: %s", msg.ID, errMsg)
+		var respStatusCode int
+		switch err {
+		case ErrCertServerNotAvailable:
+			respStatusCode = http.StatusServiceUnavailable
+		case ErrCertNotFound, ErrCertExpired, ErrCertNotYetValid:
+			respStatusCode = http.StatusInternalServerError
+		default:
+			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
+			return h.ErrorResponse(http.StatusInternalServerError, "")
+		}
+		return h.ErrorResponse(respStatusCode, errMsg)
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
-		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
+		log.Errorf("%s: could not create COSE object: %v", msg.ID, err)
 		return h.ErrorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
@@ -248,8 +259,8 @@ func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error
 			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
 																							payload is unknown
 	*/
-	if signatureBytes == nil {
-		return nil, fmt.Errorf("empty signature")
+	if len(signatureBytes) != ES256_Sig_Len {
+		return nil, fmt.Errorf("invalid signature length: expected %d, got %d", ES256_Sig_Len, len(signatureBytes))
 	}
 
 	// create COSE_Sign1 object
