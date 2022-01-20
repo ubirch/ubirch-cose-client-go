@@ -44,7 +44,10 @@ func Health(server string) http.HandlerFunc {
 		w.Header().Set("Server", server)
 		w.Header().Set("Content-Type", TextType)
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, http.StatusText(http.StatusOK))
+		_, err := fmt.Fprintln(w, http.StatusText(http.StatusOK))
+		if err != nil {
+			log.Errorf("unable to write liveness response: %s, response was: %s", err, http.StatusText(http.StatusOK))
+		}
 	}
 }
 
@@ -64,7 +67,10 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 		w.Header().Set("Server", server)
 		w.Header().Set("Content-Type", TextType)
 		w.WriteHeader(status)
-		fmt.Fprintln(w, http.StatusText(status))
+		_, err := fmt.Fprintln(w, http.StatusText(status))
+		if err != nil {
+			log.Errorf("unable to write readiness response: %s, response was: %s", err, http.StatusText(status))
+		}
 	}
 }
 
