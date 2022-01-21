@@ -39,15 +39,15 @@ type SkidHandler struct {
 	skidStore      map[uuid.UUID]skidCtx
 	skidStoreMutex *sync.RWMutex
 
-	certLoadInterval     time.Duration
-	maxCertLoadFailCount int
-	certLoadFailCounter  int
+	certLoadInterval       time.Duration
+	maxCertLoadFailCount   int
+	certLoadFailCounter    int
+	isCertServerAvailable  atomic.Value
+	lastSuccessfulCertLoad time.Time
 
 	getCerts  GetCertificateList
 	getUuid   GetUuid
 	encPubKey EncodePublicKey
-
-	isCertServerAvailable atomic.Value
 }
 
 // NewSkidHandler loads SKIDs from the public key certificate list and updates it frequently
@@ -92,26 +92,37 @@ func (s *SkidHandler) loadSKIDs() {
 		log.Errorf("unable to retrieve public key certificate list (trustList): %v", err)
 
 		s.certLoadFailCounter++
-		log.Debugf("loading certificate list failed %d times,"+
-			" clearing local KID lookup after %d failed attempts",
-			s.certLoadFailCounter, s.maxCertLoadFailCount)
-
 		s.isCertServerAvailable.Store(false)
 
-		// if we have not yet reached the maximum amount of failed attempts to load the certificate list,
-		// return and try again later
-		if s.certLoadFailCounter != s.maxCertLoadFailCount {
-			return
+		if !s.lastSuccessfulCertLoad.IsZero() {
+			warning := fmt.Sprintf("trustList could not be loaded since %s", s.lastSuccessfulCertLoad.Format("2006-01-02 15:04:05.000 -0700"))
+
+			if s.certLoadFailCounter < s.maxCertLoadFailCount {
+				// we have not yet reached the maximum amount of failed attempts to load the certificate list,
+				// return and try again later
+				log.Warnf(warning+", local SKID lookup will be cleared in %s if this issue persists",
+					(time.Duration(s.maxCertLoadFailCount-s.certLoadFailCounter) * s.certLoadInterval).String())
+			} else if s.certLoadFailCounter == s.maxCertLoadFailCount {
+				// we have reached the maximum amount of failed attempts to load the certificate list,
+				// clear the SKID lookup
+				log.Errorf(warning+", clearing local SKID lookup after %d failed attempts to load public key certificate list",
+					s.certLoadFailCounter)
+
+				s.setSkidStore(map[uuid.UUID]skidCtx{})
+			} else {
+				// we surpassed the maximum amount of failed attempts to load the certificate list,
+				// SKID lookup has been cleared
+				log.Warnf(warning+", local SKID lookup was cleared %s ago",
+					(time.Duration(s.certLoadFailCounter-s.maxCertLoadFailCount) * s.certLoadInterval).String())
+			}
 		}
 
-		// if we have reached the maximum amount of failed attempts to load the certificate list,
-		// clear the SKID lookup
-		log.Warnf("clearing local KID lookup after %d failed attempts to load public key certificate list",
-			s.certLoadFailCounter)
+		return
 	} else {
 		// reset fail counter if certs were loaded successfully
 		s.certLoadFailCounter = 0
 		s.isCertServerAvailable.Store(true)
+		s.lastSuccessfulCertLoad = time.Now()
 	}
 
 	tempSkidStore := map[uuid.UUID]skidCtx{}
