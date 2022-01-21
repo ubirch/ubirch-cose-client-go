@@ -205,8 +205,19 @@ func (s *SkidHandler) setSkidStore(newSkidStore map[uuid.UUID]skidCtx) {
 	s.skidStoreMutex.Unlock()
 
 	newSKIDs, _ := json.Marshal(newSkidStore)
-	if !bytes.Equal(prevSKIDs, newSKIDs) {
-		log.Infof("loaded %d matching certificates from server: %s", len(newSkidStore), newSKIDs)
+
+	// count invalid SKIDs
+	var invalidCount int
+	for _, skid := range newSkidStore {
+		if !skid.Valid {
+			invalidCount++
+		}
+	}
+
+	if len(newSkidStore) == 0 {
+		log.Warnf("no matching certificates found in trustList")
+	} else if !bytes.Equal(prevSKIDs, newSKIDs) {
+		log.Infof("loaded %d matching certificates from trustList (%d invalid): %s", len(newSkidStore), invalidCount, newSKIDs)
 	}
 }
 
