@@ -89,7 +89,7 @@ func (s *SkidHandler) setInterval(reloadEveryMinute bool) {
 func (s *SkidHandler) loadSKIDs() {
 	certs, err := s.getCerts()
 	if err != nil {
-		log.Error(err)
+		log.Errorf("unable to retrieve public key certificate list (trustList): %v", err)
 
 		s.certLoadFailCounter++
 		log.Debugf("loading certificate list failed %d times,"+

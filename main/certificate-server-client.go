@@ -56,39 +56,39 @@ type Certificate struct {
 func (c *CertificateServerClient) RequestCertificateList() ([]Certificate, error) {
 	respBodyBytes, err := c.getWithCertPinning(c.CertificateServerURL)
 	if err != nil {
-		return nil, fmt.Errorf("retrieving public key certificate list failed: %v", err)
+		return nil, fmt.Errorf("request to %s failed: %v", c.CertificateServerURL, err)
 	}
 
 	respContent := strings.SplitN(string(respBodyBytes), "\n", 2)
 	if len(respContent) < 2 {
-		return nil, fmt.Errorf("unexpected response content from public key certificate server")
+		return nil, fmt.Errorf("unexpected response content from server %s", c.CertificateServerURL)
 	}
 
 	// verify signature
 	pubKeyPEM, err := c.RequestCertificateListPublicKey()
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve public key for certificate list verification: %v", err)
+		return nil, fmt.Errorf("unable to retrieve public key for trustList signature verification: %v", err)
 	}
 
 	signature, err := base64.StdEncoding.DecodeString(respContent[0])
 	if err != nil {
-		return nil, fmt.Errorf("decoding signature of public key certificate list failed:: %v", err)
+		return nil, fmt.Errorf("decoding trustList signature failed:: %v", err)
 	}
 
 	certList := []byte(respContent[1])
 
 	ok, err := c.verifySignature(pubKeyPEM, certList, signature)
 	if err != nil {
-		return nil, fmt.Errorf("unable to verify signature for public key certificate list: %v", err)
+		return nil, fmt.Errorf("unable to verify trustList signature: %v", err)
 	}
 	if !ok {
-		return nil, fmt.Errorf("invalid signature for public key certificate list")
+		return nil, fmt.Errorf("trustList signature not verifiable with public key \n%s", pubKeyPEM)
 	}
 
 	newTrustList := &trustList{}
 	err = json.Unmarshal(certList, newTrustList)
 	if err != nil {
-		return nil, fmt.Errorf("unable to decode public key certificate list: %v", err)
+		return nil, fmt.Errorf("decoding trustList failed: %v", err)
 	}
 
 	return newTrustList.Certificates, nil
@@ -97,7 +97,7 @@ func (c *CertificateServerClient) RequestCertificateList() ([]Certificate, error
 func (c *CertificateServerClient) RequestCertificateListPublicKey() ([]byte, error) {
 	resp, err := c.getWithCertPinning(c.CertificateServerPubKeyURL)
 	if err != nil {
-		return nil, fmt.Errorf("retrieving public key for certificate list verification failed: %v", err)
+		return nil, fmt.Errorf("request to %s failed: %v", c.CertificateServerPubKeyURL, err)
 	}
 
 	return resp, nil

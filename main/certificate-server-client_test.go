@@ -28,35 +28,46 @@ func TestExtendedClient_RequestCertificateList(t *testing.T) {
 			},
 		},
 		{
-			name:             "client with wrong server tls cert fingerprint",
-			tlsCertFile:      "demo_ubirch_tls_certs.json",
-			CertSerURL:       "https://de.dev.dscg.ubirch.com/trustList/DSC/DE/",
-			CertSerPubKeyURL: "https://de.dev.dscg.ubirch.com/pubkey.pem",
-			tcChecks: func(t *testing.T, certs []Certificate, err error) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "retrieving public key certificate list failed")
-				require.Nil(t, certs)
-			},
-		},
-		{
-			name:             "client with wrong cert server url",
-			tlsCertFile:      "demo_ubirch_tls_certs.json",
-			CertSerURL:       "",
+			name:             "invalid server tls cert",
+			tlsCertFile:      "test_invalid_tls_certs.json",
+			CertSerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
 			CertSerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
 			tcChecks: func(t *testing.T, certs []Certificate, err error) {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "retrieving public key certificate list failed")
+				require.Equal(t, "request to https://de.test.dscg.ubirch.com/trustList/DSC/DE/ failed: Get \"https://de.test.dscg.ubirch.com/trustList/DSC/DE/\": pinned server TLS certificate mismatch", err.Error())
 				require.Nil(t, certs)
 			},
 		},
 		{
-			name:             "client with wrong cert server url",
+			name:             "wrong cert server url",
 			tlsCertFile:      "demo_ubirch_tls_certs.json",
-			CertSerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
-			CertSerPubKeyURL: "",
+			CertSerURL:       "https://de.dev.dscg.ubirch.com/trustList/DSC/DE/",
+			CertSerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
 			tcChecks: func(t *testing.T, certs []Certificate, err error) {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "unable to retrieve public key for certificate list verification")
+				require.Equal(t, "request to https://de.dev.dscg.ubirch.com/trustList/DSC/DE/ failed: missing TLS certificate fingerprint for host de.dev.dscg.ubirch.com", err.Error())
+				require.Nil(t, certs)
+			},
+		},
+		{
+			name:             "wrong pubkey server url",
+			tlsCertFile:      "demo_ubirch_tls_certs.json",
+			CertSerURL:       "https://de.test.dscg.ubirch.com/trustList/DSC/DE/",
+			CertSerPubKeyURL: "https://de.dev.dscg.ubirch.com/pubkey.pem",
+			tcChecks: func(t *testing.T, certs []Certificate, err error) {
+				require.Error(t, err)
+				require.Equal(t, "unable to retrieve public key for trustList signature verification: request to https://de.dev.dscg.ubirch.com/pubkey.pem failed: missing TLS certificate fingerprint for host de.dev.dscg.ubirch.com", err.Error())
+				require.Nil(t, certs)
+			},
+		},
+		{
+			name:             "cert server not found",
+			tlsCertFile:      "demo_ubirch_tls_certs.json",
+			CertSerURL:       "https://de.test.dscg.ubirch.com/invalidpath123",
+			CertSerPubKeyURL: "https://de.test.dscg.ubirch.com/pubkey.pem",
+			tcChecks: func(t *testing.T, certs []Certificate, err error) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "request to https://de.test.dscg.ubirch.com/invalidpath123 failed: response: (404 Not Found)")
 				require.Nil(t, certs)
 			},
 		},
