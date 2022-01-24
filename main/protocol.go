@@ -158,7 +158,7 @@ func (p *Protocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck str
 	return ok, found, err
 }
 
-func (p *Protocol) updatePwHash(uid uuid.UUID, authToCheck string) error {
+func (p *Protocol) updatePwHash(uid uuid.UUID, pw string) error {
 	log.Infof("%s: updating password hash", uid)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -174,7 +174,7 @@ func (p *Protocol) updatePwHash(uid uuid.UUID, authToCheck string) error {
 		return fmt.Errorf("could not aquire lock for update: %v", err)
 	}
 
-	updatedHash, err := p.pwHasher.GeneratePasswordHash(ctx, authToCheck)
+	updatedHash, err := p.pwHasher.GeneratePasswordHash(ctx, pw)
 	if err != nil {
 		return fmt.Errorf("could not generate new password hash: %v", err)
 	}
