@@ -16,11 +16,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const timeLayout = "2006-01-02 15:04:05 -0700"
+
 var (
 	ErrCertServerNotAvailable = errors.New("dscg server (trustList) is not available")
 	ErrCertNotFound           = errors.New("X.509 public key certificate for identity not found in trustList")
-	ErrCertExpired            = errors.New("X.509 public key certificate for identity is expired")
-	ErrCertNotYetValid        = errors.New("X.509 public key certificate for identity is not yet valid")
+	ErrCertNotValid           = errors.New("X.509 public key certificate for identity is not valid")
 )
 
 type skidCtx struct {
@@ -95,13 +96,13 @@ func (s *SkidHandler) loadSKIDs() {
 		s.isCertServerAvailable.Store(false)
 
 		if !s.lastSuccessfulCertLoad.IsZero() {
-			warning := fmt.Sprintf("trustList could not be loaded since %s", s.lastSuccessfulCertLoad.Format("2006-01-02 15:04:05.000 -0700"))
+			warning := fmt.Sprintf("trustList could not be loaded since %s", s.lastSuccessfulCertLoad.Format(timeLayout))
 
 			if s.certLoadFailCounter < s.maxCertLoadFailCount {
 				// we have not yet reached the maximum amount of failed attempts to load the certificate list,
 				// return and try again later
 				log.Warnf(warning+", local SKID lookup will be cleared in %s if this issue persists",
-					(time.Duration(s.maxCertLoadFailCount-s.certLoadFailCounter) * s.certLoadInterval).String())
+					time.Duration(s.maxCertLoadFailCount-s.certLoadFailCounter)*s.certLoadInterval)
 			} else if s.certLoadFailCounter == s.maxCertLoadFailCount {
 				// we have reached the maximum amount of failed attempts to load the certificate list,
 				// clear the SKID lookup
@@ -113,7 +114,7 @@ func (s *SkidHandler) loadSKIDs() {
 				// we surpassed the maximum amount of failed attempts to load the certificate list,
 				// SKID lookup has been cleared
 				log.Warnf(warning+", local SKID lookup was cleared %s ago",
-					(time.Duration(s.certLoadFailCounter-s.maxCertLoadFailCount) * s.certLoadInterval).String())
+					time.Duration(s.certLoadFailCounter-s.maxCertLoadFailCount)*s.certLoadInterval)
 			}
 		}
 
@@ -171,10 +172,10 @@ func (s *SkidHandler) loadSKIDs() {
 		now := time.Now()
 
 		if now.After(matchedSkid.NotAfter) {
-			log.Debugf("%s: certifcate expired: valid until %s", skidString, matchedSkid.NotAfter.String())
+			log.Debugf("%s: certificate expired: valid until %s", skidString, matchedSkid.NotAfter.Format(timeLayout))
 			matchedSkid.expired = true
 		} else if now.Before(matchedSkid.NotBefore) {
-			log.Debugf("%s: certifcate not yet valid: valid from %s", skidString, matchedSkid.NotBefore.String())
+			log.Debugf("%s: certificate not yet valid: valid from %s", skidString, matchedSkid.NotBefore.Format(timeLayout))
 		} else {
 			matchedSkid.Valid = true
 		}
@@ -235,7 +236,7 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, string, error) {
 	if !exists {
 		if !s.isCertServerAvailable.Load().(bool) {
 			errMsg := fmt.Sprintf("%v: trustList could not be loaded for %s",
-				ErrCertServerNotAvailable, (time.Duration(s.certLoadFailCounter) * s.certLoadInterval).String())
+				ErrCertServerNotAvailable, time.Duration(s.certLoadFailCounter)*s.certLoadInterval)
 			return nil, errMsg, ErrCertServerNotAvailable
 		}
 
@@ -244,13 +245,13 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, string, error) {
 	}
 
 	if !skid.Valid {
+		var errMsg string
 		if skid.expired {
-			errMsg := fmt.Sprintf("%v: certificate was valid until %s", ErrCertExpired, skid.NotAfter)
-			return nil, errMsg, ErrCertExpired
+			errMsg = fmt.Sprintf("%v: certificate expired: was valid until %s", ErrCertNotValid, skid.NotAfter.Format(timeLayout))
 		} else {
-			errMsg := fmt.Sprintf("%v: certificate will be valid from %s", ErrCertNotYetValid, skid.NotBefore)
-			return nil, errMsg, ErrCertNotYetValid
+			errMsg = fmt.Sprintf("%v: certificate not yet valid: will be valid from %s", ErrCertNotValid, skid.NotBefore.Format(timeLayout))
 		}
+		return nil, errMsg, ErrCertNotValid
 	}
 
 	return skid.SKID, "", nil
