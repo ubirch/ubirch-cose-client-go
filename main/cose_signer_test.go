@@ -129,22 +129,13 @@ func TestCoseSigner_Sign(t *testing.T) {
 			Content:    []byte(ErrCertNotFound.Error()),
 		},
 		{
-			name: "getSKID ErrCertExpired",
+			name: "getSKID ErrCertNotValid",
 			getSKID: func(uid uuid.UUID) ([]byte, string, error) {
-				return nil, ErrCertExpired.Error(), ErrCertExpired
+				return nil, ErrCertNotValid.Error(), ErrCertNotValid
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
-			Content:    []byte(ErrCertExpired.Error()),
-		},
-		{
-			name: "getSKID ErrCertNotYetValid",
-			getSKID: func(uid uuid.UUID) ([]byte, string, error) {
-				return nil, ErrCertNotYetValid.Error(), ErrCertNotYetValid
-			},
-			signHash:   mockSign,
-			StatusCode: http.StatusInternalServerError,
-			Content:    []byte(ErrCertNotYetValid.Error()),
+			Content:    []byte(ErrCertNotValid.Error()),
 		},
 		{
 			name: "getSKID unexpected error",

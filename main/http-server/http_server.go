@@ -40,6 +40,7 @@ const (
 	CBORType = "application/cbor"
 
 	AuthHeader = "X-Auth-Token"
+	ErrHeader  = "X-Err"
 )
 
 var UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)

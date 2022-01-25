@@ -27,13 +27,19 @@ func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	}
 }
 
-func ErrorResponse(code int, message string) HTTPResponse {
+func ErrorResponse(httpCode int, errorCode, message string) HTTPResponse {
 	if message == "" {
-		message = http.StatusText(code)
+		message = http.StatusText(httpCode)
 	}
+
+	header := http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
+	if errorCode != "" {
+		header.Add(ErrHeader, errorCode)
+	}
+
 	return HTTPResponse{
-		StatusCode: code,
-		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+		StatusCode: httpCode,
+		Header:     header,
 		Content:    []byte(message),
 	}
 }

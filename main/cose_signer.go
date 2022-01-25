@@ -39,6 +39,13 @@ const (
 	COSE_Sign1_Tag     = 18           // CBOR tag TBD7 identifies tagged COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.2)
 	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
 	ES256_Sig_Len      = 64           // length of ECDSA P-256 signatures in bytes
+
+	// error response codes
+	ErrCodeCertServerNotAvailable = "CS503-2000"
+	ErrCodeCertNotFound           = "CS500-2100"
+	ErrCodeCertNotValid           = "CS500-2200"
+	ErrCodeCertGeneric            = "CS500-2300"
+	ErrCodeCoseCreation           = "CS500-2400"
 )
 
 // 	COSE_Sign1 = [
@@ -112,24 +119,24 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 	skid, errMsg, err := c.GetSKID(msg.ID)
 	if err != nil {
-		log.Errorf("%s: %s", msg.ID, errMsg)
-		var respStatusCode int
+		log.Errorf("could not fetch SKID for identity %s: %s", msg.ID, errMsg)
 		switch err {
 		case ErrCertServerNotAvailable:
-			respStatusCode = http.StatusServiceUnavailable
-		case ErrCertNotFound, ErrCertExpired, ErrCertNotYetValid:
-			respStatusCode = http.StatusInternalServerError
+			return h.ErrorResponse(http.StatusServiceUnavailable, ErrCodeCertServerNotAvailable, errMsg)
+		case ErrCertNotFound:
+			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertNotFound, errMsg)
+		case ErrCertNotValid:
+			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertNotValid, errMsg)
 		default:
 			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
-			return h.ErrorResponse(http.StatusInternalServerError, "")
+			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertGeneric, "")
 		}
-		return h.ErrorResponse(respStatusCode, errMsg)
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
-		log.Errorf("%s: could not create COSE object: %v", msg.ID, err)
-		return h.ErrorResponse(http.StatusInternalServerError, "")
+		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
+		return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCoseCreation, "")
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
