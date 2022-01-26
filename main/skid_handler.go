@@ -53,7 +53,7 @@ type SkidHandler struct {
 // NewSkidHandler loads SKIDs from the public key certificate list and updates it frequently
 func NewSkidHandler(certs GetCertificateList, uid GetUuid, enc EncodePublicKey, reloadEveryMinute bool) *SkidHandler {
 	s := &SkidHandler{
-		skidStore:      map[uuid.UUID]skidCtx{},
+		skidStore:      nil,
 		skidStoreMutex: &sync.RWMutex{},
 
 		certLoadFailCounter: 0,
@@ -214,10 +214,16 @@ func (s *SkidHandler) setSkidStore(newSkidStore map[uuid.UUID]skidCtx) {
 		}
 	}
 
-	if len(newSkidStore) == 0 {
-		log.Warnf("no matching certificates found in trustList")
-	} else if !bytes.Equal(prevSKIDs, newSKIDs) {
-		log.Infof("loaded %d matching certificates from trustList (%d invalid): %s", len(newSkidStore), invalidCount, newSKIDs)
+	if !bytes.Equal(prevSKIDs, newSKIDs) {
+		if len(newSkidStore) == 0 {
+			log.Warnf("no matching X.509 public key certificates found in trustList")
+		} else {
+			log.Infof("loaded %d matching X.509 public key certificates from trustList (%d invalid): %s", len(newSkidStore), invalidCount, newSKIDs)
+		}
+
+		if invalidCount != 0 {
+			log.Warnf("there are %d invalid X.509 public key certificates in the trustList", invalidCount)
+		}
 	}
 }
 
