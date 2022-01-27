@@ -189,6 +189,10 @@ func TestSkidHandler(t *testing.T) {
 
 				assert.Equal(t, s.maxCertLoadFailCount, s.certLoadFailCounter)
 				assert.Empty(t, s.skidStore)
+
+				s.loadSKIDs()
+				assert.Equal(t, s.maxCertLoadFailCount+1, s.certLoadFailCounter)
+				assert.Empty(t, s.skidStore)
 			},
 		},
 		{
