@@ -96,35 +96,35 @@ func (s *SkidHandler) loadSKIDs() {
 		s.isCertServerAvailable.Store(false)
 
 		if !s.lastSuccessfulCertLoad.IsZero() {
-			warning := fmt.Sprintf("trustList could not be loaded since %s", s.lastSuccessfulCertLoad.Format(timeLayout))
+			errMsg := fmt.Sprintf("trustList could not be loaded since %s", s.lastSuccessfulCertLoad.Format(timeLayout))
 
 			if s.certLoadFailCounter < s.maxCertLoadFailCount {
 				// we have not yet reached the maximum amount of failed attempts to load the certificate list,
 				// return and try again later
-				log.Warnf(warning+", local SKID lookup will be cleared in %s if this issue persists",
+				log.Warnf(errMsg+", local SKID lookup will be cleared in %s if this issue persists",
 					time.Duration(s.maxCertLoadFailCount-s.certLoadFailCounter)*s.certLoadInterval)
 			} else if s.certLoadFailCounter == s.maxCertLoadFailCount {
 				// we have reached the maximum amount of failed attempts to load the certificate list,
 				// clear the SKID lookup
-				log.Errorf(warning+", clearing local SKID lookup after %d failed attempts to load public key certificate list",
+				log.Errorf(errMsg+", clearing local SKID lookup after %d failed attempts to load public key certificate list",
 					s.certLoadFailCounter)
 
-				s.setSkidStore(map[uuid.UUID]skidCtx{})
+				s.resetSkidStore()
 			} else {
 				// we surpassed the maximum amount of failed attempts to load the certificate list,
 				// SKID lookup has been cleared
-				log.Warnf(warning+", local SKID lookup was cleared %s ago",
+				log.Warnf(errMsg+", local SKID lookup was cleared %s ago",
 					time.Duration(s.certLoadFailCounter-s.maxCertLoadFailCount)*s.certLoadInterval)
 			}
 		}
 
 		return
-	} else {
-		// reset fail counter if certs were loaded successfully
-		s.certLoadFailCounter = 0
-		s.isCertServerAvailable.Store(true)
-		s.lastSuccessfulCertLoad = time.Now()
 	}
+
+	// reset fail counter if certs were loaded successfully
+	s.certLoadFailCounter = 0
+	s.isCertServerAvailable.Store(true)
+	s.lastSuccessfulCertLoad = time.Now()
 
 	tempSkidStore := map[uuid.UUID]skidCtx{}
 
@@ -196,36 +196,48 @@ func (s *SkidHandler) loadSKIDs() {
 		tempSkidStore[uid] = matchedSkid
 	}
 
-	s.setSkidStore(tempSkidStore)
+	s.updateSkidStore(tempSkidStore)
 }
 
 func (s *SkidHandler) setSkidStore(newSkidStore map[uuid.UUID]skidCtx) {
 	s.skidStoreMutex.Lock()
-	prevSKIDs, _ := json.Marshal(s.skidStore)
 	s.skidStore = newSkidStore
 	s.skidStoreMutex.Unlock()
+}
 
+func (s *SkidHandler) resetSkidStore() {
+	s.setSkidStore(nil)
+}
+
+func (s *SkidHandler) updateSkidStore(newSkidStore map[uuid.UUID]skidCtx) {
+	prevSKIDs, _ := json.Marshal(s.skidStore)
 	newSKIDs, _ := json.Marshal(newSkidStore)
 
-	// count invalid SKIDs
-	var invalidCount int
-	for _, skid := range newSkidStore {
-		if !skid.Valid {
-			invalidCount++
-		}
-	}
+	s.setSkidStore(newSkidStore)
 
 	if !bytes.Equal(prevSKIDs, newSKIDs) {
 		if len(newSkidStore) == 0 {
 			log.Warnf("no matching X.509 public key certificates found in trustList")
-		} else {
-			log.Infof("loaded %d matching X.509 public key certificates from trustList (%d invalid): %s", len(newSkidStore), invalidCount, newSKIDs)
+			return
 		}
+
+		invalidCount := countInvalidSKIDs(newSkidStore)
+
+		log.Infof("loaded %d matching X.509 public key certificates from trustList (%d invalid): %s", len(newSkidStore), invalidCount, newSKIDs)
 
 		if invalidCount != 0 {
 			log.Warnf("there are %d invalid X.509 public key certificates in the trustList", invalidCount)
 		}
 	}
+}
+
+func countInvalidSKIDs(skidStore map[uuid.UUID]skidCtx) (invalidCount int) {
+	for _, skid := range skidStore {
+		if !skid.Valid {
+			invalidCount++
+		}
+	}
+	return invalidCount
 }
 
 func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, string, error) {
