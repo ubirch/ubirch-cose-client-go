@@ -32,9 +32,9 @@ type skidCtx struct {
 	NotAfter  time.Time
 }
 
-type GetCertificateList func() ([]Certificate, error)
+type LoadCertificateList func() ([]Certificate, error)
 type EncodePublicKey func(pub interface{}) (pemEncoded []byte, err error)
-type GetUuid func(pubKey []byte) (uuid.UUID, error)
+type LookupUuid func(pubKey []byte) (uuid.UUID, error)
 
 type SkidHandler struct {
 	skidStore      map[uuid.UUID]skidCtx
@@ -46,20 +46,20 @@ type SkidHandler struct {
 	isCertServerAvailable  atomic.Value
 	lastSuccessfulCertLoad time.Time
 
-	getCerts  GetCertificateList
-	getUuid   GetUuid
-	encPubKey EncodePublicKey
+	loadCertList LoadCertificateList
+	lookupUuid   LookupUuid
+	encPubKey    EncodePublicKey
 }
 
 // NewSkidHandler loads SKIDs from the public key certificate list and updates it frequently
-func NewSkidHandler(certs GetCertificateList, uid GetUuid, enc EncodePublicKey, reloadEveryMinute bool) *SkidHandler {
+func NewSkidHandler(certList LoadCertificateList, uid LookupUuid, enc EncodePublicKey, reloadEveryMinute bool) *SkidHandler {
 	s := &SkidHandler{
 		skidStore:      nil,
 		skidStoreMutex: &sync.RWMutex{},
 
-		getCerts:  certs,
-		getUuid:   uid,
-		encPubKey: enc,
+		loadCertList: certList,
+		lookupUuid:   uid,
+		encPubKey:    enc,
 	}
 	s.setInterval(reloadEveryMinute)
 
@@ -86,10 +86,10 @@ func (s *SkidHandler) setInterval(reloadEveryMinute bool) {
 }
 
 func (s *SkidHandler) loadSKIDs() {
-	certs, err := s.getCerts()
+	certList, err := s.loadCertList()
 	if err != nil {
 		log.Errorf("unable to retrieve public key certificate list (trustList): %v", err)
-		s.handleCertLoadFail()
+		s.handleCertListLoadFail()
 		return
 	}
 
@@ -101,7 +101,7 @@ func (s *SkidHandler) loadSKIDs() {
 	tempSkidStore := map[uuid.UUID]skidCtx{}
 
 	// go through certificate list and match known public keys
-	for _, cert := range certs {
+	for _, cert := range certList {
 		uid, matchedSkid := s.matchCertificate(cert)
 		if matchedSkid == nil {
 			continue
@@ -113,7 +113,7 @@ func (s *SkidHandler) loadSKIDs() {
 	s.updateSkidStore(tempSkidStore)
 }
 
-func (s *SkidHandler) handleCertLoadFail() {
+func (s *SkidHandler) handleCertListLoadFail() {
 	s.certLoadFailCounter++
 	s.isCertServerAvailable.Store(false)
 
@@ -163,7 +163,7 @@ func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 	}
 
 	// look up matching UUID for public key
-	uid, err := s.getUuid(pubKeyPEM)
+	uid, err := s.lookupUuid(pubKeyPEM)
 	if err != nil {
 		if err == ErrNotExist {
 			log.Debugf("%s: public key from x509 certificate does not match any known identity", skidString)

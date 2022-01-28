@@ -71,8 +71,8 @@ func TestSkidHandler(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		certs             GetCertificateList
-		uid               GetUuid
+		certs             LoadCertificateList
+		uid               LookupUuid
 		enc               EncodePublicKey
 		reloadEveryMinute bool
 		tcChecks          func(t *testing.T, s *SkidHandler)
@@ -119,7 +119,7 @@ func TestSkidHandler(t *testing.T) {
 
 				//// the following lines test the scheduler to trigger the loadSKIDs method after one minute
 				//// since the execution of this test takes over a minute it is commented out
-				//s.getCerts = mockGetCertificateList([]validity{})
+				//s.loadCertList = mockGetCertificateList([]validity{})
 				//
 				//t.Logf("waiting %s for scheduler to reload certificate list...", s.certLoadInterval.String())
 				//time.Sleep(s.certLoadInterval + time.Second)
@@ -138,7 +138,7 @@ func TestSkidHandler(t *testing.T) {
 				assert.Empty(t, errMsg)
 				require.Equal(t, testSKID, skid)
 
-				s.getCerts = mockGetCertificateList([]validity{
+				s.loadCertList = mockGetCertificateList([]validity{
 					{
 						PrivPEM:   priv,
 						NotBefore: time.Now(),
@@ -178,7 +178,7 @@ func TestSkidHandler(t *testing.T) {
 			enc:               crypto.EncodePublicKey,
 			reloadEveryMinute: true,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				s.getCerts = mockGetCertificateListBad
+				s.loadCertList = mockGetCertificateListBad
 
 				for i := 0; i < s.maxCertLoadFailCount; i++ {
 					assert.NotEmpty(t, len(s.skidStore))
@@ -408,7 +408,7 @@ type validity struct {
 	SKID      []byte
 }
 
-func mockGetCertificateList(v []validity) GetCertificateList {
+func mockGetCertificateList(v []validity) LoadCertificateList {
 	return func() ([]Certificate, error) {
 		var certList []Certificate
 
