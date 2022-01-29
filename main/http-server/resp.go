@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -80,8 +81,39 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 	}
 }
 
-// Error is a wrapper for http.Error that additionally logs the error message to std.Output
-func Error(uid uuid.UUID, w http.ResponseWriter, err error, code int) {
-	log.Warnf("%s: %v", uid, err)
-	http.Error(w, err.Error(), code)
+type errorLog struct {
+	Uid        uuid.UUID `json:"sealID,omitempty"`
+	Path       string    `json:"path"`
+	Error      string    `json:"error"`
+	ErrCode    string    `json:"errorCode,omitempty"`
+	StatusCode int       `json:"statusCode"`
+}
+
+// Error is a wrapper for http.Error that additionally logs uuid, request URL path, error message and status
+// with logging level "warning" for client errors and "error" for server errors.
+// The error message for server errors will only be logged but not be sent to the client.
+func Error(w http.ResponseWriter, r *http.Request, uid uuid.UUID, httpCode int, errCode, errMsg string) {
+	errLog, _ := json.Marshal(errorLog{
+		Uid:        uid,
+		Path:       r.URL.Path,
+		Error:      errMsg,
+		ErrCode:    errCode,
+		StatusCode: httpCode,
+	})
+
+	if errCode != "" {
+		w.Header().Set(ErrHeader, errCode)
+	}
+
+	switch true {
+	case httpCode >= http.StatusBadRequest && httpCode < http.StatusBadRequest+100:
+		log.Warnf("ClientError: %s", errLog)
+		http.Error(w, errMsg, httpCode)
+	case httpCode >= http.StatusInternalServerError && httpCode < http.StatusInternalServerError+100:
+		log.Errorf("ServerError: %s", errLog)
+		http.Error(w, http.StatusText(httpCode), httpCode)
+	default:
+		log.Errorf("unexpected HTTP response status code passed to error handler: %d, %s", httpCode, errLog)
+		http.Error(w, http.StatusText(httpCode), httpCode)
+	}
 }

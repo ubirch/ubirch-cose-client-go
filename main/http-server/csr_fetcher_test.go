@@ -37,7 +37,7 @@ func TestFetchCSR(t *testing.T) {
 			},
 		},
 		{
-			name:      "unauthorized",
+			name:      "missing auth",
 			callerUrl: path.Join("/", uuid.NewString(), CSREndpoint),
 			auth:      "",
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
@@ -45,7 +45,20 @@ func TestFetchCSR(t *testing.T) {
 			},
 			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized))
+				require.Contains(t, recorder.Body.String(), "missing authentication header X-Auth-Token")
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			},
+		},
+		{
+			name:      "invalid auth",
+			callerUrl: path.Join("/", uuid.NewString(), CSREndpoint),
+			auth:      "password",
+			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
+				return uid.NodeID(), nil
+			},
+			getUuid: GetUUIDFromRequest,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Contains(t, recorder.Body.String(), "invalid auth token")
 				require.Equal(t, http.StatusUnauthorized, recorder.Code)
 			},
 		},

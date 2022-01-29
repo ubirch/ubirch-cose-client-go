@@ -31,6 +31,15 @@ const (
 	HexEncoding = "hex"
 
 	HashLen = 32
+
+	// response error codes
+	ErrCodeInvalidUUID           = "CS404-0000"
+	ErrCodeMissingAuth           = "CS401-0100"
+	ErrCodeUnknownUUID           = "CS401-0200"
+	ErrCodeInvalidAuth           = "CS401-0300"
+	ErrCodeInvalidRequestContent = "CS400-0400"
+	ErrCodeInternalServerError   = "CS500-0500"
+	ErrCodeAlreadyInitialized    = "CS409-1900"
 )
 
 type Sha256Sum [HashLen]byte
@@ -57,28 +66,31 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, err := getUUID(r)
 		if err != nil {
-			log.Warn(err)
-			http.Error(w, err.Error(), http.StatusNotFound)
+			Error(w, r, uid, http.StatusNotFound, ErrCodeInvalidUUID, err.Error())
 			return
 		}
 
 		ctx := r.Context()
 		auth := r.Header.Get(AuthHeader)
 
+		if auth == "" {
+			Error(w, r, uid, http.StatusUnauthorized, ErrCodeMissingAuth, fmt.Sprintf("missing authentication header %s", AuthHeader))
+			return
+		}
+
 		authOk, found, err := s.CheckAuth(ctx, uid, auth)
 		if err != nil {
-			log.Errorf("%s: password check failed: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			Error(w, r, uid, http.StatusInternalServerError, ErrCodeInternalServerError, fmt.Sprintf("authentication check failed: %v", err))
 			return
 		}
 
 		if !found {
-			Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+			Error(w, r, uid, http.StatusNotFound, ErrCodeUnknownUUID, ErrUnknown.Error())
 			return
 		}
 
 		if !authOk {
-			Error(uid, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
+			Error(w, r, uid, http.StatusUnauthorized, ErrCodeInvalidAuth, "invalid auth token")
 			return
 		}
 
@@ -86,7 +98,7 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {
-			Error(msg.ID, w, err, http.StatusBadRequest)
+			Error(w, r, uid, http.StatusBadRequest, ErrCodeInvalidRequestContent, err.Error())
 			return
 		}
 

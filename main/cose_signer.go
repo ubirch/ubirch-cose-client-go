@@ -40,7 +40,7 @@ const (
 	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
 	ES256_Sig_Len      = 64           // length of ECDSA P-256 signatures in bytes
 
-	// error response codes
+	// response error codes
 	ErrCodeCertServerNotAvailable = "CS503-2000"
 	ErrCodeCertNotFound           = "CS500-2100"
 	ErrCodeCertNotValid           = "CS500-2200"

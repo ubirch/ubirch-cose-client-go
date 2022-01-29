@@ -33,6 +33,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", TextType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
@@ -52,6 +53,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHashHex))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
 
@@ -72,6 +74,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(testHashBytes))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", BinType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
@@ -111,6 +114,7 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", TextType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
@@ -130,6 +134,7 @@ func TestCOSEService_HandleRequest_BadAuthCheck(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", TextType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
@@ -168,6 +173,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", TextType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
@@ -187,6 +193,7 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHashHex))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", TextType)
 	r.Header.Set("Content-Transfer-Encoding", HexEncoding)
 
@@ -207,6 +214,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", "wrong content type")
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
@@ -226,6 +234,7 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tooShortHash))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", TextType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
@@ -243,6 +252,7 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(testPayloadJSON)))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", JSONType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytes))(w, r)
@@ -260,6 +270,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(testPayloadJSON)))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", JSONType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSONBad, mockGetSigStructBytes))(w, r)
@@ -279,6 +290,7 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(testCBOR))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", CBORType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytes))(w, r)
@@ -296,6 +308,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(testPayloadJSON)))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", TextType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytes))(w, r)
@@ -313,6 +326,7 @@ func TestCOSEService_HandleRequest_DataRequest_BadSigStructBytes(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(testPayloadJSON)))
+	r.Header.Set(AuthHeader, testAuth)
 	r.Header.Set("Content-Type", JSONType)
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytesBad))(w, r)
@@ -322,8 +336,8 @@ func TestCOSEService_HandleRequest_DataRequest_BadSigStructBytes(t *testing.T) {
 	}
 }
 
-func mockCheckAuth(context.Context, uuid.UUID, string) (bool, bool, error) {
-	return true, true, nil
+func mockCheckAuth(c context.Context, u uuid.UUID, a string) (bool, bool, error) {
+	return a == testAuth, true, nil
 }
 
 func mockCheckAuthBad(context.Context, uuid.UUID, string) (bool, bool, error) {

@@ -65,7 +65,7 @@ func TestRegister(t *testing.T) {
 				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "empty uuid")
+				require.Contains(t, recorder.Body.String(), "missing UUID for identity registration")
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 			},
 		},
@@ -81,12 +81,12 @@ func TestRegister(t *testing.T) {
 				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "setting password is not longer supported.")
+				require.Contains(t, recorder.Body.String(), "setting password is not longer supported")
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 			},
 		},
 		{
-			name:        "not authorized",
+			name:        "missing auth",
 			auth:        "",
 			contentType: JSONType,
 			body: RegistrationPayload{
@@ -96,7 +96,22 @@ func TestRegister(t *testing.T) {
 				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized))
+				require.Contains(t, recorder.Body.String(), "missing authentication header X-Auth-Token")
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			},
+		},
+		{
+			name:        "invalid auth",
+			auth:        "password",
+			contentType: JSONType,
+			body: RegistrationPayload{
+				Uid: uuid.New(),
+			},
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return byteStr, "", nil
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Contains(t, recorder.Body.String(), "invalid auth token")
 				require.Equal(t, http.StatusUnauthorized, recorder.Code)
 			},
 		},
