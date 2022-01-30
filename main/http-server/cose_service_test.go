@@ -38,9 +38,8 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
@@ -59,9 +58,8 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
@@ -80,6 +78,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, w.Header().Get(ErrHeader))
 	body, err := ioutil.ReadAll(w.Body)
 	require.NoError(t, err)
 	assert.Equal(t, testCose, body)
@@ -99,9 +98,8 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURLBad, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusNotFound)
-	}
+	assert.Equal(t, ErrCodeInvalidUUID, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
@@ -119,9 +117,8 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusNotFound)
-	}
+	assert.Equal(t, ErrCodeUnknownUUID, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestCOSEService_HandleRequest_BadAuthCheck(t *testing.T) {
@@ -139,14 +136,13 @@ func TestCOSEService_HandleRequest_BadAuthCheck(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusInternalServerError)
-	}
+	assert.Equal(t, ErrCodeInternalServerError, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
+func TestCOSEService_HandleRequest_MissingAuth(t *testing.T) {
 	testCOSEService := &COSEService{
-		CheckAuth: mockCheckAuthNotOk,
+		CheckAuth: mockCheckAuth,
 		Sign:      mockSign,
 	}
 
@@ -158,9 +154,27 @@ func TestCOSEService_HandleRequest_BadAuth(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusUnauthorized)
+	assert.Equal(t, ErrCodeMissingAuth, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestCOSEService_HandleRequest_InvalidAuth(t *testing.T) {
+	testCOSEService := &COSEService{
+		CheckAuth: mockCheckAuth,
+		Sign:      mockSign,
 	}
+
+	testHash := "9HKjChmwbHoHpMuX1OXgUgf6bPLNrQT/mCXw0JUk37g="
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testHash))
+	r.Header.Set(AuthHeader, "password")
+	r.Header.Set("Content-Type", TextType)
+
+	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
+
+	assert.Equal(t, ErrCodeInvalidAuth, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
@@ -178,9 +192,8 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
@@ -199,9 +212,8 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
@@ -219,9 +231,8 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
@@ -239,9 +250,8 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
@@ -257,9 +267,8 @@ func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytes))(w, r)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
@@ -275,9 +284,8 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSONBad, mockGetSigStructBytes))(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
@@ -295,9 +303,8 @@ func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytes))(w, r)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
@@ -313,9 +320,8 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytes))(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestCOSEService_HandleRequest_DataRequest_BadSigStructBytes(t *testing.T) {
@@ -331,9 +337,8 @@ func TestCOSEService_HandleRequest_DataRequest_BadSigStructBytes(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytesBad))(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("unexpected response status: %d, expected: %d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func mockCheckAuth(c context.Context, u uuid.UUID, a string) (bool, bool, error) {
@@ -346,10 +351,6 @@ func mockCheckAuthBad(context.Context, uuid.UUID, string) (bool, bool, error) {
 
 func mockCheckAuthNotFound(context.Context, uuid.UUID, string) (bool, bool, error) {
 	return false, false, nil
-}
-
-func mockCheckAuthNotOk(context.Context, uuid.UUID, string) (bool, bool, error) {
-	return false, true, nil
 }
 
 func mockSign(HTTPRequest) HTTPResponse {
