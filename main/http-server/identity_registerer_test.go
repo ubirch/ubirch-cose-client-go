@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,11 +33,12 @@ func TestRegister(t *testing.T) {
 				Uid: uuid.New(),
 			},
 			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
-				return byteStr, "", nil
+				return testCSR, "1234", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, string(byteStr), recorder.Body.String())
-				require.Equal(t, http.StatusOK, recorder.Code)
+				assert.Equal(t, http.StatusOK, recorder.Code)
+				assert.Empty(t, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, testCSR, recorder.Body.Bytes())
 			},
 		},
 		{
@@ -50,8 +52,9 @@ func TestRegister(t *testing.T) {
 				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "invalid content-type")
-				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidRequestContent, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "invalid content-type")
 			},
 		},
 		{
@@ -65,12 +68,13 @@ func TestRegister(t *testing.T) {
 				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "missing UUID for identity registration")
-				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidRequestContent, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "missing UUID for identity registration")
 			},
 		},
 		{
-			name:        "no password",
+			name:        "attempt to set password",
 			auth:        testAuth,
 			contentType: JSONType,
 			body: RegistrationPayload{
@@ -81,8 +85,9 @@ func TestRegister(t *testing.T) {
 				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "setting password is not longer supported")
-				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidRequestContent, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "setting password is not longer supported")
 			},
 		},
 		{
@@ -96,8 +101,9 @@ func TestRegister(t *testing.T) {
 				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "missing authentication header X-Auth-Token")
-				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, ErrCodeMissingAuth, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "missing authentication header X-Auth-Token")
 			},
 		},
 		{
@@ -111,8 +117,9 @@ func TestRegister(t *testing.T) {
 				return byteStr, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "invalid auth token")
-				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidAuth, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "invalid auth token")
 			},
 		},
 		{
@@ -126,8 +133,9 @@ func TestRegister(t *testing.T) {
 				return nil, "", ErrAlreadyInitialized
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), ErrAlreadyInitialized.Error())
-				require.Equal(t, http.StatusConflict, recorder.Code)
+				assert.Equal(t, http.StatusConflict, recorder.Code)
+				assert.Equal(t, ErrCodeAlreadyInitialized, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), ErrAlreadyInitialized.Error())
 			},
 		},
 	}

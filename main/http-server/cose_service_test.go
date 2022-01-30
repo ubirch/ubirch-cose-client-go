@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -40,6 +38,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Base64(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Empty(t, w.Header().Get(ErrHeader))
+	assert.Equal(t, testCose, w.Body.Bytes())
 }
 
 func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
@@ -60,6 +59,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Hex(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Empty(t, w.Header().Get(ErrHeader))
+	assert.Equal(t, testCose, w.Body.Bytes())
 }
 
 func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
@@ -79,9 +79,7 @@ func TestCOSEServiceHandleRequest_HashRequest_Bytes(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Empty(t, w.Header().Get(ErrHeader))
-	body, err := ioutil.ReadAll(w.Body)
-	require.NoError(t, err)
-	assert.Equal(t, testCose, body)
+	assert.Equal(t, testCose, w.Body.Bytes())
 }
 
 func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
@@ -98,8 +96,8 @@ func TestCOSEService_HandleRequest_BadUUID(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURLBad, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeInvalidUUID, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, ErrCodeInvalidUUID, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
@@ -117,8 +115,8 @@ func TestCOSEService_HandleRequest_UnknownUUID(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeUnknownUUID, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, ErrCodeUnknownUUID, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_BadAuthCheck(t *testing.T) {
@@ -136,8 +134,8 @@ func TestCOSEService_HandleRequest_BadAuthCheck(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeInternalServerError, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, ErrCodeInternalServerError, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_MissingAuth(t *testing.T) {
@@ -154,8 +152,8 @@ func TestCOSEService_HandleRequest_MissingAuth(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeMissingAuth, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, ErrCodeMissingAuth, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_InvalidAuth(t *testing.T) {
@@ -173,8 +171,8 @@ func TestCOSEService_HandleRequest_InvalidAuth(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeInvalidAuth, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, ErrCodeInvalidAuth, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
@@ -192,8 +190,8 @@ func TestCOSEService_HandleRequest_HashRequest_BadHash_Base64(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
@@ -212,8 +210,8 @@ func TestCOSEServiceHandleRequest_HashRequest_BadHash_Hex(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
@@ -231,8 +229,8 @@ func TestCOSEService_HandleRequest_HashRequest_BadContentType(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
@@ -250,8 +248,8 @@ func TestCOSEService_HandleRequest_HashRequest_BadHashLen(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
-	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_DataRequest_JSON(t *testing.T) {
@@ -284,8 +282,8 @@ func TestCOSEService_HandleRequest_DataRequest_BadJSON(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSONBad, mockGetSigStructBytes))(w, r)
 
-	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_DataRequest_CBOR(t *testing.T) {
@@ -320,8 +318,8 @@ func TestCOSEService_HandleRequest_DataRequest_BadContentType(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytes))(w, r)
 
-	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_DataRequest_BadSigStructBytes(t *testing.T) {
@@ -337,8 +335,8 @@ func TestCOSEService_HandleRequest_DataRequest_BadSigStructBytes(t *testing.T) {
 
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetPayloadAndHashFromDataRequest(mockGetCBORFromJSON, mockGetSigStructBytesBad))(w, r)
 
-	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 }
 
 func mockCheckAuth(c context.Context, u uuid.UUID, a string) (bool, bool, error) {

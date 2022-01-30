@@ -9,7 +9,11 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+)
+
+var (
+	testCSR = []byte{0x7, 0x21, 0x82, 0x81, 0x85, 0x5a, 0xd8, 0x68, 0x1d, 0xd, 0x86, 0xd1, 0xe9, 0x1e, 0x0, 0x16, 0x79, 0x39, 0xcb, 0x66, 0x94}
 )
 
 func TestFetchCSR(t *testing.T) {
@@ -28,12 +32,13 @@ func TestFetchCSR(t *testing.T) {
 			callerUrl: path.Join("/", testUuid.String(), CSREndpoint),
 			auth:      testAuth,
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
-				return uid.NodeID(), nil
+				return testCSR, nil
 			},
 			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Equal(t, testUuid.NodeID(), recorder.Body.Bytes())
-				require.Equal(t, http.StatusOK, recorder.Code)
+				assert.Equal(t, http.StatusOK, recorder.Code)
+				assert.Empty(t, recorder.Header().Get(ErrHeader))
+				assert.Equal(t, testCSR, recorder.Body.Bytes())
 			},
 		},
 		{
@@ -41,12 +46,13 @@ func TestFetchCSR(t *testing.T) {
 			callerUrl: path.Join("/", uuid.NewString(), CSREndpoint),
 			auth:      "",
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
-				return uid.NodeID(), nil
+				return testCSR, nil
 			},
 			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "missing authentication header X-Auth-Token")
-				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, ErrCodeMissingAuth, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "missing authentication header X-Auth-Token")
 			},
 		},
 		{
@@ -54,12 +60,13 @@ func TestFetchCSR(t *testing.T) {
 			callerUrl: path.Join("/", uuid.NewString(), CSREndpoint),
 			auth:      "password",
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
-				return uid.NodeID(), nil
+				return testCSR, nil
 			},
 			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "invalid auth token")
-				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidAuth, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "invalid auth token")
 			},
 		},
 		{
@@ -67,12 +74,13 @@ func TestFetchCSR(t *testing.T) {
 			callerUrl: path.Join("/", "2222", CSREndpoint),
 			auth:      testAuth,
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
-				return uid.NodeID(), nil
+				return testCSR, nil
 			},
 			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "invalid UUID")
-				require.Equal(t, http.StatusNotFound, recorder.Code)
+				assert.Equal(t, http.StatusNotFound, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidUUID, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "invalid UUID")
 			},
 		},
 		{
@@ -84,12 +92,13 @@ func TestFetchCSR(t *testing.T) {
 			},
 			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "unknown identity")
-				require.Equal(t, http.StatusNotFound, recorder.Code)
+				assert.Equal(t, http.StatusNotFound, recorder.Code)
+				assert.Equal(t, ErrCodeUnknownUUID, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "unknown identity")
 			},
 		},
 		{
-			name:      "unknown uuid internal server error",
+			name:      "internal server error",
 			callerUrl: path.Join("/", testUuid.String(), CSREndpoint),
 			auth:      testAuth,
 			getCsR: func(uid uuid.UUID) (csr []byte, err error) {
@@ -97,8 +106,9 @@ func TestFetchCSR(t *testing.T) {
 			},
 			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.NotEmpty(t, recorder.Body.String())
-				require.Equal(t, http.StatusInternalServerError, recorder.Code)
+				assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+				assert.Equal(t, ErrCodeInternalServerError, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), http.StatusText(http.StatusInternalServerError))
 			},
 		},
 	}
