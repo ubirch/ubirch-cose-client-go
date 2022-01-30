@@ -101,6 +101,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 		getSKID    GetSKID
 		signHash   SignHash
 		StatusCode int
+		ErrHeader  string
 		Content    []byte
 	}{
 		{
@@ -108,6 +109,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 			getSKID:    mockGetSKID,
 			signHash:   mockSign,
 			StatusCode: http.StatusOK,
+			ErrHeader:  "",
 			Content:    []byte{0xd2, 0x84, 0x43, 0xa1, 0x1, 0x26, 0xa1, 0x4, 0x48, 0xa3, 0x78, 0xce, 0x33, 0x3d, 0xd4, 0xf7, 0x76, 0x44, 0x74, 0x65, 0x73, 0x74, 0x58, 0x40, 0x52, 0xfd, 0xfc, 0x7, 0x21, 0x82, 0x65, 0x4f, 0x16, 0x3f, 0x5f, 0xf, 0x9a, 0x62, 0x1d, 0x72, 0x95, 0x66, 0xc7, 0x4d, 0x10, 0x3, 0x7c, 0x4d, 0x7b, 0xbb, 0x4, 0x7, 0xd1, 0xe2, 0xc6, 0x49, 0x81, 0x85, 0x5a, 0xd8, 0x68, 0x1d, 0xd, 0x86, 0xd1, 0xe9, 0x1e, 0x0, 0x16, 0x79, 0x39, 0xcb, 0x66, 0x94, 0xd2, 0xc4, 0x22, 0xac, 0xd2, 0x8, 0xa0, 0x7, 0x29, 0x39, 0x48, 0x7f, 0x69, 0x99},
 		},
 		{
@@ -117,6 +119,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusServiceUnavailable,
+			ErrHeader:  ErrCodeCertServerNotAvailable,
 			Content:    []byte(ErrCertServerNotAvailable.Error()),
 		},
 		{
@@ -126,6 +129,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
+			ErrHeader:  ErrCodeCertNotFound,
 			Content:    []byte(ErrCertNotFound.Error()),
 		},
 		{
@@ -135,6 +139,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
+			ErrHeader:  ErrCodeCertNotValid,
 			Content:    []byte(ErrCertNotValid.Error()),
 		},
 		{
@@ -144,6 +149,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
+			ErrHeader:  ErrCodeCertGeneric,
 			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
 		},
 		{
@@ -153,6 +159,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 				return nil, testError
 			},
 			StatusCode: http.StatusInternalServerError,
+			ErrHeader:  ErrCodeCoseCreation,
 			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
 		},
 		{
@@ -162,6 +169,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 				return nil, nil
 			},
 			StatusCode: http.StatusInternalServerError,
+			ErrHeader:  ErrCodeCoseCreation,
 			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
 		},
 	}
@@ -179,6 +187,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 			resp := coseSigner.Sign(msg)
 
 			assert.Equal(t, c.StatusCode, resp.StatusCode)
+			assert.Equal(t, c.ErrHeader, resp.Header.Get(h.ErrHeader))
 			assert.Equal(t, c.Content, resp.Content)
 		})
 	}

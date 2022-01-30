@@ -38,7 +38,7 @@ func TestRegister(t *testing.T) {
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				assert.Equal(t, http.StatusOK, recorder.Code)
 				assert.Empty(t, recorder.Header().Get(ErrHeader))
-				assert.Contains(t, testCSR, recorder.Body.Bytes())
+				assert.Equal(t, testCSR, recorder.Body.Bytes())
 			},
 		},
 		{
