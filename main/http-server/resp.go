@@ -28,14 +28,14 @@ func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	}
 }
 
-func ErrorResponse(httpCode int, errorCode, message string) HTTPResponse {
+func ErrorResponse(httpCode int, errCode, message string) HTTPResponse {
 	if message == "" {
 		message = http.StatusText(httpCode)
 	}
 
 	header := http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
-	if errorCode != "" {
-		header.Add(ErrHeader, errorCode)
+	if errCode != "" {
+		header.Add(ErrHeader, errCode)
 	}
 
 	return HTTPResponse{
@@ -82,24 +82,28 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 }
 
 type errorLog struct {
-	Uid        uuid.UUID `json:"sealID,omitempty"`
-	Path       string    `json:"path"`
-	Error      string    `json:"error"`
-	ErrCode    string    `json:"errorCode,omitempty"`
-	StatusCode int       `json:"statusCode"`
+	Uid        string `json:"sealID,omitempty"`
+	Target     string `json:"target"`
+	Error      string `json:"error"`
+	ErrCode    string `json:"errorCode,omitempty"`
+	StatusCode int    `json:"statusCode"`
 }
 
 // Error is a wrapper for http.Error that additionally logs uuid, request URL path, error message and status
 // with logging level "warning" for client errors and "error" for server errors.
 // The error message for server errors will only be logged but not be sent to the client.
 func Error(w http.ResponseWriter, r *http.Request, uid uuid.UUID, httpCode int, errCode, errMsg string) {
-	errLog, _ := json.Marshal(errorLog{
-		Uid:        uid,
-		Path:       r.URL.Path,
+	e := errorLog{
+		Target:     r.URL.Path,
 		Error:      errMsg,
 		ErrCode:    errCode,
 		StatusCode: httpCode,
-	})
+	}
+	if uid != uuid.Nil {
+		e.Uid = uid.String()
+	}
+
+	errLog, _ := json.Marshal(e)
 
 	if errCode != "" {
 		w.Header().Set(ErrHeader, errCode)
@@ -113,7 +117,8 @@ func Error(w http.ResponseWriter, r *http.Request, uid uuid.UUID, httpCode int, 
 		log.Errorf("ServerError: %s", errLog)
 		http.Error(w, http.StatusText(httpCode), httpCode)
 	default:
-		log.Errorf("unexpected HTTP response status code passed to error handler: %d, %s", httpCode, errLog)
+		// this should never happen
+		log.Errorf("error responder received unexpected HTTP response status code: %d, Error: %s", httpCode, errLog)
 		http.Error(w, http.StatusText(httpCode), httpCode)
 	}
 }
