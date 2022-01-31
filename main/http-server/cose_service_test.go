@@ -135,7 +135,7 @@ func TestCOSEService_HandleRequest_BadAuthCheck(t *testing.T) {
 	testCOSEService.HandleRequest(mockGetUUIDFromURL, GetHashFromHashRequest())(w, r)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Equal(t, ErrCodeInternalServerError, w.Header().Get(ErrHeader))
+	assert.Equal(t, ErrCodeAuthInternalServerError, w.Header().Get(ErrHeader))
 }
 
 func TestCOSEService_HandleRequest_MissingAuth(t *testing.T) {

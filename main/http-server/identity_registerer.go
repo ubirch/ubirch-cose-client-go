@@ -53,7 +53,7 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 			case ErrUnknown:
 				Error(w, r, uid, http.StatusNotFound, ErrCodeUnknownUUID, err.Error())
 			default:
-				Error(w, r, uid, http.StatusInternalServerError, ErrCodeInternalServerError, fmt.Sprintf("identity initialization failed: %v", err))
+				Error(w, r, uid, http.StatusInternalServerError, ErrCodeGenericInternalServerError, fmt.Sprintf("identity initialization failed: %v", err))
 			}
 			return
 		}

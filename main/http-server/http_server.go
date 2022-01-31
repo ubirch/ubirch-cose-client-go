@@ -41,6 +41,16 @@ const (
 
 	AuthHeader = "X-Auth-Token"
 	ErrHeader  = "X-Err"
+
+	// response error codes
+	ErrCodeInvalidUUID                = "CS404-0000"
+	ErrCodeMissingAuth                = "CS401-0100"
+	ErrCodeUnknownUUID                = "CS401-0200"
+	ErrCodeInvalidAuth                = "CS401-0300"
+	ErrCodeInvalidRequestContent      = "CS400-0400"
+	ErrCodeAuthInternalServerError    = "CS500-0500"
+	ErrCodeGenericInternalServerError = "CS500-1500"
+	ErrCodeAlreadyInitialized         = "CS409-1900"
 )
 
 var UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)

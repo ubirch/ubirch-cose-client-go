@@ -29,17 +29,7 @@ import (
 
 const (
 	HexEncoding = "hex"
-
-	HashLen = 32
-
-	// response error codes
-	ErrCodeInvalidUUID           = "CS404-0000"
-	ErrCodeMissingAuth           = "CS401-0100"
-	ErrCodeUnknownUUID           = "CS401-0200"
-	ErrCodeInvalidAuth           = "CS401-0300"
-	ErrCodeInvalidRequestContent = "CS400-0400"
-	ErrCodeInternalServerError   = "CS500-0500"
-	ErrCodeAlreadyInitialized    = "CS409-1900"
+	HashLen     = 32
 )
 
 type Sha256Sum [HashLen]byte
@@ -80,7 +70,7 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 
 		authOk, found, err := s.CheckAuth(ctx, uid, auth)
 		if err != nil {
-			Error(w, r, uid, http.StatusInternalServerError, ErrCodeInternalServerError, fmt.Sprintf("authentication check failed: %v", err))
+			Error(w, r, uid, http.StatusInternalServerError, ErrCodeAuthInternalServerError, fmt.Sprintf("authentication check failed: %v", err))
 			return
 		}
 

@@ -107,7 +107,7 @@ func TestFetchCSR(t *testing.T) {
 			getUuid: GetUUIDFromRequest,
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-				assert.Equal(t, ErrCodeInternalServerError, recorder.Header().Get(ErrHeader))
+				assert.Equal(t, ErrCodeGenericInternalServerError, recorder.Header().Get(ErrHeader))
 				assert.Contains(t, recorder.Body.String(), http.StatusText(http.StatusInternalServerError))
 			},
 		},

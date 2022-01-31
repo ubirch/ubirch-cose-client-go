@@ -35,7 +35,7 @@ func FetchCSR(registerAuth string, getUUID GetUUID, getCSR GetCSR) http.HandlerF
 			case ErrUnknown:
 				Error(w, r, uid, http.StatusNotFound, ErrCodeUnknownUUID, err.Error())
 			default:
-				Error(w, r, uid, http.StatusInternalServerError, ErrCodeInternalServerError, fmt.Sprintf("generating CSR failed: %v", err))
+				Error(w, r, uid, http.StatusInternalServerError, ErrCodeGenericInternalServerError, fmt.Sprintf("generating CSR failed: %v", err))
 			}
 			return
 		}
