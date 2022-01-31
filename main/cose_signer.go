@@ -44,8 +44,8 @@ const (
 	ErrCodeCertServerNotAvailable = "CS503-2000"
 	ErrCodeCertNotFound           = "CS500-2100"
 	ErrCodeCertNotValid           = "CS500-2200"
-	ErrCodeCertGeneric            = "CS500-2300"
-	ErrCodeCoseCreation           = "CS500-2400"
+	ErrCodeCertGenericError       = "CS500-2300"
+	ErrCodeCoseCreationFail       = "CS500-2400"
 )
 
 // 	COSE_Sign1 = [
@@ -128,15 +128,16 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 		case ErrCertNotValid:
 			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertNotValid, errMsg)
 		default:
+			// this should never happen
 			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
-			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertGeneric, "")
+			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertGenericError, "")
 		}
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
 		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
-		return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCoseCreation, "")
+		return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCoseCreationFail, "")
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 

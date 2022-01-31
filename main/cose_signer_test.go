@@ -149,7 +149,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 			},
 			signHash:   mockSign,
 			StatusCode: http.StatusInternalServerError,
-			ErrHeader:  ErrCodeCertGeneric,
+			ErrHeader:  ErrCodeCertGenericError,
 			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
 		},
 		{
@@ -159,7 +159,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 				return nil, testError
 			},
 			StatusCode: http.StatusInternalServerError,
-			ErrHeader:  ErrCodeCoseCreation,
+			ErrHeader:  ErrCodeCoseCreationFail,
 			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
 		},
 		{
@@ -169,7 +169,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 				return nil, nil
 			},
 			StatusCode: http.StatusInternalServerError,
-			ErrHeader:  ErrCodeCoseCreation,
+			ErrHeader:  ErrCodeCoseCreationFail,
 			Content:    []byte(http.StatusText(http.StatusInternalServerError)),
 		},
 	}
