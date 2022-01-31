@@ -18,8 +18,10 @@ type HTTPResponse struct {
 
 // SendResponse forwards a response to the client
 func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
-	for k, v := range resp.Header {
-		w.Header().Set(k, v[0])
+	for key, values := range resp.Header {
+		for _, v := range values {
+			w.Header().Add(key, v)
+		}
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, err := w.Write(resp.Content)
@@ -28,9 +30,9 @@ func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	}
 }
 
-func ErrorResponse(httpCode int, errCode, message string) HTTPResponse {
-	if message == "" {
-		message = http.StatusText(httpCode)
+func ErrorResponse(httpCode int, errCode, errMsg string) HTTPResponse {
+	if errMsg == "" {
+		errMsg = http.StatusText(httpCode)
 	}
 
 	header := http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
@@ -41,7 +43,7 @@ func ErrorResponse(httpCode int, errCode, message string) HTTPResponse {
 	return HTTPResponse{
 		StatusCode: httpCode,
 		Header:     header,
-		Content:    []byte(message),
+		Content:    []byte(errMsg),
 	}
 }
 
