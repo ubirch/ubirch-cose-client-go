@@ -30,14 +30,22 @@ func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	}
 }
 
-func ErrorResponse(httpCode int, errCode, errMsg string) HTTPResponse {
-	if errMsg == "" {
-		errMsg = http.StatusText(httpCode)
-	}
+func ErrorResponse(uid uuid.UUID, httpCode int, errCode, errMsg string, exposeErrMsg bool) HTTPResponse {
+	errLog, _ := json.Marshal(errorLog{
+		Uid:        uid.String(),
+		Error:      errMsg,
+		ErrCode:    errCode,
+		StatusCode: httpCode,
+	})
+	log.Errorf("ServerError: %s", errLog)
 
 	header := http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
 	if errCode != "" {
 		header.Add(ErrHeader, errCode)
+	}
+
+	if !exposeErrMsg {
+		errMsg = http.StatusText(httpCode)
 	}
 
 	return HTTPResponse{
@@ -51,7 +59,7 @@ func ErrorResponse(httpCode int, errCode, errMsg string) HTTPResponse {
 func Health(server string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Server", server)
-		w.Header().Set("Content-Type", TextType)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, err := fmt.Fprintln(w, http.StatusText(http.StatusOK))
 		if err != nil {
@@ -74,7 +82,7 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 		}
 
 		w.Header().Set("Server", server)
-		w.Header().Set("Content-Type", TextType)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(status)
 		_, err := fmt.Fprintln(w, http.StatusText(status))
 		if err != nil {
@@ -85,7 +93,7 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 
 type errorLog struct {
 	Uid        string `json:"sealID,omitempty"`
-	Target     string `json:"target"`
+	Target     string `json:"target,omitempty"`
 	Error      string `json:"error"`
 	ErrCode    string `json:"errorCode,omitempty"`
 	StatusCode int    `json:"statusCode"`

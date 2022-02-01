@@ -33,31 +33,34 @@ func TestSendResponse(t *testing.T) {
 
 func TestErrorResponse(t *testing.T) {
 	testCases := []struct {
-		name        string
-		httpCode    int
-		errCode     string
-		message     string
-		respContent string
+		name         string
+		httpCode     int
+		errCode      string
+		message      string
+		exposeErrMsg bool
+		respContent  string
 	}{
 		{
-			name:        "bad request",
-			httpCode:    http.StatusBadRequest,
-			errCode:     ErrCodeInvalidRequestContent,
-			message:     "bad request",
-			respContent: "bad request",
+			name:         "bad request",
+			httpCode:     http.StatusBadRequest,
+			errCode:      ErrCodeInvalidRequestContent,
+			message:      "this was a bad request",
+			exposeErrMsg: true,
+			respContent:  "this was a bad request",
 		},
 		{
-			name:        "internal server error",
-			httpCode:    http.StatusInternalServerError,
-			errCode:     "",
-			message:     "",
-			respContent: http.StatusText(http.StatusInternalServerError),
+			name:         "internal server error",
+			httpCode:     http.StatusInternalServerError,
+			errCode:      ErrCodeGenericInternalServerError,
+			message:      "some internal error message",
+			exposeErrMsg: false,
+			respContent:  http.StatusText(http.StatusInternalServerError),
 		},
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
 
-			resp := ErrorResponse(c.httpCode, c.errCode, c.message)
+			resp := ErrorResponse(testUUID, c.httpCode, c.errCode, c.message, c.exposeErrMsg)
 
 			assert.Equal(t, c.httpCode, resp.StatusCode)
 			assert.Equal(t, c.errCode, resp.Header.Get(ErrHeader))
@@ -76,7 +79,7 @@ func TestHealth(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, server, w.Header().Get("Server"))
-	assert.Equal(t, TextType, w.Header().Get("Content-Type"))
+	assert.Equal(t, "text/plain; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Equal(t, []byte(http.StatusText(http.StatusOK)+"\n"), w.Body.Bytes())
 }
 
@@ -115,7 +118,7 @@ func TestReady(t *testing.T) {
 
 			assert.Equal(t, c.code, w.Code)
 			assert.Equal(t, server, w.Header().Get("Server"))
-			assert.Equal(t, TextType, w.Header().Get("Content-Type"))
+			assert.Equal(t, "text/plain; charset=utf-8", w.Header().Get("Content-Type"))
 			assert.Equal(t, []byte(http.StatusText(c.code)+"\n"), w.Body.Bytes())
 		})
 	}

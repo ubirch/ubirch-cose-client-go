@@ -119,25 +119,23 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 	skid, errMsg, err := c.GetSKID(msg.ID)
 	if err != nil {
-		log.Errorf("could not fetch SKID for identity %s: %s", msg.ID, errMsg)
 		switch err {
 		case ErrCertServerNotAvailable:
-			return h.ErrorResponse(http.StatusServiceUnavailable, ErrCodeCertServerNotAvailable, errMsg)
+			return h.ErrorResponse(msg.ID, http.StatusServiceUnavailable, ErrCodeCertServerNotAvailable, errMsg, true)
 		case ErrCertNotFound:
-			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertNotFound, errMsg)
+			return h.ErrorResponse(msg.ID, http.StatusInternalServerError, ErrCodeCertNotFound, errMsg, true)
 		case ErrCertNotValid:
-			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertNotValid, errMsg)
+			return h.ErrorResponse(msg.ID, http.StatusInternalServerError, ErrCodeCertNotValid, errMsg, true)
 		default:
 			// this should never happen
 			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
-			return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCertGenericError, "")
+			return h.ErrorResponse(msg.ID, http.StatusInternalServerError, ErrCodeCertGenericError, errMsg, false)
 		}
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
-		log.Errorf("could not create COSE object for identity %s: %v", msg.ID, err)
-		return h.ErrorResponse(http.StatusInternalServerError, ErrCodeCoseCreationFail, "")
+		return h.ErrorResponse(msg.ID, http.StatusInternalServerError, ErrCodeCoseCreationFail, err.Error(), false)
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
