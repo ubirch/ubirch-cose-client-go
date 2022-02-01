@@ -99,8 +99,8 @@ type errorLog struct {
 	StatusCode int    `json:"statusCode"`
 }
 
-// Error is a wrapper for http.Error that additionally logs uuid, request URL path, error message and status
-// with logging level "warning" for client errors and "error" for server errors.
+// Error is a wrapper for http.Error that additionally logs error context with logging
+// level "warning" for client errors and logging level "error" for server errors.
 // The error message for server errors will only be logged but not be sent to the client.
 func Error(w http.ResponseWriter, r *http.Request, uid uuid.UUID, httpCode int, errCode, errMsg string) {
 	e := errorLog{
