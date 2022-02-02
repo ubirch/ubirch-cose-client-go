@@ -49,10 +49,12 @@ type SkidHandler struct {
 	loadCertList LoadCertificateList
 	lookupUuid   LookupUuid
 	encPubKey    EncodePublicKey
+
+	logCertMismatch func(format string, args ...interface{})
 }
 
 // NewSkidHandler loads SKIDs from the public key certificate list and updates it frequently
-func NewSkidHandler(certList LoadCertificateList, uid LookupUuid, enc EncodePublicKey, reloadEveryMinute bool) *SkidHandler {
+func NewSkidHandler(certList LoadCertificateList, uid LookupUuid, enc EncodePublicKey, reloadEveryMinute, ignoreUnknownCerts bool) *SkidHandler {
 	s := &SkidHandler{
 		skidStore:      nil,
 		skidStoreMutex: &sync.RWMutex{},
@@ -61,6 +63,13 @@ func NewSkidHandler(certList LoadCertificateList, uid LookupUuid, enc EncodePubl
 		lookupUuid:   uid,
 		encPubKey:    enc,
 	}
+
+	if ignoreUnknownCerts {
+		s.logCertMismatch = log.Debugf
+	} else {
+		s.logCertMismatch = log.Warnf
+	}
+
 	s.setInterval(reloadEveryMinute)
 
 	s.loadSKIDs()
@@ -159,7 +168,7 @@ func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 	if err != nil {
 		// this is most likely not critical but only means that the certificate belongs to
 		// a public key of an unsupported algorithm i.e. does not match a known key
-		log.Debugf("%s: unable to encode public key from x509 certificate: %v", skidString, err)
+		s.logCertMismatch("unable to parse public key from X.509 public key certificate with KID %s: %v", skidString, err)
 		return uuid.Nil, nil
 	}
 
@@ -167,7 +176,7 @@ func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 	uid, err := s.lookupUuid(pubKeyPEM)
 	if err != nil {
 		if err == ErrNotExist {
-			log.Debugf("%s: public key from x509 certificate does not match any known identity", skidString)
+			s.logCertMismatch("X.509 public key certificate with KID %s does not match public key of any known identity", skidString)
 		} else {
 			log.Errorf("%s: public key lookup failed: %v", errPrefix, err)
 		}

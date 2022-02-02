@@ -114,7 +114,7 @@ func main() {
 		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
 	}
 
-	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute)
+	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute, conf.IgnoreUnknownCerts)
 
 	certifyApiClient := &CertifyApiClient{
 		CertifyApiURL:  conf.CertifyApiUrl,

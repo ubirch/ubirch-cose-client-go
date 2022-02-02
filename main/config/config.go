@@ -81,6 +81,7 @@ type Config struct {
 	CertificateServer         string `json:"certificateServer" envconfig:"CERTIFICATE_SERVER"`              // public key certificate list server URL
 	CertificateServerPubKey   string `json:"certificateServerPubKey" envconfig:"CERTIFICATE_SERVER_PUBKEY"` // public key for verification of the public key certificate list signature server URL
 	ReloadCertsEveryMinute    bool   `json:"reloadCertsEveryMinute" envconfig:"RELOAD_CERTS_EVERY_MINUTE"`  // setting to make the service request the public key certificate list once a minute
+	IgnoreUnknownCerts        bool   `json:"ignoreUnknownCerts" envconfig:"IGNORE_UNKNOWN_CERTS"`           // if set to 'false', a warning will be logged in case a certificate for an unknown public key is found in the public key certificate list
 	CertifyApiUrl             string `json:"certifyApiUrl" envconfig:"CERTIFY_API_URL"`                     // URL of the certify API
 	CertifyApiAuth            string `json:"certifyApiAuth" envconfig:"CERTIFY_API_AUTH"`                   // auth token for the seal registration endpoint of the certify API
 	KdMaxTotalMemMiB          uint32 `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`             // maximal total memory to use for key derivation at a time in MiB
