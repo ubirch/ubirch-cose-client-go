@@ -34,12 +34,12 @@ for a [COSE Single Signer Data Object](https://tools.ietf.org/html/rfc8152#secti
 When receiving a JSON data package, the service will encode it
 with [Canonical CBOR](https://tools.ietf.org/html/rfc7049#section-3.9) rules.
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/<UUID>/cbor` | `"application/json"` | original data (JSON data package) |
-| POST | `/<UUID>/cbor` | `"application/cbor"` | original data (CBOR encoded) |
-| POST | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
-| POST | `/<UUID>/cbor/hash` | `text/plain` | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
+| Method | Path                | Content-Type               | Description                                                                                                         |
+|--------|---------------------|----------------------------|---------------------------------------------------------------------------------------------------------------------|
+| POST   | `/<UUID>/cbor`      | `"application/json"`       | original data (JSON data package)                                                                                   |
+| POST   | `/<UUID>/cbor`      | `"application/cbor"`       | original data (CBOR encoded)                                                                                        |
+| POST   | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service)              |
+| POST   | `/<UUID>/cbor/hash` | `text/plain`               | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 
 To send the **hex** string representation of the hash (instead of base64), the `Content-Transfer-Encoding`-header can be
 used.
@@ -67,15 +67,43 @@ COSE_Sign1 = [
 The returned `COSE_Sign1` object contains the request data (original data or SHA256 hash) as payload and the
 following [header parameters](https://tools.ietf.org/html/rfc8152#section-3):
 
-| Bucket | Name | Label | Value | Description |
-|--------|------|-------|-------|-------------|
-| protected header | "alg" | 1 | -7 ([ES256](https://cose-wg.github.io/cose-spec/#rfc.section.8.1)) | Identifier for the cryptographic algorithm used for signing |
-| unprotected header | "kid" | 4 |  <SKID, i.e. the first 8 bytes of the sha256 hash of the DER-encoded X.509 certificate of the public key (according to the hcert specification)> | Key identifier |
+| Bucket             | Name  | Label | Value                                                                                                                                           | Description                                                 |
+|--------------------|-------|-------|-------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
+| protected header   | "alg" | 1     | -7 ([ES256](https://cose-wg.github.io/cose-spec/#rfc.section.8.1))                                                                              | Identifier for the cryptographic algorithm used for signing |
+| unprotected header | "kid" | 4     | <SKID, i.e. the first 8 bytes of the sha256 hash of the DER-encoded X.509 certificate of the public key (according to the hcert specification)> | Key identifier                                              |
 
 **Note, that the `COSE_Sign1` object will not be verifiable, if it does not have the original data as payload.**
 
 If only a hash (and not the original data) is sent to the COSE service, the original data must be inserted into the
 payload field of the returned `COSE_Sign1` object afterwards, in order to get a valid (verifiable) COSE object.
+
+### Response Error Codes
+
+If an error occurred while processing a request, the service will add an error code to the response headers. The error
+codes have three parts. The first two characters identify the internal service component (_CS_). The second part is the
+HTTP status code (_YYY_). The third part is a dash followed by a 4-digit number (_-ZZZZ_).
+
+The name of the error header is **X-Err**.
+
+| COMPONENT | HTTP CODE | CODE  |
+|-----------|-----------|-------|
+| CS        | YYY       | -ZZZZ |
+
+| Error Code  | Meaning                                                                                     |
+|-------------|---------------------------------------------------------------------------------------------|
+| CS404-0000  | Authentication Error: Invalid UUID (can not be parsed)                                      |
+| CS401-0100  | Authentication Error: Missing authentication header                                         |
+| CS404-0200  | Authentication Error: Unknown identity                                                      |
+| CS401-0300  | Authentication Error: Invalid authentication token                                          |
+| CS500-0500  | Authentication Error: Internal Server Error                                                 |
+| CS400-0400  | Decoding Error: Invalid request content or `content-type` header                            |
+| CS409-1900  | Initialization Error: Identity is already initialized                                       |
+| CS500-1500  | Registration / CSR Creation Error: Internal Server Error                                    |
+| CS503-2000  | X.509 public key certificate related error: dscg server (trustList) not available           |
+| CS500-2100  | X.509 public key certificate related error: certificate for identity not found in trustList |
+| CS500-2200  | X.509 public key certificate related error: certificate for identity invalid (i.e. expired) |
+| CS500-2300  | generic X.509 public key certificate related error                                          |
+| CS500-2400  | Signing Error                                                                               |
 
 ### How to create valid COSE objects without sending original data to the service
 

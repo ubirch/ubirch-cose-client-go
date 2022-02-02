@@ -2,25 +2,23 @@ package http_server
 
 import (
 	"bytes"
-	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRegister(t *testing.T) {
-
-	byteStr := []byte("csr")
 
 	testCases := []struct {
 		name        string
 		auth        string
 		contentType string
-		body        RegistrationPayload
+		body        []byte
 		initId      InitializeIdentity
 		tcChecks    func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
@@ -28,91 +26,140 @@ func TestRegister(t *testing.T) {
 			name:        "happy path",
 			auth:        testAuth,
 			contentType: JSONType,
-			body: RegistrationPayload{
-				Uid: uuid.New(),
-			},
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
 			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
-				return byteStr, "", nil
+				return testCSR, "1234", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, string(byteStr), recorder.Body.String())
-				require.Equal(t, http.StatusOK, recorder.Code)
+				assert.Equal(t, http.StatusOK, recorder.Code)
+				assert.Empty(t, recorder.Header().Get(ErrHeader))
+				assert.Equal(t, testCSR, recorder.Body.Bytes())
+			},
+		},
+		{
+			name:        "missing auth",
+			auth:        "",
+			contentType: JSONType,
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return testCSR, "", nil
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, ErrCodeMissingAuth, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "missing authentication header X-Auth-Token")
+			},
+		},
+		{
+			name:        "invalid auth",
+			auth:        "password",
+			contentType: JSONType,
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return testCSR, "", nil
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidAuth, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "invalid auth token")
 			},
 		},
 		{
 			name:        "wrong content type header",
 			auth:        testAuth,
 			contentType: BinType,
-			body: RegistrationPayload{
-				Uid: uuid.New(),
-			},
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
 			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
-				return byteStr, "", nil
+				return testCSR, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "invalid content-type")
-				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidRequestContent, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "invalid content-type")
+			},
+		},
+		{
+			name:        "invalid JSON",
+			auth:        testAuth,
+			contentType: BinType,
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return testCSR, "", nil
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidRequestContent, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "invalid content-type")
 			},
 		},
 		{
 			name:        "no uuid",
 			auth:        testAuth,
 			contentType: JSONType,
-			body: RegistrationPayload{
-				Uid: uuid.Nil,
-			},
+			body:        []byte("{}"),
 			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
-				return byteStr, "", nil
+				return testCSR, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "empty uuid")
-				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidRequestContent, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "missing UUID for identity registration")
 			},
 		},
 		{
-			name:        "no password",
+			name:        "attempt to set password",
 			auth:        testAuth,
 			contentType: JSONType,
-			body: RegistrationPayload{
-				Uid: uuid.New(),
-				Pwd: "not supported anymore",
-			},
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\", \"password\": \"80d5aa1b-5623-466e-90b8-11a3d354b9ec\"}"),
 			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
-				return byteStr, "", nil
+				return testCSR, "", nil
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), "setting password is not longer supported.")
-				require.Equal(t, http.StatusBadRequest, recorder.Code)
-			},
-		},
-		{
-			name:        "not authorized",
-			auth:        "",
-			contentType: JSONType,
-			body: RegistrationPayload{
-				Uid: uuid.New(),
-			},
-			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
-				return byteStr, "", nil
-			},
-			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized))
-				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Equal(t, ErrCodeInvalidRequestContent, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), "setting password is not longer supported")
 			},
 		},
 		{
 			name:        "conflict",
 			auth:        testAuth,
 			contentType: JSONType,
-			body: RegistrationPayload{
-				Uid: uuid.New(),
-			},
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
 			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
 				return nil, "", ErrAlreadyInitialized
 			},
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				require.Contains(t, recorder.Body.String(), ErrAlreadyInitialized.Error())
-				require.Equal(t, http.StatusConflict, recorder.Code)
+				assert.Equal(t, http.StatusConflict, recorder.Code)
+				assert.Equal(t, ErrCodeAlreadyInitialized, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), ErrAlreadyInitialized.Error())
+			},
+		},
+		{
+			name:        "unknown",
+			auth:        testAuth,
+			contentType: JSONType,
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return nil, "", ErrUnknown
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusNotFound, recorder.Code)
+				assert.Equal(t, ErrCodeUnknownUUID, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), ErrUnknown.Error())
+			},
+		},
+		{
+			name:        "internal server error",
+			auth:        testAuth,
+			contentType: JSONType,
+			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
+			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
+				return nil, "", errors.New("mock error")
+			},
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+				assert.Equal(t, ErrCodeGenericInternalServerError, recorder.Header().Get(ErrHeader))
+				assert.Contains(t, recorder.Body.String(), http.StatusText(http.StatusInternalServerError))
 			},
 		},
 	}
@@ -123,11 +170,7 @@ func TestRegister(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			router.Put(RegisterEndpoint, Register(testAuth, c.initId))
 
-			payloadBuf := new(bytes.Buffer)
-			err := json.NewEncoder(payloadBuf).Encode(c.body)
-			require.NoError(t, err)
-
-			req := httptest.NewRequest(http.MethodPut, RegisterEndpoint, payloadBuf)
+			req := httptest.NewRequest(http.MethodPut, RegisterEndpoint, bytes.NewReader(c.body))
 			req.Header.Add(AuthHeader, c.auth)
 			req.Header.Add("Content-Type", c.contentType)
 

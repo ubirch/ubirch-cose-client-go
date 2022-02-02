@@ -1,27 +1,31 @@
 package http_server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type GetCSR func(uid uuid.UUID) (csr []byte, err error)
 
-func FetchCSR(auth string, getUUID GetUUID, getCSR GetCSR) http.HandlerFunc {
+func FetchCSR(registerAuth string, getUUID GetUUID, getCSR GetCSR) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(AuthHeader) != auth {
-			log.Warnf("unauthorized CSR request")
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		auth := r.Header.Get(AuthHeader)
+
+		if auth == "" {
+			Error(w, r, uuid.Nil, http.StatusUnauthorized, ErrCodeMissingAuth, fmt.Sprintf("missing authentication header %s", AuthHeader))
+			return
+		}
+
+		if auth != registerAuth {
+			Error(w, r, uuid.Nil, http.StatusUnauthorized, ErrCodeInvalidAuth, "invalid auth token")
 			return
 		}
 
 		uid, err := getUUID(r)
 		if err != nil {
-			log.Warnf("FetchCSR: %v", err)
-			http.Error(w, err.Error(), http.StatusNotFound)
+			Error(w, r, uid, http.StatusNotFound, ErrCodeInvalidUUID, err.Error())
 			return
 		}
 
@@ -29,10 +33,9 @@ func FetchCSR(auth string, getUUID GetUUID, getCSR GetCSR) http.HandlerFunc {
 		if err != nil {
 			switch err {
 			case ErrUnknown:
-				Error(uid, w, err, http.StatusNotFound)
+				Error(w, r, uid, http.StatusNotFound, ErrCodeUnknownUUID, err.Error())
 			default:
-				log.Errorf("%s: %v", uid, err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				Error(w, r, uid, http.StatusInternalServerError, ErrCodeGenericInternalServerError, fmt.Sprintf("generating CSR failed: %v", err))
 			}
 			return
 		}

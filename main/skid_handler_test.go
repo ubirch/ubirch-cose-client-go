@@ -41,24 +41,45 @@ func TestSkidHandler(t *testing.T) {
 		getPubKeyID(pub): uid,
 	}
 
+	validSinceNow := validity{
+		PrivPEM:   priv,
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(time.Hour),
+		SKID:      testSKID,
+	}
+
+	validSinceAnHourAgo := validity{
+		PrivPEM:   priv,
+		NotBefore: time.Now().Add(-time.Hour),
+		NotAfter:  time.Now().Add(time.Hour),
+		SKID:      testSKID2,
+	}
+
+	expired := validity{
+		PrivPEM:   priv,
+		NotBefore: time.Now().Add(-time.Hour),
+		NotAfter:  time.Now().Add(-time.Minute),
+		SKID:      testSKID2,
+	}
+
+	notYetValid := validity{
+		PrivPEM:   priv,
+		NotBefore: time.Now().Add(time.Minute),
+		NotAfter:  time.Now().Add(time.Hour),
+		SKID:      testSKID2,
+	}
+
 	testCases := []struct {
 		name              string
-		certs             GetCertificateList
-		uid               GetUuid
+		certs             LoadCertificateList
+		uid               LookupUuid
 		enc               EncodePublicKey
 		reloadEveryMinute bool
 		tcChecks          func(t *testing.T, s *SkidHandler)
 	}{
 		{
-			name: "NewSkidHandler",
-			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-			}),
+			name:              "NewSkidHandler",
+			certs:             mockGetCertificateList([]validity{validSinceNow}),
 			uid:               testUUIDs.mockGetUuidForPublicKey,
 			enc:               crypto.EncodePublicKey,
 			reloadEveryMinute: false,
@@ -78,19 +99,12 @@ func TestSkidHandler(t *testing.T) {
 
 				_, errMsg, err = s.GetSKID(uuid.New())
 				assert.Equal(t, ErrCertNotFound, err)
-				assert.Contains(t, errMsg, ErrCertNotFound.Error())
+				assert.Equal(t, fmt.Sprintf("SKID unknown: %v", ErrCertNotFound), errMsg)
 			},
 		},
 		{
-			name: "NewSkidHandler reloadEveryMinute",
-			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-			}),
+			name:              "NewSkidHandler reloadEveryMinute",
+			certs:             mockGetCertificateList([]validity{validSinceNow}),
 			uid:               testUUIDs.mockGetUuidForPublicKey,
 			enc:               crypto.EncodePublicKey,
 			reloadEveryMinute: true,
@@ -105,7 +119,7 @@ func TestSkidHandler(t *testing.T) {
 
 				//// the following lines test the scheduler to trigger the loadSKIDs method after one minute
 				//// since the execution of this test takes over a minute it is commented out
-				//s.getCerts = mockGetCertificateList([]validity{})
+				//s.loadCertList = mockGetCertificateList([]validity{})
 				//
 				//t.Logf("waiting %s for scheduler to reload certificate list...", s.certLoadInterval.String())
 				//time.Sleep(s.certLoadInterval + time.Second)
@@ -114,24 +128,17 @@ func TestSkidHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "loadSKIDs",
-			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-			}),
-			uid: testUUIDs.mockGetUuidForPublicKey,
-			enc: crypto.EncodePublicKey,
+			name:  "loadSKIDs",
+			certs: mockGetCertificateList([]validity{validSinceNow}),
+			uid:   testUUIDs.mockGetUuidForPublicKey,
+			enc:   crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				skid, errMsg, err := s.GetSKID(uid)
 				require.NoError(t, err)
 				assert.Empty(t, errMsg)
 				require.Equal(t, testSKID, skid)
 
-				s.getCerts = mockGetCertificateList([]validity{
+				s.loadCertList = mockGetCertificateList([]validity{
 					{
 						PrivPEM:   priv,
 						NotBefore: time.Now(),
@@ -161,25 +168,17 @@ func TestSkidHandler(t *testing.T) {
 
 				_, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertServerNotAvailable, err)
-				assert.Contains(t, errMsg, ErrCertServerNotAvailable.Error())
-				assert.Contains(t, errMsg, "trustList could not be loaded for 1h0m0s")
+				assert.Equal(t, fmt.Sprintf("%v: trustList could not be loaded for 1h0m0s", ErrCertServerNotAvailable), errMsg)
 			},
 		},
 		{
-			name: "BadGetCertificateList_MaxCertLoadFailCount",
-			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-			}),
+			name:              "BadGetCertificateList_MaxCertLoadFailCount",
+			certs:             mockGetCertificateList([]validity{validSinceNow}),
 			uid:               testUUIDs.mockGetUuidForPublicKey,
 			enc:               crypto.EncodePublicKey,
 			reloadEveryMinute: true,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				s.getCerts = mockGetCertificateListBad
+				s.loadCertList = mockGetCertificateListBad
 
 				for i := 0; i < s.maxCertLoadFailCount; i++ {
 					assert.NotEmpty(t, len(s.skidStore))
@@ -189,6 +188,10 @@ func TestSkidHandler(t *testing.T) {
 				}
 
 				assert.Equal(t, s.maxCertLoadFailCount, s.certLoadFailCounter)
+				assert.Empty(t, s.skidStore)
+
+				s.loadSKIDs()
+				assert.Equal(t, s.maxCertLoadFailCount+1, s.certLoadFailCounter)
 				assert.Empty(t, s.skidStore)
 			},
 		},
@@ -219,16 +222,9 @@ func TestSkidHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "bad encPubKey",
-			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-			}),
-			uid: testUUIDs.mockGetUuidForPublicKey,
+			name:  "bad encPubKey",
+			certs: mockGetCertificateList([]validity{validSinceNow}),
+			uid:   testUUIDs.mockGetUuidForPublicKey,
 			enc: func(interface{}) ([]byte, error) {
 				return nil, testError
 			},
@@ -239,90 +235,67 @@ func TestSkidHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "GetUuidFindsNothing",
-			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-			}),
-			uid: mockGetUuidFindsNothing,
-			enc: crypto.EncodePublicKey,
+			name:  "GetUuidFindsNothing",
+			certs: mockGetCertificateList([]validity{validSinceNow}),
+			uid:   mockGetUuidFindsNothing,
+			enc:   crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				assert.Empty(t, s.skidStore)
 			},
 		},
 		{
-			name: "GetUuidReturnsError",
-			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-			}),
-			uid: mockGetUuidReturnsError,
-			enc: crypto.EncodePublicKey,
+			name:  "GetUuidReturnsError",
+			certs: mockGetCertificateList([]validity{validSinceNow}),
+			uid:   mockGetUuidReturnsError,
+			enc:   crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				assert.Empty(t, s.skidStore)
 			},
 		},
 		{
-			name: "certificate validity expired",
+			name:  "certificate validity expired",
+			certs: mockGetCertificateList([]validity{expired}),
+			uid:   testUUIDs.mockGetUuidForPublicKey,
+			enc:   crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				assert.Equal(t, ErrCertNotValid, err)
+				assert.Equal(t, fmt.Sprintf("%v: certificate expired: was valid until %s", ErrCertNotValid, expired.NotAfter.UTC().Format(timeLayout)), errMsg)
+				assert.Empty(t, skid)
+			},
+		},
+		{
+			name:  "certificate not yet valid",
+			certs: mockGetCertificateList([]validity{notYetValid}),
+			uid:   testUUIDs.mockGetUuidForPublicKey,
+			enc:   crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				assert.Equal(t, ErrCertNotValid, err)
+				assert.Equal(t, fmt.Sprintf("%v: certificate not yet valid: will be valid from %s", ErrCertNotValid, notYetValid.NotBefore.UTC().Format(timeLayout)), errMsg)
+				assert.Empty(t, skid)
+			},
+		},
+		{
+			name: "do not overwrite previouslyMatchedSkid with notYetValid",
 			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now().Add(-time.Hour),
-					NotAfter:  time.Now().Add(-time.Minute),
-					SKID:      testSKID,
-				},
+				validSinceNow,
+				notYetValid,
 			}),
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				_, errMsg, err := s.GetSKID(uid)
-				assert.Equal(t, ErrCertExpired, err)
-				assert.Contains(t, errMsg, ErrCertExpired.Error())
-				assert.Contains(t, errMsg, s.skidStore[uid].NotAfter.String())
+				skid, errMsg, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Empty(t, errMsg)
+				assert.Equal(t, testSKID, skid)
 			},
 		},
 		{
-			name: "certificate not yet valid",
+			name: "do not overwrite previouslyMatchedSkid with expired",
 			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now().Add(time.Minute),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-			}),
-			uid: testUUIDs.mockGetUuidForPublicKey,
-			enc: crypto.EncodePublicKey,
-			tcChecks: func(t *testing.T, s *SkidHandler) {
-				_, errMsg, err := s.GetSKID(uid)
-				assert.Equal(t, ErrCertNotYetValid, err)
-				assert.Contains(t, errMsg, ErrCertNotYetValid.Error())
-				assert.Contains(t, errMsg, s.skidStore[uid].NotBefore.String())
-			},
-		},
-		{
-			name: "do not overwrite previouslyMatchedSkid",
-			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now().Add(time.Minute),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID2,
-				},
+				validSinceNow,
+				expired,
 			}),
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
@@ -336,18 +309,8 @@ func TestSkidHandler(t *testing.T) {
 		{
 			name: "use newer of two valid certificates",
 			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now(),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now().Add(-time.Hour),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID2,
-				},
+				validSinceNow,
+				validSinceAnHourAgo,
 			}),
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
@@ -361,24 +324,16 @@ func TestSkidHandler(t *testing.T) {
 		{
 			name: "use newer of two invalid certificates",
 			certs: mockGetCertificateList([]validity{
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now().Add(time.Minute),
-					NotAfter:  time.Now().Add(time.Hour),
-					SKID:      testSKID,
-				},
-				{
-					PrivPEM:   priv,
-					NotBefore: time.Now().Add(-time.Hour),
-					NotAfter:  time.Now().Add(-time.Minute),
-					SKID:      testSKID2,
-				},
+				notYetValid,
+				expired,
 			}),
 			uid: testUUIDs.mockGetUuidForPublicKey,
 			enc: crypto.EncodePublicKey,
 			tcChecks: func(t *testing.T, s *SkidHandler) {
-				_, _, err := s.GetSKID(uid)
-				assert.Equal(t, ErrCertNotYetValid, err)
+				skid, errMsg, err := s.GetSKID(uid)
+				assert.Equal(t, ErrCertNotValid, err)
+				assert.Equal(t, fmt.Sprintf("%v: certificate not yet valid: will be valid from %s", ErrCertNotValid, notYetValid.NotBefore.UTC().Format(timeLayout)), errMsg)
+				assert.Empty(t, skid)
 			},
 		},
 	}
@@ -453,7 +408,7 @@ type validity struct {
 	SKID      []byte
 }
 
-func mockGetCertificateList(v []validity) GetCertificateList {
+func mockGetCertificateList(v []validity) LoadCertificateList {
 	return func() ([]Certificate, error) {
 		var certList []Certificate
 

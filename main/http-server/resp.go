@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -17,8 +18,10 @@ type HTTPResponse struct {
 
 // SendResponse forwards a response to the client
 func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
-	for k, v := range resp.Header {
-		w.Header().Set(k, v[0])
+	for key, values := range resp.Header {
+		for _, v := range values {
+			w.Header().Add(key, v)
+		}
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, err := w.Write(resp.Content)
@@ -27,14 +30,29 @@ func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	}
 }
 
-func ErrorResponse(code int, message string) HTTPResponse {
-	if message == "" {
-		message = http.StatusText(code)
+func ErrorResponse(uid uuid.UUID, target string, httpCode int, errCode, errMsg string, exposeErrMsg bool) HTTPResponse {
+	errLog, _ := json.Marshal(errorLog{
+		Uid:        uid.String(),
+		Error:      errMsg,
+		ErrCode:    errCode,
+		StatusCode: httpCode,
+		Target:     target,
+	})
+	log.Errorf("ServerError: %s", errLog)
+
+	header := http.Header{"Content-Type": {"text/plain; charset=utf-8"}}
+	if errCode != "" {
+		header.Add(ErrHeader, errCode)
 	}
+
+	if !exposeErrMsg {
+		errMsg = http.StatusText(httpCode)
+	}
+
 	return HTTPResponse{
-		StatusCode: code,
-		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content:    []byte(message),
+		StatusCode: httpCode,
+		Header:     header,
+		Content:    []byte(errMsg),
 	}
 }
 
@@ -42,7 +60,7 @@ func ErrorResponse(code int, message string) HTTPResponse {
 func Health(server string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Server", server)
-		w.Header().Set("Content-Type", TextType)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, err := fmt.Fprintln(w, http.StatusText(http.StatusOK))
 		if err != nil {
@@ -65,7 +83,7 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 		}
 
 		w.Header().Set("Server", server)
-		w.Header().Set("Content-Type", TextType)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(status)
 		_, err := fmt.Fprintln(w, http.StatusText(status))
 		if err != nil {
@@ -74,8 +92,44 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 	}
 }
 
-// Error is a wrapper for http.Error that additionally logs the error message to std.Output
-func Error(uid uuid.UUID, w http.ResponseWriter, err error, code int) {
-	log.Warnf("%s: %v", uid, err)
-	http.Error(w, err.Error(), code)
+type errorLog struct {
+	Uid        string `json:"sealID,omitempty"`
+	Error      string `json:"error"`
+	ErrCode    string `json:"errorCode,omitempty"`
+	StatusCode int    `json:"statusCode"`
+	Target     string `json:"target,omitempty"`
+}
+
+// Error is a wrapper for http.Error that additionally logs error context with logging
+// level "warning" for client errors and logging level "error" for server errors.
+// The error message for server errors will only be logged but not be sent to the client.
+func Error(w http.ResponseWriter, r *http.Request, uid uuid.UUID, httpCode int, errCode, errMsg string) {
+	e := errorLog{
+		Error:      errMsg,
+		ErrCode:    errCode,
+		StatusCode: httpCode,
+		Target:     r.URL.Path,
+	}
+	if uid != uuid.Nil {
+		e.Uid = uid.String()
+	}
+
+	errLog, _ := json.Marshal(e)
+
+	if errCode != "" {
+		w.Header().Set(ErrHeader, errCode)
+	}
+
+	switch true {
+	case httpCode >= http.StatusBadRequest && httpCode < http.StatusBadRequest+100:
+		log.Warnf("ClientError: %s", errLog)
+		http.Error(w, errMsg, httpCode)
+	case httpCode >= http.StatusInternalServerError && httpCode < http.StatusInternalServerError+100:
+		log.Errorf("ServerError: %s", errLog)
+		http.Error(w, http.StatusText(httpCode), httpCode)
+	default:
+		// this should never happen
+		log.Errorf("error responder received unexpected HTTP response status code: %d, Error: %s", httpCode, errLog)
+		http.Error(w, http.StatusText(httpCode), httpCode)
+	}
 }

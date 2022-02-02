@@ -112,7 +112,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 	keyExists, err := i.Crypto.PrivateKeyExists(uid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
+		return nil, fmt.Errorf("could not check for existence of private key: %v", err)
 	}
 
 	if !keyExists {
@@ -121,7 +121,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 
 	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
-		return nil, fmt.Errorf("could not generate CSR: %v", err)
+		return nil, fmt.Errorf("could not create CSR: %v", err)
 	}
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})

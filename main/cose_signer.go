@@ -39,6 +39,13 @@ const (
 	COSE_Sign1_Tag     = 18           // CBOR tag TBD7 identifies tagged COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.2)
 	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
 	ES256_Sig_Len      = 64           // length of ECDSA P-256 signatures in bytes
+
+	// response error codes
+	ErrCodeCertServerNotAvailable = "CS503-2000"
+	ErrCodeCertNotFound           = "CS500-2100"
+	ErrCodeCertNotValid           = "CS500-2200"
+	ErrCodeCertGenericError       = "CS500-2300"
+	ErrCodeCoseCreationFail       = "CS500-2400"
 )
 
 // 	COSE_Sign1 = [
@@ -112,24 +119,23 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 	skid, errMsg, err := c.GetSKID(msg.ID)
 	if err != nil {
-		log.Errorf("%s: %s", msg.ID, errMsg)
-		var respStatusCode int
 		switch err {
 		case ErrCertServerNotAvailable:
-			respStatusCode = http.StatusServiceUnavailable
-		case ErrCertNotFound, ErrCertExpired, ErrCertNotYetValid:
-			respStatusCode = http.StatusInternalServerError
+			return h.ErrorResponse(msg.ID, msg.Target, http.StatusServiceUnavailable, ErrCodeCertServerNotAvailable, errMsg, true)
+		case ErrCertNotFound:
+			return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCertNotFound, errMsg, true)
+		case ErrCertNotValid:
+			return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCertNotValid, errMsg, true)
 		default:
+			// this should never happen
 			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
-			return h.ErrorResponse(http.StatusInternalServerError, "")
+			return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCertGenericError, errMsg, false)
 		}
-		return h.ErrorResponse(respStatusCode, errMsg)
 	}
 
 	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
-		log.Errorf("%s: could not create COSE object: %v", msg.ID, err)
-		return h.ErrorResponse(http.StatusInternalServerError, "")
+		return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCoseCreationFail, err.Error(), false)
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
@@ -143,40 +149,9 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	}
 }
 
-func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum, kid, payload []byte) ([]byte, error) {
-	signature, err := c.getSignature(ctx, uid, hash)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.getCOSE(kid, payload, signature)
-}
-
-func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum) ([]byte, error) {
-	timerWait := prometheus.NewTimer(prom.SignatureCreationWithWaitDuration)
-	defer timerWait.ObserveDuration()
-
-	err := c.signSem.Acquire(ctx, 1)
-	if err != nil {
-		return nil, fmt.Errorf("failed to acquire semaphore for signing: %v", err)
-	}
-	defer c.signSem.Release(1)
-
-	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
-	defer timerSign.ObserveDuration()
-
-	sig, err := c.SignHash(uid, hash[:])
-	if err != nil {
-		prom.SignatureCreationFailCounter.Inc()
-	} else {
-		prom.SignatureCreationCounter.Inc()
-	}
-	return sig, err
-}
-
-// getCOSE creates a COSE Single Signer Data Object (COSE_Sign1)
+// createSignedCOSE creates a ECDSA P-256 signed COSE Single Signer Data Object (COSE_Sign1)
 // and returns the Canonical-CBOR-encoded object with tag 18
-func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error) {
+func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum, kid, payload []byte) ([]byte, error) {
 	/*
 		* https://cose-wg.github.io/cose-spec/#rfc.section.4.2
 			[COSE Single Signer Data Object]
@@ -259,8 +234,13 @@ func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error
 			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
 																							payload is unknown
 	*/
-	if len(signatureBytes) != ES256_Sig_Len {
-		return nil, fmt.Errorf("invalid signature length: expected %d, got %d", ES256_Sig_Len, len(signatureBytes))
+	signature, err := c.getSignature(ctx, uid, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(signature) != ES256_Sig_Len {
+		return nil, fmt.Errorf("invalid signature length: expected: %d bytes, got: %d bytes", ES256_Sig_Len, len(signature))
 	}
 
 	// create COSE_Sign1 object
@@ -268,11 +248,34 @@ func (c *CoseSigner) getCOSE(kid, payload, signatureBytes []byte) ([]byte, error
 		Protected:   c.protectedHeader,
 		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: kid},
 		Payload:     payload,
-		Signature:   signatureBytes,
+		Signature:   signature,
 	}
 
 	// encode COSE_Sign1 object with tag
 	return c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
+}
+
+func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum) ([]byte, error) {
+	timerWait := prometheus.NewTimer(prom.SignatureCreationWithWaitDuration)
+	defer timerWait.ObserveDuration()
+
+	err := c.signSem.Acquire(ctx, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire semaphore for signing: %v", err)
+	}
+	defer c.signSem.Release(1)
+
+	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
+	defer timerSign.ObserveDuration()
+
+	sig, err := c.SignHash(uid, hash[:])
+	if err != nil {
+		prom.SignatureCreationFailCounter.Inc()
+		return nil, fmt.Errorf("signing hash failed: %v", err)
+	}
+
+	prom.SignatureCreationCounter.Inc()
+	return sig, nil
 }
 
 // GetSigStructBytes creates a "Canonical CBOR"-encoded](https://tools.ietf.org/html/rfc7049#section-3.9)

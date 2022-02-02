@@ -29,8 +29,7 @@ import (
 
 const (
 	HexEncoding = "hex"
-
-	HashLen = 32
+	HashLen     = 32
 )
 
 type Sha256Sum [HashLen]byte
@@ -40,6 +39,7 @@ type HTTPRequest struct {
 	Hash    Sha256Sum
 	Payload []byte
 	Ctx     context.Context
+	Target  string
 }
 
 type CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
@@ -57,36 +57,39 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, err := getUUID(r)
 		if err != nil {
-			log.Warn(err)
-			http.Error(w, err.Error(), http.StatusNotFound)
+			Error(w, r, uid, http.StatusNotFound, ErrCodeInvalidUUID, err.Error())
 			return
 		}
 
 		ctx := r.Context()
 		auth := r.Header.Get(AuthHeader)
 
+		if auth == "" {
+			Error(w, r, uid, http.StatusUnauthorized, ErrCodeMissingAuth, fmt.Sprintf("missing authentication header %s", AuthHeader))
+			return
+		}
+
 		authOk, found, err := s.CheckAuth(ctx, uid, auth)
 		if err != nil {
-			log.Errorf("%s: password check failed: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			Error(w, r, uid, http.StatusInternalServerError, ErrCodeAuthInternalServerError, fmt.Sprintf("authentication check failed: %v", err))
 			return
 		}
 
 		if !found {
-			Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+			Error(w, r, uid, http.StatusNotFound, ErrCodeUnknownUUID, ErrUnknown.Error())
 			return
 		}
 
 		if !authOk {
-			Error(uid, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
+			Error(w, r, uid, http.StatusUnauthorized, ErrCodeInvalidAuth, "invalid auth token")
 			return
 		}
 
-		msg := HTTPRequest{ID: uid, Ctx: ctx}
+		msg := HTTPRequest{ID: uid, Ctx: ctx, Target: r.URL.Path}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {
-			Error(msg.ID, w, err, http.StatusBadRequest)
+			Error(w, r, uid, http.StatusBadRequest, ErrCodeInvalidRequestContent, err.Error())
 			return
 		}
 
@@ -110,7 +113,8 @@ func GetHashFromHashRequest() GetPayloadAndHash {
 
 		var data []byte
 
-		switch ContentType(r.Header) {
+		contentType := ContentType(r.Header)
+		switch contentType {
 		case TextType:
 			if ContentEncoding(r.Header) == HexEncoding {
 				data, err = hex.DecodeString(string(rBody))
@@ -127,12 +131,12 @@ func GetHashFromHashRequest() GetPayloadAndHash {
 			data = rBody
 		default:
 			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
-				"expected (\"%s\" | \"%s\")", BinType, TextType)
+				"expected: (%s | %s), got: %s", BinType, TextType, contentType)
 		}
 
 		if len(data) != HashLen {
 			return nil, Sha256Sum{}, fmt.Errorf("invalid SHA256 hash size: "+
-				"expected %d bytes, got %d bytes", HashLen, len(data))
+				"expected: %d bytes, got: %d bytes", HashLen, len(data))
 		}
 
 		copy(hash[:], data)
@@ -152,7 +156,8 @@ func GetPayloadAndHashFromDataRequest(getCBORFromJSON GetCBORFromJSON, getSigStr
 
 		var data []byte
 
-		switch ContentType(r.Header) {
+		contentType := ContentType(r.Header)
+		switch contentType {
 		case JSONType:
 			data, err = getCBORFromJSON(rBody)
 			if err != nil {
@@ -163,7 +168,7 @@ func GetPayloadAndHashFromDataRequest(getCBORFromJSON GetCBORFromJSON, getSigStr
 			data = rBody
 		default:
 			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
-				"expected (\"%s\" | \"%s\")", CBORType, JSONType)
+				"expected: (%s | %s), got: %s", CBORType, JSONType, contentType)
 		}
 
 		toBeSigned, err := getSigStructBytes(data)
