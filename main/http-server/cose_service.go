@@ -113,7 +113,8 @@ func GetHashFromHashRequest() GetPayloadAndHash {
 
 		var data []byte
 
-		switch ContentType(r.Header) {
+		contentType := ContentType(r.Header)
+		switch contentType {
 		case TextType:
 			if ContentEncoding(r.Header) == HexEncoding {
 				data, err = hex.DecodeString(string(rBody))
@@ -130,12 +131,12 @@ func GetHashFromHashRequest() GetPayloadAndHash {
 			data = rBody
 		default:
 			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
-				"expected (\"%s\" | \"%s\")", BinType, TextType)
+				"expected: (%s | %s), got: %s", BinType, TextType, contentType)
 		}
 
 		if len(data) != HashLen {
 			return nil, Sha256Sum{}, fmt.Errorf("invalid SHA256 hash size: "+
-				"expected %d bytes, got %d bytes", HashLen, len(data))
+				"expected: %d bytes, got: %d bytes", HashLen, len(data))
 		}
 
 		copy(hash[:], data)
@@ -155,7 +156,8 @@ func GetPayloadAndHashFromDataRequest(getCBORFromJSON GetCBORFromJSON, getSigStr
 
 		var data []byte
 
-		switch ContentType(r.Header) {
+		contentType := ContentType(r.Header)
+		switch contentType {
 		case JSONType:
 			data, err = getCBORFromJSON(rBody)
 			if err != nil {
@@ -166,7 +168,7 @@ func GetPayloadAndHashFromDataRequest(getCBORFromJSON GetCBORFromJSON, getSigStr
 			data = rBody
 		default:
 			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
-				"expected (\"%s\" | \"%s\")", CBORType, JSONType)
+				"expected: (%s | %s), got: %s", CBORType, JSONType, contentType)
 		}
 
 		toBeSigned, err := getSigStructBytes(data)

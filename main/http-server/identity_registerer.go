@@ -76,7 +76,7 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 func identityFromBody(r *http.Request) (RegistrationPayload, error) {
 	contentType := ContentType(r.Header)
 	if contentType != JSONType {
-		return RegistrationPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
+		return RegistrationPayload{}, fmt.Errorf("invalid content-type: expected: %s, got: %s", JSONType, contentType)
 	}
 
 	var payload RegistrationPayload

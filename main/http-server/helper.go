@@ -25,7 +25,7 @@ func GetUUIDFromRequest(r *http.Request) (uuid.UUID, error) {
 	uuidParam := chi.URLParam(r, UUIDKey)
 	uid, err := uuid.Parse(uuidParam)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
+		return uuid.Nil, fmt.Errorf("invalid UUID: %s: %v", uuidParam, err)
 	}
 	return uid, nil
 }

@@ -240,7 +240,7 @@ func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash h
 	}
 
 	if len(signature) != ES256_Sig_Len {
-		return nil, fmt.Errorf("invalid signature length: expected %d, got %d", ES256_Sig_Len, len(signature))
+		return nil, fmt.Errorf("invalid signature length: expected: %d bytes, got: %d bytes", ES256_Sig_Len, len(signature))
 	}
 
 	// create COSE_Sign1 object

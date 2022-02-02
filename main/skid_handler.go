@@ -145,7 +145,7 @@ func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 	skidString := base64.StdEncoding.EncodeToString(cert.Kid)
 
 	if len(cert.Kid) != SkidLen {
-		log.Errorf("%s: invalid KID length: %d, expected: %d", skidString, len(cert.Kid), SkidLen)
+		log.Errorf("%s: invalid KID length: expected: %d bytes, got: %d bytes", skidString, SkidLen, len(cert.Kid))
 		return uuid.Nil, nil
 	}
 
