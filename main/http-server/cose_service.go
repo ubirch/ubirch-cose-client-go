@@ -39,6 +39,7 @@ type HTTPRequest struct {
 	Hash    Sha256Sum
 	Payload []byte
 	Ctx     context.Context
+	Target  string
 }
 
 type CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
@@ -84,7 +85,7 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		msg := HTTPRequest{ID: uid, Ctx: ctx}
+		msg := HTTPRequest{ID: uid, Ctx: ctx, Target: r.URL.Path}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {

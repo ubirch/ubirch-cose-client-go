@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testTarget = "/test/target"
+
 func TestSendResponse(t *testing.T) {
 	header := http.Header{}
 	header.Set("Content-Type", TextType)
@@ -60,7 +62,7 @@ func TestErrorResponse(t *testing.T) {
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
 
-			resp := ErrorResponse(testUUID, c.httpCode, c.errCode, c.message, c.exposeErrMsg)
+			resp := ErrorResponse(testUUID, testTarget, c.httpCode, c.errCode, c.message, c.exposeErrMsg)
 
 			assert.Equal(t, c.httpCode, resp.StatusCode)
 			assert.Equal(t, c.errCode, resp.Header.Get(ErrHeader))
@@ -157,8 +159,6 @@ func TestError(t *testing.T) {
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
-			testTarget := "/test/target"
-
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, testTarget, nil)
 

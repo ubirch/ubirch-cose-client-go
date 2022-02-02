@@ -30,12 +30,13 @@ func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	}
 }
 
-func ErrorResponse(uid uuid.UUID, httpCode int, errCode, errMsg string, exposeErrMsg bool) HTTPResponse {
+func ErrorResponse(uid uuid.UUID, target string, httpCode int, errCode, errMsg string, exposeErrMsg bool) HTTPResponse {
 	errLog, _ := json.Marshal(errorLog{
 		Uid:        uid.String(),
 		Error:      errMsg,
 		ErrCode:    errCode,
 		StatusCode: httpCode,
+		Target:     target,
 	})
 	log.Errorf("ServerError: %s", errLog)
 
@@ -93,10 +94,10 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 
 type errorLog struct {
 	Uid        string `json:"sealID,omitempty"`
-	Target     string `json:"target,omitempty"`
 	Error      string `json:"error"`
 	ErrCode    string `json:"errorCode,omitempty"`
 	StatusCode int    `json:"statusCode"`
+	Target     string `json:"target,omitempty"`
 }
 
 // Error is a wrapper for http.Error that additionally logs error context with logging
@@ -104,10 +105,10 @@ type errorLog struct {
 // The error message for server errors will only be logged but not be sent to the client.
 func Error(w http.ResponseWriter, r *http.Request, uid uuid.UUID, httpCode int, errCode, errMsg string) {
 	e := errorLog{
-		Target:     r.URL.Path,
 		Error:      errMsg,
 		ErrCode:    errCode,
 		StatusCode: httpCode,
+		Target:     r.URL.Path,
 	}
 	if uid != uuid.Nil {
 		e.Uid = uid.String()
