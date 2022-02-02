@@ -103,11 +103,9 @@ func (s *SkidHandler) loadSKIDs() {
 	// go through certificate list and match known public keys
 	for _, cert := range certList {
 		uid, matchedSkid := s.matchCertificate(cert)
-		if matchedSkid == nil {
-			continue
+		if matchedSkid != nil {
+			s.checkCertificateValidity(uid, matchedSkid, &tempSkidStore)
 		}
-
-		s.checkCertificateValidity(uid, matchedSkid, &tempSkidStore)
 	}
 
 	s.updateSkidStore(tempSkidStore)
@@ -143,21 +141,24 @@ func (s *SkidHandler) handleCertListLoadFail() {
 
 func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 	skidString := base64.StdEncoding.EncodeToString(cert.Kid)
+	errPrefix := fmt.Sprintf("an error occurred while trying to match X.509 public key certificate with KID %s", skidString)
 
 	if len(cert.Kid) != SkidLen {
-		log.Errorf("%s: invalid KID length: expected: %d bytes, got: %d bytes", skidString, SkidLen, len(cert.Kid))
+		log.Errorf("%s: invalid KID length: expected: %d bytes, got: %d bytes", errPrefix, SkidLen, len(cert.Kid))
 		return uuid.Nil, nil
 	}
 
 	// get public key from certificate
 	certificate, err := x509.ParseCertificate(cert.RawData)
 	if err != nil {
-		log.Errorf("%s: parsing x509 certificate failed: %v", skidString, err)
+		log.Errorf("%s: parsing x509 certificate failed: %v", errPrefix, err)
 		return uuid.Nil, nil
 	}
 
 	pubKeyPEM, err := s.encPubKey(certificate.PublicKey)
 	if err != nil {
+		// this is most likely not critical but only means that the certificate belongs to
+		// a public key of an unsupported algorithm i.e. does not match a known key
 		log.Debugf("%s: unable to encode public key from x509 certificate: %v", skidString, err)
 		return uuid.Nil, nil
 	}
@@ -168,7 +169,7 @@ func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 		if err == ErrNotExist {
 			log.Debugf("%s: public key from x509 certificate does not match any known identity", skidString)
 		} else {
-			log.Errorf("%s: public key lookup failed: %v", skidString, err)
+			log.Errorf("%s: public key lookup failed: %v", errPrefix, err)
 		}
 		return uuid.Nil, nil
 	}
@@ -186,10 +187,10 @@ func (s *SkidHandler) checkCertificateValidity(uid uuid.UUID, skid *skidCtx, ski
 	now := time.Now()
 
 	if now.After(skid.NotAfter) {
-		log.Debugf("%s: certificate expired: valid until %s", skidString, skid.NotAfter.Format(timeLayout))
+		log.Debugf("X.509 public key certificate with KID %s expired: valid until %s", skidString, skid.NotAfter.Format(timeLayout))
 		skid.expired = true
 	} else if now.Before(skid.NotBefore) {
-		log.Debugf("%s: certificate not yet valid: valid from %s", skidString, skid.NotBefore.Format(timeLayout))
+		log.Debugf("X.509 public key certificate with KID %s is not yet valid: valid from %s", skidString, skid.NotBefore.Format(timeLayout))
 	} else {
 		skid.Valid = true
 	}
