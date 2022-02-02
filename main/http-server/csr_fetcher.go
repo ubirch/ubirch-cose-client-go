@@ -18,14 +18,14 @@ func FetchCSR(registerAuth string, getUUID GetUUID, getCSR GetCSR) http.HandlerF
 			return
 		}
 
-		uid, err := getUUID(r)
-		if err != nil {
-			Error(w, r, uid, http.StatusNotFound, ErrCodeInvalidUUID, err.Error())
+		if auth != registerAuth {
+			Error(w, r, uuid.Nil, http.StatusUnauthorized, ErrCodeInvalidAuth, "invalid auth token")
 			return
 		}
 
-		if auth != registerAuth {
-			Error(w, r, uid, http.StatusUnauthorized, ErrCodeInvalidAuth, "invalid auth token")
+		uid, err := getUUID(r)
+		if err != nil {
+			Error(w, r, uid, http.StatusNotFound, ErrCodeInvalidUUID, err.Error())
 			return
 		}
 
