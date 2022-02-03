@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	expectedConfig = `{"registerAuth":"","env":"","pkcs11Module":"","pkcs11ModulePin":"","pkcs11ModuleSlotNr":0,"postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"certifyApiUrl":"","certifyApiAuth":"","kdMaxTotalMemMiB":0,"kdParamMemMiB":0,"kdParamTime":0,"kdParamParallelism":0,"kdParamKeyLen":0,"kdParamSaltLen":0,"kdUpdateParams":false,"requestLimit":0,"requestBacklogLimit":0,"ServerTLSCertFingerprints":null,"DbParams":null}`
+	expectedConfig = `{"registerAuth":"","env":"","pkcs11Module":"","pkcs11ModulePin":"","pkcs11ModuleSlotNr":0,"postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"ignoreUnknownCerts":false,"certifyApiUrl":"","certifyApiAuth":"","kdMaxTotalMemMiB":0,"kdParamMemMiB":0,"kdParamTime":0,"kdParamParallelism":0,"kdParamKeyLen":0,"kdParamSaltLen":0,"kdUpdateParams":false,"requestLimit":0,"requestBacklogLimit":0,"ServerTLSCertFingerprints":null,"DbParams":null}`
 )
 
 func TestConfig(t *testing.T) {
@@ -29,7 +29,7 @@ func TestConfig(t *testing.T) {
 		t.Errorf("Failed to serialize config")
 	}
 
-	assert.Equal(t, configBytes, jsonBytes)
+	assert.Equal(t, string(configBytes), string(jsonBytes))
 }
 
 func TestConfig_Load_Full(t *testing.T) {

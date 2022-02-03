@@ -339,7 +339,7 @@ func TestSkidHandler(t *testing.T) {
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
-			s := NewSkidHandler(c.certs, c.uid, c.enc, c.reloadEveryMinute)
+			s := NewSkidHandler(c.certs, c.uid, c.enc, c.reloadEveryMinute, true)
 			c.tcChecks(t, s)
 		})
 	}
@@ -395,7 +395,7 @@ func TestSkidHandler_LoadFromActualServer(t *testing.T) {
 	cryptoCtx := &ubirch.ECDSACryptoContext{Keystore: &MockKeystorer{}}
 
 	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.mockGetUuidForPublicKey,
-		cryptoCtx.EncodePublicKey, false)
+		cryptoCtx.EncodePublicKey, false, false)
 
 	assert.Empty(t, skidHandler.certLoadFailCounter)
 	assert.NotEmpty(t, skidHandler.skidStore)

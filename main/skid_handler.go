@@ -166,9 +166,9 @@ func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 
 	pubKeyPEM, err := s.encPubKey(certificate.PublicKey)
 	if err != nil {
-		// this is most likely not critical but only means that the certificate belongs to
-		// a public key of an unsupported algorithm i.e. does not match a known key
-		s.logCertMismatch("unable to parse public key from X.509 public key certificate with KID %s: %v", skidString, err)
+		// this probably means that the certificate belongs to a public key
+		// of an unsupported algorithm i.e. does not match a known key
+		s.logCertMismatch("failed to parse public key from X.509 public key certificate with KID %s: %v", skidString, err)
 		return uuid.Nil, nil
 	}
 
@@ -176,7 +176,7 @@ func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 	uid, err := s.lookupUuid(pubKeyPEM)
 	if err != nil {
 		if err == ErrNotExist {
-			s.logCertMismatch("X.509 public key certificate with KID %s does not match public key of any known identity", skidString)
+			s.logCertMismatch("no matching public key found for X.509 public key certificate with KID %s", skidString)
 		} else {
 			log.Errorf("%s: public key lookup failed: %v", errPrefix, err)
 		}
