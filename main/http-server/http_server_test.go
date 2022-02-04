@@ -16,7 +16,7 @@ func TestServeError(t *testing.T) {
 		{
 			name: "no cert file",
 			httpServer: HTTPServer{
-				Router: NewRouter(1, 0),
+				Router: NewRouter(),
 				Addr:   ":1234",
 				TLS:    true,
 			},

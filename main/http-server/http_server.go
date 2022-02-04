@@ -74,11 +74,10 @@ type HTTPServer struct {
 	KeyFile  string
 }
 
-func NewRouter(limit, backlogLimit int) *chi.Mux {
+func NewRouter() *chi.Mux {
 	router := chi.NewMux()
 	router.Use(prom.PromMiddleware)
 	router.Use(middleware.Timeout(GatewayTimeout))
-	router.Use(middleware.ThrottleBacklog(limit, backlogLimit, 100*time.Millisecond))
 	return router
 }
 
@@ -89,7 +88,7 @@ func InitHTTPServer(conf *config.Config,
 	serverID string, readinessChecks []func() error) *HTTPServer {
 
 	httpServer := &HTTPServer{
-		Router:   NewRouter(conf.RequestLimit, conf.RequestBacklogLimit),
+		Router:   NewRouter(),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
@@ -101,22 +100,21 @@ func InitHTTPServer(conf *config.Config,
 		Sign:      sign,
 	}
 
-	// set up metrics
-	httpServer.Router.Method(http.MethodGet, MetricsEndpoint, prom.Handler())
+	httpServer.Router.Route(UUIDPath, func(r chi.Router) {
+		r.Use(middleware.ThrottleBacklog(conf.RequestLimit, conf.RequestBacklogLimit, 100*time.Millisecond))
+		// set up endpoint for CSRs: /<uuid>/csr
+		r.Get(CSREndpoint, FetchCSR(conf.RegisterAuth, GetUUIDFromRequest, getCSR))
+		// set up endpoint for COSE CBOR signing: /<uuid>/cbor
+		r.Post(CBORPath, signingService.HandleRequest(GetUUIDFromRequest, GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
+		// set up endpoint for COSE CBOR hash signing: /<uuid>/cbor/hash
+		r.Post(path.Join(CBORPath, HashEndpoint), signingService.HandleRequest(GetUUIDFromRequest, GetHashFromHashRequest()))
+	})
 
 	// set up endpoint for identity registration
 	httpServer.Router.Put(RegisterEndpoint, Register(conf.RegisterAuth, initialize))
 
-	// set up endpoint for CSRs
-	fetchCSREndpoint := path.Join(UUIDPath, CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, FetchCSR(conf.RegisterAuth, GetUUIDFromRequest, getCSR))
-
-	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := path.Join(UUIDPath, CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, signingService.HandleRequest(GetUUIDFromRequest, GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
-
-	directUuidHashEndpoint := path.Join(directUuidEndpoint, HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, signingService.HandleRequest(GetUUIDFromRequest, GetHashFromHashRequest()))
+	// set up endpoint for metrics
+	httpServer.Router.Method(http.MethodGet, MetricsEndpoint, prom.Handler())
 
 	// set up endpoints for liveness and readiness checks
 	httpServer.Router.Get(LivenessCheckEndpoint, Health(serverID))
