@@ -26,6 +26,7 @@ const (
 	IdleTimeout     = 60 * time.Second // time to wait for the next request when keep-alives are enabled
 
 	UUIDKey                = "uuid"
+	SealPath               = "/seal"
 	CBORPath               = "/cbor"
 	HashEndpoint           = "/hash"
 	RegisterEndpoint       = "/register"
@@ -105,18 +106,21 @@ func InitHTTPServer(conf *config.Config,
 		},
 	}
 
-	httpServer.Router.Route(UUIDPath, func(r chi.Router) {
+	httpServer.Router.Route(SealPath, func(r chi.Router) {
 		r.Use(middleware.ThrottleBacklog(conf.RequestLimit, conf.RequestBacklogLimit, 100*time.Millisecond))
-		// set up endpoint for CSRs: /<uuid>/csr
-		r.Get(CSREndpoint, FetchCSR(conf.RegisterAuth, GetUUIDFromRequest, getCSR))
-		// set up endpoint for COSE CBOR signing: /<uuid>/cbor
-		r.Post(CBORPath, signingService.HandleRequest(GetUUIDFromRequest, signingService.GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
-		// set up endpoint for COSE CBOR hash signing: /<uuid>/cbor/hash
-		r.Post(path.Join(CBORPath, HashEndpoint), signingService.HandleRequest(GetUUIDFromRequest, GetHashFromHashRequest()))
-	})
 
-	// set up endpoint for identity registration
-	httpServer.Router.Put(RegisterEndpoint, Register(conf.RegisterAuth, initialize))
+		// set up endpoint for identity registration /seal/register
+		r.Put(RegisterEndpoint, Register(conf.RegisterAuth, initialize))
+
+		r.Route(UUIDPath, func(r chi.Router) {
+			// set up endpoint for CSRs: /seal/<uuid>/csr
+			r.Get(CSREndpoint, FetchCSR(conf.RegisterAuth, GetUUIDFromRequest, getCSR))
+			// set up endpoint for COSE CBOR signing: /seal/<uuid>/cbor
+			r.Post(CBORPath, signingService.HandleRequest(GetUUIDFromRequest, signingService.GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
+			// set up endpoint for COSE CBOR hash signing: /seal/<uuid>/cbor/hash
+			r.Post(path.Join(CBORPath, HashEndpoint), signingService.HandleRequest(GetUUIDFromRequest, GetHashFromHashRequest()))
+		})
+	})
 
 	// set up endpoint for metrics
 	httpServer.Router.Method(http.MethodGet, MetricsEndpoint, prom.Handler())
