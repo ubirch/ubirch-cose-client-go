@@ -100,7 +100,7 @@ func TestSkidHandler(t *testing.T) {
 				someUUID := uuid.New()
 				_, errMsg, err = s.GetSKID(someUUID)
 				assert.Equal(t, ErrCertNotFound, err)
-				assert.Equal(t, fmt.Sprintf("seal %s can not be used for signing: SKID unknown: %v", someUUID, ErrCertNotFound), errMsg)
+				assert.Equal(t, fmt.Sprintf("seal with ID %s can not be used for signing: SKID unknown: %v", someUUID, ErrCertNotFound), errMsg)
 			},
 		},
 		{
@@ -261,7 +261,7 @@ func TestSkidHandler(t *testing.T) {
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				skid, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertNotValid, err)
-				assert.Equal(t, fmt.Sprintf("seal %s can not be used for signing: %v: certificate expired, was valid until %s", uid, ErrCertNotValid, expired.NotAfter.UTC().Format(timeLayout)), errMsg)
+				assert.Equal(t, fmt.Sprintf("seal with ID %s can not be used for signing: %v: certificate expired, was valid until %s", uid, ErrCertNotValid, expired.NotAfter.UTC().Format(timeLayout)), errMsg)
 				assert.Empty(t, skid)
 			},
 		},
@@ -273,7 +273,7 @@ func TestSkidHandler(t *testing.T) {
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				skid, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertNotValid, err)
-				assert.Equal(t, fmt.Sprintf("seal %s can not be used for signing: %v: certificate not yet valid, will be valid from %s", uid, ErrCertNotValid, notYetValid.NotBefore.UTC().Format(timeLayout)), errMsg)
+				assert.Equal(t, fmt.Sprintf("seal with ID %s can not be used for signing: %v: certificate not yet valid, will be valid from %s", uid, ErrCertNotValid, notYetValid.NotBefore.UTC().Format(timeLayout)), errMsg)
 				assert.Empty(t, skid)
 			},
 		},
@@ -333,7 +333,7 @@ func TestSkidHandler(t *testing.T) {
 			tcChecks: func(t *testing.T, s *SkidHandler) {
 				skid, errMsg, err := s.GetSKID(uid)
 				assert.Equal(t, ErrCertNotValid, err)
-				assert.Equal(t, fmt.Sprintf("seal %s can not be used for signing: %v: certificate not yet valid, will be valid from %s", uid, ErrCertNotValid, notYetValid.NotBefore.UTC().Format(timeLayout)), errMsg)
+				assert.Equal(t, fmt.Sprintf("seal with ID %s can not be used for signing: %v: certificate not yet valid, will be valid from %s", uid, ErrCertNotValid, notYetValid.NotBefore.UTC().Format(timeLayout)), errMsg)
 				assert.Empty(t, skid)
 			},
 		},

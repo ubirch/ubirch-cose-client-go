@@ -218,40 +218,6 @@ either in a file `config.json` or as an environment variable.
 
 ## Optional Configurations
 
-### Set the UBIRCH backend environment
-
-The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the production
-environment. For development, the environment may be set to `demo`, which is a test system that works like the
-production environment, but stores data only in a blockchain test net. __However, we suggest using `prod` in general as
-`demo` may not always be available__.
-
-> Note that the UUIDs must be registered at the according UBIRCH backend environment,
-> i.e. https://console.demo.ubirch.com/.
-
-To switch to the `demo` backend environment
-
-- add the following key-value pair to your `config.json`:
-    ```json
-      "env": "demo"
-    ```
-- or set the following environment variable:
-    ```shell
-    UBIRCH_ENV=demo
-    ```
-
-### Set TCP address
-
-You can specify the TCP address for the server to listen on, in the form `host:port`. If empty, port 8080 is used.
-
-- add the following key-value pair to your `config.json`:
-    ```json
-      "TCP_addr": ":8080",
-    ```
-- or set the following environment variable:
-    ```shell
-    UBIRCH_TCP_ADDR=:8080
-    ```
-
 ### Enable TLS (serve HTTPS)
 
 1. Create a self-signed TLS certificate
@@ -290,26 +256,9 @@ You can specify the TCP address for the server to listen on, in the form `host:p
         UBIRCH_TLS_KEYFILE=certs/key.pem
         ```
 
-### Customize X.509 Certificate Signing Requests
-
-The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
-Common Name* of the CSR subject is the UUID associated with the public key. The values for the *Organization* and *
-Country* of the CSR subject can be set through the configuration.
-
-- add the following key-value pairs to your `config.json`:
-    ```json
-      "CSR_country": "<CSR Subject Country Name (2 letter code)>",
-      "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
-    ```
-- or set the following environment variables:
-    ```shell
-    UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
-    UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
-    ```
-
 ### Extended Debug Output
 
-To set the logging level to `debug` and so enable extended debug output,
+To set the logging level to `debug` and enable extended debug output,
 
 - add the following key-value pair to your `config.json`:
     ```json
@@ -320,18 +269,7 @@ To set the logging level to `debug` and so enable extended debug output,
     UBIRCH_DEBUG=true
     ```
 
-### Log Format
-
-By default, the log of the client is in JSON format. To change it to a (more human-eye-friendly) text format,
-
-- add the following key-value pairs to your `config.json`:
-    ```json
-      "logTextFormat": true
-    ```
-- or set the following environment variables:
-    ```shell
-    UBIRCH_LOGTEXTFORMAT=true
-    ```
+###  
 
 ## Copyright
 

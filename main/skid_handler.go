@@ -273,12 +273,12 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, string, error) {
 			return nil, errMsg, ErrCertServerNotAvailable
 		}
 
-		errMsg := fmt.Sprintf("seal %s can not be used for signing: SKID unknown: %v", uid, ErrCertNotFound)
+		errMsg := fmt.Sprintf("seal with ID %s can not be used for signing: SKID unknown: %v", uid, ErrCertNotFound)
 		return nil, errMsg, ErrCertNotFound
 	}
 
 	if !skid.Valid {
-		errMsg := fmt.Sprintf("seal %s can not be used for signing: %v", uid, ErrCertNotValid)
+		errMsg := fmt.Sprintf("seal with ID %s can not be used for signing: %v", uid, ErrCertNotValid)
 		if skid.expired {
 			errMsg = fmt.Sprintf("%s: certificate expired, was valid until %s", errMsg, skid.NotAfter.Format(timeLayout))
 		} else {
