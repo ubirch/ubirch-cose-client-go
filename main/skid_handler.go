@@ -20,8 +20,8 @@ const timeLayout = "2006-01-02 15:04:05 -0700"
 
 var (
 	ErrCertServerNotAvailable = errors.New("dscg server (trustList) is not available")
-	ErrCertNotFound           = errors.New("X.509 public key certificate for identity not found in trustList")
-	ErrCertNotValid           = errors.New("X.509 public key certificate for identity is not valid")
+	ErrCertNotFound           = errors.New("X.509 public key certificate for seal not found in trustList")
+	ErrCertNotValid           = errors.New("X.509 public key certificate for seal from trustList is not valid")
 )
 
 type skidCtx struct {
@@ -273,16 +273,16 @@ func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, string, error) {
 			return nil, errMsg, ErrCertServerNotAvailable
 		}
 
-		errMsg := fmt.Sprintf("SKID unknown: %v", ErrCertNotFound)
+		errMsg := fmt.Sprintf("seal %s can not be used for signing: SKID unknown: %v", uid, ErrCertNotFound)
 		return nil, errMsg, ErrCertNotFound
 	}
 
 	if !skid.Valid {
-		var errMsg string
+		errMsg := fmt.Sprintf("seal %s can not be used for signing: %v", uid, ErrCertNotValid)
 		if skid.expired {
-			errMsg = fmt.Sprintf("%v: certificate expired: was valid until %s", ErrCertNotValid, skid.NotAfter.Format(timeLayout))
+			errMsg = fmt.Sprintf("%s: certificate expired, was valid until %s", errMsg, skid.NotAfter.Format(timeLayout))
 		} else {
-			errMsg = fmt.Sprintf("%v: certificate not yet valid: will be valid from %s", ErrCertNotValid, skid.NotBefore.Format(timeLayout))
+			errMsg = fmt.Sprintf("%s: certificate not yet valid, will be valid from %s", errMsg, skid.NotBefore.Format(timeLayout))
 		}
 		return nil, errMsg, ErrCertNotValid
 	}
