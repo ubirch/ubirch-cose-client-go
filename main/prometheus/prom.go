@@ -69,30 +69,26 @@ var SignatureCreationFailCounter = promauto.NewCounter(
 
 var SignatureCreationDuration = promauto.NewHistogram(
 	prometheus.HistogramOpts{
-		Name:    "signature_creation_duration",
-		Help:    "Duration of the creation of a signed object",
-		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1, .125, .175, .25, .35, .5, 1},
+		Name: "signature_creation_duration",
+		Help: "Duration of the creation of a signed object",
 	})
 
 var SignatureCreationWithWaitDuration = promauto.NewHistogram(
 	prometheus.HistogramOpts{
-		Name:    "signature_creation_with_wait_duration",
-		Help:    "Duration of the creation of a signed object including waiting time for semaphore",
-		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1, .125, .175, .25, .35, .5, 1},
+		Name: "signature_creation_with_wait_duration",
+		Help: "Duration of the creation of a signed object including waiting time for semaphore",
 	})
 
 var AuthCheckDuration = promauto.NewHistogram(
 	prometheus.HistogramOpts{
-		Name:    "auth_check_duration",
-		Help:    "Duration of the auth token being checked for validity.",
-		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1, .125, .175, .25, .35, .5, 1},
+		Name: "auth_check_duration",
+		Help: "Duration of the auth token being checked for validity.",
 	})
 
 var AuthCheckWithWaitDuration = promauto.NewHistogram(
 	prometheus.HistogramOpts{
-		Name:    "auth_check_with_wait_duration",
-		Help:    "Duration of the auth token being checked for validity including waiting time for semaphore.",
-		Buckets: []float64{.005, .006, .007, .008, .009, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1, .125, .175, .25, .35, .5, 1},
+		Name: "auth_check_with_wait_duration",
+		Help: "Duration of the auth token being checked for validity including waiting time for semaphore.",
 	})
 
 func PromMiddleware(next http.Handler) http.Handler {
