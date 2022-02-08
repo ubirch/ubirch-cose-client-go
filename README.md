@@ -4,12 +4,12 @@
 
 ### Identity Registration
 
-To initialize an identity, a registration request can be sent to the `/register` endpoint. The registration request must
-contain a UUID which corresponds to a key, that is present in the HSM. At initialization, an auth token will be
+To initialize an identity, a registration request can be sent to the `/seal/register` endpoint. The registration request
+must contain a UUID which corresponds to a key, that is present in the HSM. At initialization, an auth token will be
 generated and registered at the certify-api. On success, the response contains an X.509 Certificate Signing Request in
 PEM format.
 
-    curl ${host}/register -X PUT \
+    curl ${host}/seal/register -X PUT \
     -H "X-Auth-Token: <registerAuth>" \
     -H "Content-Type: application/json" \
     -d '{"uuid":"<uuid>"}' \
@@ -19,7 +19,7 @@ PEM format.
 
 A CSR for an already registered identity can be retrieved from the CSR endpoint.
 
-    curl ${host}/{uuid}/csr -X GET \
+    curl ${host}/seal/{uuid}/csr -X GET \
     -H "X-Auth-Token: <registerAuth>" \
     -i
 
@@ -34,12 +34,12 @@ for a [COSE Single Signer Data Object](https://tools.ietf.org/html/rfc8152#secti
 When receiving a JSON data package, the service will encode it
 with [Canonical CBOR](https://tools.ietf.org/html/rfc7049#section-3.9) rules.
 
-| Method | Path                | Content-Type               | Description                                                                                                         |
-|--------|---------------------|----------------------------|---------------------------------------------------------------------------------------------------------------------|
-| POST   | `/<UUID>/cbor`      | `"application/json"`       | original data (JSON data package)                                                                                   |
-| POST   | `/<UUID>/cbor`      | `"application/cbor"`       | original data (CBOR encoded)                                                                                        |
-| POST   | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service)              |
-| POST   | `/<UUID>/cbor/hash` | `text/plain`               | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
+| Method | Path                     | Content-Type               | Description                                                                                                         |
+|--------|--------------------------|----------------------------|---------------------------------------------------------------------------------------------------------------------|
+| POST   | `/seal/<UUID>/cbor`      | `"application/json"`       | original data (JSON data package)                                                                                   |
+| POST   | `/seal/<UUID>/cbor`      | `"application/cbor"`       | original data (CBOR encoded)                                                                                        |
+| POST   | `/seal/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service)              |
+| POST   | `/seal/<UUID>/cbor/hash` | `text/plain`               | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 
 To send the **hex** string representation of the hash (instead of base64), the `Content-Transfer-Encoding`-header can be
 used.
