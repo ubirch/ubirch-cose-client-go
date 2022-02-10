@@ -110,23 +110,20 @@ func InitHTTPServer(conf *config.Config,
 		r.Use(middleware.ThrottleBacklog(conf.RequestLimit, conf.RequestBacklogLimit, 100*time.Millisecond))
 
 		//// todo >>>> delete after grace period from here >>>>
-	})
+		//// set up routes under /<uuid> path for backwards compatibility
+		httpServer.Router.Route(UUIDPath, func(r chi.Router) {
+			r.Use(middleware.ThrottleBacklog(conf.RequestLimit, conf.RequestBacklogLimit, 100*time.Millisecond))
+			// set up endpoint for CSRs: /<uuid>/csr
+			r.Get(CSREndpoint, FetchCSR(conf.RegisterAuth, GetUUIDFromRequest, getCSR))
+			// set up endpoint for COSE CBOR signing: /<uuid>/cbor
+			r.Post(CBORPath, signingService.HandleRequest(GetUUIDFromRequest, GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
+			// set up endpoint for COSE CBOR hash signing: /<uuid>/cbor/hash
+			r.Post(path.Join(CBORPath, HashEndpoint), signingService.HandleRequest(GetUUIDFromRequest, GetHashFromHashRequest()))
+		})
 
-	//// set up routes under /<uuid> path for backwards compatibility
-	httpServer.Router.Route(UUIDPath, func(r chi.Router) {
-		r.Use(middleware.ThrottleBacklog(conf.RequestLimit, conf.RequestBacklogLimit, 100*time.Millisecond))
-		// set up endpoint for CSRs: /<uuid>/csr
-		r.Get(CSREndpoint, FetchCSR(conf.RegisterAuth, GetUUIDFromRequest, getCSR))
-		// set up endpoint for COSE CBOR signing: /<uuid>/cbor
-		r.Post(CBORPath, signingService.HandleRequest(GetUUIDFromRequest, GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
-		// set up endpoint for COSE CBOR hash signing: /<uuid>/cbor/hash
-		r.Post(path.Join(CBORPath, HashEndpoint), signingService.HandleRequest(GetUUIDFromRequest, GetHashFromHashRequest()))
-	})
+		// set up endpoint for identity registration on /register endpoint for backwards compatibility
+		httpServer.Router.Put(RegisterEndpoint, Register(conf.RegisterAuth, initialize))
 
-	// set up endpoint for identity registration on /register endpoint for backwards compatibility
-	httpServer.Router.Put(RegisterEndpoint, Register(conf.RegisterAuth, initialize))
-
-	httpServer.Router.Route(SealPath, func(r chi.Router) {
 		//// todo <<<< delete after grace period until here <<<<
 		// set up endpoint for identity registration /seal/register
 		r.Put(RegisterEndpoint, Register(conf.RegisterAuth, initialize))
