@@ -139,7 +139,7 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	}
 	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
-	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", msg.ID)
 	auditlogger.AuditLog("create", "COSE", infos)
 
 	return h.HTTPResponse{
