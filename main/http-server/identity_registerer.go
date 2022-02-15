@@ -17,8 +17,8 @@ var (
 )
 
 type RegistrationPayload struct {
-	Uid uuid.UUID `json:"uuid"`
-	Pwd string    `json:"password"`
+	Uid string `json:"uuid"`
+	Pwd string `json:"password"`
 }
 
 type InitializeIdentity func(uid uuid.UUID) (csr []byte, pw string, err error)
@@ -37,13 +37,11 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 			return
 		}
 
-		idPayload, err := identityFromBody(r)
+		uid, err := identityFromBody(r)
 		if err != nil {
-			Error(w, r, idPayload.Uid, http.StatusBadRequest, ErrCodeInvalidRequestContent, err.Error())
+			Error(w, r, uid, http.StatusBadRequest, ErrCodeInvalidRequestContent, err.Error())
 			return
 		}
-
-		uid := idPayload.Uid
 
 		csr, auth, err := initialize(uid)
 		if err != nil {
@@ -73,22 +71,36 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 	}
 }
 
-func identityFromBody(r *http.Request) (RegistrationPayload, error) {
+func identityFromBody(r *http.Request) (uuid.UUID, error) {
 	contentType := ContentType(r.Header)
 	if contentType != JSONType {
-		return RegistrationPayload{}, fmt.Errorf("invalid content-type: expected: %s, got: %s", JSONType, contentType)
+		return uuid.Nil, fmt.Errorf("invalid content-type: expected: %s, got: %s", JSONType, contentType)
 	}
 
 	var payload RegistrationPayload
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&payload); err != nil {
-		return RegistrationPayload{}, err
+		return uuid.Nil, err
 	}
-	if payload.Uid == uuid.Nil {
-		return RegistrationPayload{}, fmt.Errorf("missing UUID in request content for identity registration")
+	if payload.Uid == "" {
+		return uuid.Nil, fmt.Errorf("missing UUID in request content for identity registration")
 	}
 	if len(payload.Pwd) != 0 {
-		return RegistrationPayload{}, fmt.Errorf("attempt to set password for identity in registration request content: setting password is not longer supported, password will be generated and registered internally")
+		return uuid.Nil, fmt.Errorf("attempt to set password for identity in registration request content: setting password is not longer supported, password will be generated and registered internally")
 	}
-	return payload, nil
+
+	uid, err := uuid.Parse(payload.Uid)
+	if err != nil {
+		return uid, fmt.Errorf("parsing UUID failed: %v", err)
+	}
+
+	if uid.Version() < 1 || uid.Version() > 5 {
+		return uid, fmt.Errorf("parsing UUID failed: invalid UUID version: expected 1 - 5, got %d", uid.Version())
+	}
+
+	if uid.Variant() != uuid.RFC4122 {
+		return uid, fmt.Errorf("parsing UUID failed: invalid UUID variant: variant must comply with RFC4122: expected 0x8 - 0xb, got 0x%x (%s)", uid[8]>>4, uid.Variant().String())
+	}
+
+	return uid, nil
 }
