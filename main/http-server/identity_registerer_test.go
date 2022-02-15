@@ -103,7 +103,7 @@ func TestRegister(t *testing.T) {
 			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				assert.Equal(t, http.StatusBadRequest, recorder.Code)
 				assert.Equal(t, ErrCodeInvalidRequestContent, recorder.Header().Get(ErrHeader))
-				assert.Contains(t, recorder.Body.String(), "missing UUID for identity registration")
+				assert.Contains(t, recorder.Body.String(), "missing UUID in request content for identity registration")
 			},
 		},
 		{
