@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -27,7 +26,6 @@ import (
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"golang.org/x/sync/semaphore"
 
-	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
@@ -115,8 +113,6 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 }
 
 func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
-	log.Debugf("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-
 	skid, errMsg, err := c.GetSKID(msg.ID)
 	if err != nil {
 		switch err {
@@ -128,7 +124,7 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 			return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCertNotValid, errMsg, true)
 		default:
 			// this should never happen
-			log.Errorf("CoseSigner.GetSKID returned unexpected error: %v", err)
+			errMsg = fmt.Sprintf("CoseSigner.GetSKID returned unexpected error: %v, errMsg: %s", err, errMsg)
 			return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCertGenericError, errMsg, false)
 		}
 	}
@@ -137,9 +133,8 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	if err != nil {
 		return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCoseCreationFail, err.Error(), false)
 	}
-	log.Debugf("%s: COSE: %x", msg.ID, cose)
 
-	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", msg.ID)
 	auditlogger.AuditLog("create", "COSE", infos)
 
 	return h.HTTPResponse{
