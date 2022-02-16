@@ -43,7 +43,7 @@ type HTTPRequest struct {
 }
 
 type CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
-type Sign func(HTTPRequest, LogDebugSensitiveData) HTTPResponse
+type Sign func(HTTPRequest) HTTPResponse
 type LogDebugSensitiveData func(string, ...interface{})
 
 type COSEService struct {
@@ -94,8 +94,9 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			Error(w, r, uid, http.StatusBadRequest, ErrCodeInvalidRequestContent, err.Error())
 			return
 		}
+		s.LogDebugSensitiveData("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-		resp := s.Sign(msg, s.LogDebugSensitiveData)
+		resp := s.Sign(msg)
 
 		select {
 		case <-ctx.Done():
@@ -165,13 +166,13 @@ func (s *COSEService) GetPayloadAndHashFromDataRequest(getCBORFromJSON GetCBORFr
 			if err != nil {
 				return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
 			}
-			s.LogDebugSensitiveData("CBOR encoded JSON: %x", data)
 		case CBORType:
 			data = rBody
 		default:
 			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
 				"expected: (%s | %s), got: %s", CBORType, JSONType, contentType)
 		}
+		s.LogDebugSensitiveData("CBOR: %x", data)
 
 		toBeSigned, err := getSigStructBytes(data)
 		if err != nil {

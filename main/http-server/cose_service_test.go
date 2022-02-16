@@ -366,7 +366,7 @@ func mockCheckAuthNotFound(context.Context, uuid.UUID, string) (bool, bool, erro
 	return false, false, nil
 }
 
-func mockSign(HTTPRequest, LogDebugSensitiveData) HTTPResponse {
+func mockSign(HTTPRequest) HTTPResponse {
 	return HTTPResponse{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": {BinType}},

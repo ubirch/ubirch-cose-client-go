@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -113,9 +112,7 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	}, nil
 }
 
-func (c *CoseSigner) Sign(msg h.HTTPRequest, logDebugSensitiveData h.LogDebugSensitiveData) h.HTTPResponse {
-	logDebugSensitiveData("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-
+func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	skid, errMsg, err := c.GetSKID(msg.ID)
 	if err != nil {
 		switch err {
@@ -136,7 +133,6 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest, logDebugSensitiveData h.LogDebugSen
 	if err != nil {
 		return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCoseCreationFail, err.Error(), false)
 	}
-	logDebugSensitiveData("%s: COSE: %x", msg.ID, cose)
 
 	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", msg.ID)
 	auditlogger.AuditLog("create", "COSE", infos)
