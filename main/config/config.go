@@ -30,7 +30,10 @@ import (
 )
 
 const (
-	ProdStage = "prod"
+	DEV_STAGE  = "dev"
+	DEMO_STAGE = "demo"
+	QA_STAGE   = "qa"
+	PROD_STAGE = "prod"
 
 	tlsCertsFileName = "%s_ubirch_tls_certs.json"
 
@@ -93,6 +96,7 @@ type Config struct {
 	KdUpdateParams            bool   `json:"kdUpdateParams" envconfig:"KD_UPDATE_PARAMS"`                   // update key derivation parameters of already existing password hashes
 	RequestLimit              int    `json:"requestLimit" envconfig:"REQUEST_LIMIT"`                        // limits number of currently processed (incoming) requests at a time
 	RequestBacklogLimit       int    `json:"requestBacklogLimit" envconfig:"REQUEST_BACKLOG_LIMIT"`         // backlog for holding a finite number of pending requests
+	IsDevelopment             bool   // (set automatically depending on env) flag signifying if the environment is development (true) or productive (false)
 	ServerTLSCertFingerprints map[string][32]byte
 	DbParams                  *DatabaseParams
 }
@@ -195,7 +199,12 @@ func (c *Config) checkMandatory() error {
 	}
 
 	if len(c.Env) == 0 {
-		c.Env = ProdStage
+		c.Env = PROD_STAGE
+	}
+
+	// set flag for non-production environments
+	if c.Env == DEV_STAGE || c.Env == DEMO_STAGE || c.Env == QA_STAGE {
+		c.IsDevelopment = true
 	}
 
 	return nil

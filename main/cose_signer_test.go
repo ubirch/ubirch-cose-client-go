@@ -69,7 +69,7 @@ func TestCoseSigner(t *testing.T) {
 		Ctx:     context.Background(),
 	}
 
-	resp := coseSigner.Sign(msg)
+	resp := coseSigner.Sign(msg, func(string, ...interface{}) {})
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	t.Logf("signed COSE [CBOR]: %x", resp.Content)
@@ -184,7 +184,7 @@ func TestCoseSigner_Sign(t *testing.T) {
 				Payload: []byte("test"),
 			}
 
-			resp := coseSigner.Sign(msg)
+			resp := coseSigner.Sign(msg, func(string, ...interface{}) {})
 
 			assert.Equal(t, c.StatusCode, resp.StatusCode)
 			assert.Equal(t, c.ErrHeader, resp.Header.Get(h.ErrHeader))
