@@ -15,6 +15,7 @@ type Config struct {
 	Url          string            `json:"url"`
 	RegisterAuth string            `json:"registerAuth"`
 	Token        map[string]string `json:"token"`
+	CSR          map[string]string `json:"csr"`
 	url          *urlpkg.URL
 }
 
@@ -53,8 +54,13 @@ func (c *Config) load() error {
 	return nil
 }
 
-func (c *Config) persistAuth(id, auth string) error {
+func (c *Config) persistAuth(id, auth string, csr []byte) error {
 	c.Token[id] = auth
+
+	if c.CSR == nil {
+		c.CSR = make(map[string]string)
+	}
+	c.CSR[id] = string(csr)
 
 	fileHandle, err := os.Create(filepath.Clean(*configFile))
 	if err != nil {
@@ -77,12 +83,13 @@ func (c *Config) initTestIdentities(sender *Sender) (identities map[string]strin
 
 	for uid, auth := range c.Token {
 		if auth == "" {
-			auth, err = sender.register(*c.url, uid, c.RegisterAuth)
+			var csr []byte
+			auth, csr, err = sender.register(*c.url, uid, c.RegisterAuth)
 			if err != nil {
 				return nil, err
 			}
 
-			err = c.persistAuth(uid, auth)
+			err = c.persistAuth(uid, auth, csr)
 			if err != nil {
 				return nil, fmt.Errorf("%s: persisting auth token failed: %v (auth token: %s) ", uid, err, auth)
 			}

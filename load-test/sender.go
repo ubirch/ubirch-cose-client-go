@@ -40,8 +40,8 @@ func NewSender() *Sender {
 	}
 }
 
-func (s *Sender) register(url urlpkg.URL, id, registerAuth string) (auth string, err error) {
-	url.Path = path.Join(url.Path, "register")
+func (s *Sender) register(url urlpkg.URL, id, registerAuth string) (auth string, csr []byte, err error) {
+	url.Path = path.Join(url.Path, "seal", "register")
 
 	header := http.Header{}
 	header.Set("Content-Type", "application/json")
@@ -53,43 +53,47 @@ func (s *Sender) register(url urlpkg.URL, id, registerAuth string) (auth string,
 
 	body, err := json.Marshal(registrationData)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodPut, url.String(), bytes.NewBuffer(body))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	req.Header = header
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, fmt.Errorf("%s: unable to read registration response content: %v", id, err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := ioutil.ReadAll(resp.Body)
-		return "", fmt.Errorf("%s: registration returned: %s: %s", id, resp.Status, respBody)
+		return "", nil, fmt.Errorf("%s: registration returned: %s: %s", id, resp.Status, respBody)
 	}
 
 	log.Infof("registered new identity: %s", id)
 
 	auth = resp.Header.Get("X-Auth-Token")
 	if auth == "" {
-		return "", fmt.Errorf("%s: registration returned empty X-Auth-Token header: %s", id, resp.Status)
+		return "", nil, fmt.Errorf("%s: registration returned empty X-Auth-Token header: %s", id, resp.Status)
 	}
 
-	return auth, nil
+	return auth, respBody, nil
 }
 
 func (s *Sender) sendRequests(url urlpkg.URL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	url.Path = path.Join(url.Path, uid, "cbor/hash")
+	url.Path = path.Join(url.Path, "seal", uid, "cbor/hash")
 
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
