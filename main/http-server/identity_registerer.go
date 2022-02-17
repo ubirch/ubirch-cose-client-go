@@ -85,7 +85,7 @@ func identityFromBody(r *http.Request) (RegistrationPayload, error) {
 		return RegistrationPayload{}, err
 	}
 	if payload.Uid == uuid.Nil {
-		return RegistrationPayload{}, fmt.Errorf("missing UUID for identity registration")
+		return RegistrationPayload{}, fmt.Errorf("missing UUID in request content for identity registration")
 	}
 	if len(payload.Pwd) != 0 {
 		return RegistrationPayload{}, fmt.Errorf("attempt to set password for identity in registration request content: setting password is not longer supported, password will be generated and registered internally")
