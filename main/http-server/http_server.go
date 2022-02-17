@@ -116,7 +116,7 @@ func InitHTTPServer(conf *config.Config,
 			// set up endpoint for CSRs: /<uuid>/csr
 			r.Get(CSREndpoint, FetchCSR(conf.RegisterAuth, GetUUIDFromRequest, getCSR))
 			// set up endpoint for COSE CBOR signing: /<uuid>/cbor
-			r.Post(CBORPath, signingService.HandleRequest(GetUUIDFromRequest, GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
+			r.Post(CBORPath, signingService.HandleRequest(GetUUIDFromRequest, signingService.GetPayloadAndHashFromDataRequest(getCBORFromJSON, getSigStructBytes)))
 			// set up endpoint for COSE CBOR hash signing: /<uuid>/cbor/hash
 			r.Post(path.Join(CBORPath, HashEndpoint), signingService.HandleRequest(GetUUIDFromRequest, GetHashFromHashRequest()))
 		})
