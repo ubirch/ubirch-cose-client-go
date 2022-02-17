@@ -20,8 +20,8 @@ const timeLayout = "2006-01-02 15:04:05 -0700"
 
 var (
 	ErrCertServerNotAvailable = errors.New("dscg server (trustList) is not available")
-	ErrCertNotFound           = errors.New("X.509 public key certificate for seal not found in trustList")
-	ErrCertNotValid           = errors.New("X.509 public key certificate for seal from trustList is not valid")
+	ErrCertNotFound           = errors.New("X.509 public key certificate for seal not found in trustList (dscg server)")
+	ErrCertNotValid           = errors.New("X.509 public key certificate for seal from trustList (dscg server) is not valid")
 )
 
 type skidCtx struct {
@@ -97,7 +97,7 @@ func (s *SkidHandler) setInterval(reloadEveryMinute bool) {
 func (s *SkidHandler) loadSKIDs() {
 	certList, err := s.loadCertList()
 	if err != nil {
-		log.Errorf("unable to retrieve public key certificate list (trustList): %v", err)
+		log.Errorf("unable to retrieve public key certificate list (trustList) from dscg server: %v", err)
 		s.handleCertListLoadFail()
 		return
 	}
@@ -176,7 +176,7 @@ func (s *SkidHandler) matchCertificate(cert Certificate) (uuid.UUID, *skidCtx) {
 	uid, err := s.lookupUuid(pubKeyPEM)
 	if err != nil {
 		if err == ErrNotExist {
-			s.logCertMismatch("no matching public key found for X.509 public key certificate with KID %s", skidString)
+			s.logCertMismatch("unknown X.509 public key certificate found in trustList (dscg server): no registered identity has a public key that matches X.509 certificate with KID %s", skidString)
 		} else {
 			log.Errorf("%s: public key lookup failed: %v", errPrefix, err)
 		}
@@ -238,7 +238,7 @@ func (s *SkidHandler) updateSkidStore(newSkidStore map[uuid.UUID]skidCtx) {
 
 	if !bytes.Equal(prevSKIDs, newSKIDs) {
 		if len(newSkidStore) == 0 {
-			log.Warnf("no matching X.509 public key certificates found in trustList")
+			log.Warnf("no matching X.509 public key certificates found in trustList (dscg server)")
 			return
 		}
 
@@ -247,7 +247,7 @@ func (s *SkidHandler) updateSkidStore(newSkidStore map[uuid.UUID]skidCtx) {
 		log.Infof("loaded %d matching X.509 public key certificates from trustList (%d invalid): %s", len(newSkidStore), invalidCount, newSKIDs)
 
 		if invalidCount != 0 {
-			log.Warnf("there are %d invalid X.509 public key certificates in the trustList", invalidCount)
+			log.Warnf("there are %d invalid X.509 public key certificates in the trustList (dscg server)", invalidCount)
 		}
 	}
 }
