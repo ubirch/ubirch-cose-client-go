@@ -148,6 +148,7 @@ func main() {
 
 	// set up endpoints for liveness and readiness checks
 	httpServer.Router.Get("/healthz", h.Healthz(serverID))
+	httpServer.Router.Get("/healtz", h.Healthz(serverID)) // this is here for backwards compatibility and will be removed after a grace period
 	httpServer.Router.Get("/readyz", h.Readyz(serverID, readinessChecks))
 
 	// set up graceful shutdown handling
