@@ -104,8 +104,6 @@ func TestConfig_checkMandatory(t *testing.T) {
 	err = conf.checkMandatory()
 	assert.EqualError(t, err, "missing 'pkcs11ModulePin' / 'UBIRCH_PKCS11_MODULE_PIN' in configuration")
 
-	conf.PKCS11ModulePin = "12345"
-
 	err = conf.checkMandatory()
 	require.NoError(t, err)
 	assert.Equal(t, PROD_STAGE, conf.Env)

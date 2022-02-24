@@ -17,6 +17,7 @@ package config
 import (
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -30,6 +31,8 @@ import (
 )
 
 const (
+	secretLength = 32
+
 	DEV_STAGE  = "dev"
 	DEMO_STAGE = "demo"
 	QA_STAGE   = "qa"
@@ -49,25 +52,12 @@ const (
 	defaultDbMaxIdleConns    = 10
 	defaultDbConnMaxLifetime = 10
 	defaultDbConnMaxIdleTime = 1
-
-	defaultPKCS11Module = "libcs_pkcs11_R3.so"
-
-	defaultKeyDerivationParamMemory      = 15
-	defaultKeyDerivationParamTime        = 2
-	defaultKeyDerivationParamParallelism = 1
-	defaultKeyDerivationKeyLen           = 32
-	defaultKeyDerivationSaltLen          = 16
-
-	defaultRequestLimit        = 10
-	defaultRequestBacklogLimit = 5
 )
 
 type Config struct {
+	SecretBase64              string `json:"secret32" envconfig:"SECRET32"`                                 // 32 byte secret used to encrypt the key store (mandatory)
 	RegisterAuth              string `json:"registerAuth" envconfig:"REGISTERAUTH"`                         // auth token needed for new identity registration
 	Env                       string `json:"env" envconfig:"ENV"`                                           // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	PKCS11Module              string `json:"pkcs11Module" envconfig:"PKCS11_MODULE"`                        //
-	PKCS11ModulePin           string `json:"pkcs11ModulePin" envconfig:"PKCS11_MODULE_PIN"`                 //
-	PKCS11ModuleSlotNr        int    `json:"pkcs11ModuleSlotNr" envconfig:"PKCS11_MODULE_SLOT_NR"`          //
 	PostgresDSN               string `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                          // data source name for postgres database
 	DbMaxOpenConns            string `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                  // maximum number of open connections to the database
 	DbMaxIdleConns            string `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                  // maximum number of connections in the idle connection pool
@@ -87,17 +77,9 @@ type Config struct {
 	IgnoreUnknownCerts        bool   `json:"ignoreUnknownCerts" envconfig:"IGNORE_UNKNOWN_CERTS"`           // if set to 'false', a warning will be logged in case a certificate for an unknown public key is found in the public key certificate list
 	CertifyApiUrl             string `json:"certifyApiUrl" envconfig:"CERTIFY_API_URL"`                     // URL of the certify API
 	CertifyApiAuth            string `json:"certifyApiAuth" envconfig:"CERTIFY_API_AUTH"`                   // auth token for the seal registration endpoint of the certify API
-	KdMaxTotalMemMiB          uint32 `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`             // maximal total memory to use for key derivation at a time in MiB
-	KdParamMemMiB             uint32 `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                    // memory parameter for key derivation, specifies the size of the memory in MiB
-	KdParamTime               uint32 `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`                         // time parameter for key derivation, specifies the number of passes over the memory
-	KdParamParallelism        uint8  `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"`           // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
-	KdParamKeyLen             uint32 `json:"kdParamKeyLen" envconfig:"KD_PARAM_KEY_LEN"`                    // key length parameter for key derivation, specifies the length of the resulting key in bytes
-	KdParamSaltLen            uint32 `json:"kdParamSaltLen" envconfig:"KD_PARAM_SALT_LEN"`                  // salt length parameter for key derivation, specifies the length of the random salt in bytes
-	KdUpdateParams            bool   `json:"kdUpdateParams" envconfig:"KD_UPDATE_PARAMS"`                   // update key derivation parameters of already existing password hashes
-	RequestLimit              int    `json:"requestLimit" envconfig:"REQUEST_LIMIT"`                        // limits number of currently processed (incoming) requests at a time
-	RequestBacklogLimit       int    `json:"requestBacklogLimit" envconfig:"REQUEST_BACKLOG_LIMIT"`         // backlog for holding a finite number of pending requests
 	IsDevelopment             bool   // (set automatically depending on env) flag signifying if the environment is development (true) or productive (false)
 	ServerTLSCertFingerprints map[string][32]byte
+	SecretBytes               []byte // the decoded key store secret
 	DbParams                  *DatabaseParams
 }
 
@@ -129,6 +111,11 @@ func (c *Config) Load(configDir, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
+	c.secretBytes, err = base64.StdEncoding.DecodeString(c.SecretBase64)
+	if err != nil {
+		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
+	}
+
 	err = c.checkMandatory()
 	if err != nil {
 		return err
@@ -139,11 +126,8 @@ func (c *Config) Load(configDir, filename string) error {
 		return fmt.Errorf("loading TLS certificates failed: %v", err)
 	}
 
-	c.setDefaultHSM()
 	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
-	c.setDefaultRequestLimits()
-	c.setKeyDerivationParams()
 	return c.SetDbParams()
 }
 
@@ -174,6 +158,10 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
+	if len(c.secretBytes) != secretLength {
+		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
+	}
+
 	if len(c.RegisterAuth) == 0 {
 		return fmt.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
 	}
@@ -194,10 +182,6 @@ func (c *Config) checkMandatory() error {
 		return fmt.Errorf("missing 'certifyApiAuth' / 'UBIRCH_CERTIFY_API_AUTH' in configuration")
 	}
 
-	if len(c.PKCS11ModulePin) == 0 {
-		return fmt.Errorf("missing 'pkcs11ModulePin' / 'UBIRCH_PKCS11_MODULE_PIN' in configuration")
-	}
-
 	if len(c.Env) == 0 {
 		c.Env = PROD_STAGE
 	}
@@ -208,12 +192,6 @@ func (c *Config) checkMandatory() error {
 	}
 
 	return nil
-}
-
-func (c *Config) setDefaultHSM() {
-	if len(c.PKCS11Module) == 0 {
-		c.PKCS11Module = defaultPKCS11Module
-	}
 }
 
 func (c *Config) setDefaultCSR() {
@@ -248,40 +226,6 @@ func (c *Config) setDefaultTLS(configDir string) {
 		}
 		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
-	}
-}
-
-func (c *Config) setDefaultRequestLimits() {
-	if c.RequestLimit == 0 {
-		c.RequestLimit = defaultRequestLimit
-	}
-	log.Debugf("limit to currently processed requests at a time: %d", c.RequestLimit)
-
-	if c.RequestBacklogLimit == 0 {
-		c.RequestBacklogLimit = defaultRequestBacklogLimit
-	}
-	log.Debugf("limit to pending requests at a time: %d", c.RequestBacklogLimit)
-}
-
-func (c *Config) setKeyDerivationParams() {
-	if c.KdParamMemMiB == 0 {
-		c.KdParamMemMiB = defaultKeyDerivationParamMemory
-	}
-
-	if c.KdParamTime == 0 {
-		c.KdParamTime = defaultKeyDerivationParamTime
-	}
-
-	if c.KdParamParallelism == 0 {
-		c.KdParamParallelism = defaultKeyDerivationParamParallelism
-	}
-
-	if c.KdParamKeyLen == 0 {
-		c.KdParamKeyLen = defaultKeyDerivationKeyLen
-	}
-
-	if c.KdParamSaltLen == 0 {
-		c.KdParamSaltLen = defaultKeyDerivationSaltLen
 	}
 }
 

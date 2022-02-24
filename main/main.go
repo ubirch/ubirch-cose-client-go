@@ -17,8 +17,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"time"
-
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"github.com/ubirch/ubirch-cose-client-go/main/profiling"
@@ -78,26 +76,7 @@ func main() {
 	}
 
 	// initialize COSE service
-	cryptoCtx, err := ubirch.NewECDSAPKCS11CryptoContext(conf.PKCS11Module, conf.PKCS11ModulePin,
-		conf.PKCS11ModuleSlotNr, true, 1, 50*time.Millisecond)
-	if err != nil {
-		log.Fatalf("failed to initialize PKCS#11 crypto context (HSM): %v", err)
-	}
-	defer func() {
-		err := cryptoCtx.Close()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
-	readinessChecks = append(readinessChecks, cryptoCtx.IsReady)
-
-	err = cryptoCtx.SetupSession()
-	if err != nil {
-		// if setting up a session with the HSM fails now, continue anyway.
-		// the retry handler of the PKCS#11 crypto context will try to set up
-		// a session on every incoming signing request.
-		log.Warnf("unable to set up session with HSM: %v", err)
-	}
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
 
 	storageManager, err := GetStorageManager(conf)
 	if err != nil {
@@ -106,7 +85,10 @@ func main() {
 	defer storageManager.Close()
 	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	protocol := NewProtocol(storageManager, conf)
+	protocol, err := NewProtocol(storageManager, conf.secretBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	certClient := &CertificateServerClient{
 		CertificateServerURL:       conf.CertificateServer,

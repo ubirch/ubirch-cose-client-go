@@ -18,15 +18,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
-
-	log "github.com/sirupsen/logrus"
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
+	"github.com/ubirch/ubirch-cose-client-go/main/encryption"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 const (
@@ -35,29 +33,31 @@ const (
 
 type Protocol struct {
 	StorageManager
-	pwHasher  *pw.Argon2idKeyDerivator
+
+	Crypto       ubirch.Crypto
+	keyEncrypter *encrypters.PKCS8KeyEncrypter
+
 	authCache *sync.Map // {<uid>: <auth>}
 	uuidCache *sync.Map // {<pub>: <uuid>}
 }
 
-func NewProtocol(storageManager StorageManager, conf *config.Config) *Protocol {
-	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
-		conf.KdParamKeyLen, conf.KdParamSaltLen)
-	params, _ := json.Marshal(argon2idParams)
-	log.Debugf("initialize argon2id key derivation with parameters %s", params)
-	if conf.KdMaxTotalMemMiB != 0 {
-		log.Debugf("max. total memory to use for key derivation at a time: %d MiB", conf.KdMaxTotalMemMiB)
-	}
-	if conf.KdUpdateParams {
-		log.Debugf("key derivation parameter update for already existing password hashes enabled")
+func NewProtocol(storageManager StorageManager, conf *config.Config) (*Protocol, error) {
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
+
+	enc, err := encrypters.NewPKCS8KeyEncrypter(conf.SecretBytes, cryptoCtx)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Protocol{
 		StorageManager: storageManager,
-		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB, argon2idParams, conf.KdUpdateParams),
-		authCache:      &sync.Map{},
-		uuidCache:      &sync.Map{},
-	}
+
+		Crypto:       cryptoCtx,
+		keyEncrypter: enc,
+
+		authCache: &sync.Map{},
+		uuidCache: &sync.Map{},
+	}, nil
 }
 
 func (p *Protocol) StoreIdentity(tx TransactionCtx, i Identity) error {
@@ -66,10 +66,16 @@ func (p *Protocol) StoreIdentity(tx TransactionCtx, i Identity) error {
 		return err
 	}
 
-	// hash auth token
-	i.Auth, err = p.pwHasher.GeneratePasswordHash(context.Background(), i.Auth)
+	// encrypt private key
+	i.PrivateKey, err = p.keyEncrypter.Encrypt(i.PrivateKey)
 	if err != nil {
-		return fmt.Errorf("generating password hash failed: %v", err)
+		return err
+	}
+
+	// store public key raw bytes
+	i.PublicKey, err = p.Crypto.PublicKeyPEMToBytes(i.PublicKey)
+	if err != nil {
+		return err
 	}
 
 	return p.StorageManager.StoreIdentity(tx, i)
@@ -79,6 +85,16 @@ func (p *Protocol) LoadIdentity(uid uuid.UUID) (i *Identity, err error) {
 	i, err = p.StorageManager.LoadIdentity(uid)
 	if err != nil {
 		return nil, err
+	}
+
+	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
+	if err != nil {
+		return i, err
+	}
+
+	i.PublicKey, err = p.Crypto.PublicKeyBytesToPEM(i.PublicKey)
+	if err != nil {
+		return i, err
 	}
 
 	err = checkIdentityAttributesNotNil(i)
@@ -99,7 +115,12 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 	}
 
 	if !found {
-		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyPEM)
+		publicKeyBytes, err := p.Crypto.PublicKeyPEMToBytes(publicKeyPEM)
+		if err != nil {
+			return uuid.Nil, err
+		}
+
+		uid, err = p.StorageManager.GetUuidForPublicKey(publicKeyBytes)
 		if err != nil {
 			return uuid.Nil, err
 		}
@@ -141,55 +162,15 @@ func (p *Protocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck str
 
 	found = true
 
-	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, i.Auth, authToCheck)
-	if err != nil || !ok {
+	ok = i.Auth == authToCheck
+	if !ok {
 		return ok, found, err
 	}
 
 	// auth check was successful
 	p.authCache.Store(uid, authToCheck)
 
-	if needsUpdate {
-		if err := p.updatePwHash(uid, authToCheck); err != nil {
-			log.Errorf("%s: password hash update failed: %v", uid, err)
-		}
-	}
-
 	return ok, found, err
-}
-
-func (p *Protocol) updatePwHash(uid uuid.UUID, pw string) error {
-	log.Infof("%s: updating password hash", uid)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := p.StartTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf("could not initialize transaction: %v", err)
-	}
-
-	_, err = p.StorageManager.LoadAuthForUpdate(tx, uid)
-	if err != nil {
-		return fmt.Errorf("could not aquire lock for update: %v", err)
-	}
-
-	updatedHash, err := p.pwHasher.GeneratePasswordHash(ctx, pw)
-	if err != nil {
-		return fmt.Errorf("could not generate new password hash: %v", err)
-	}
-
-	err = p.StorageManager.StoreAuth(tx, uid, updatedHash)
-	if err != nil {
-		return fmt.Errorf("could not store updated password hash: %v", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("could not commit transaction after storing updated password hash: %v", err)
-	}
-
-	return nil
 }
 
 func checkIdentityAttributesNotNil(i *Identity) error {
@@ -197,7 +178,11 @@ func checkIdentityAttributesNotNil(i *Identity) error {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
 
-	if len(i.PublicKeyPEM) == 0 {
+	if len(i.PrivateKey) == 0 {
+		return fmt.Errorf("empty private key")
+	}
+
+	if len(i.PublicKey) == 0 {
 		return fmt.Errorf("empty public key")
 	}
 

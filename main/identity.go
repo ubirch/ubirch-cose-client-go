@@ -5,7 +5,8 @@ import (
 )
 
 type Identity struct {
-	Uid          uuid.UUID `json:"uuid"`
-	PublicKeyPEM []byte    `json:"publicKey"`
-	Auth         string    `json:"auth"`
+	Uid        uuid.UUID `json:"uuid"`
+	PrivateKey []byte    `json:"privateKey"`
+	PublicKey  []byte    `json:"publicKey"`
+	Auth       string    `json:"auth"`
 }

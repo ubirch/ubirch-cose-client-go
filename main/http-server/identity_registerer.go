@@ -50,8 +50,6 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 			switch err {
 			case ErrAlreadyInitialized:
 				Error(w, r, uid, http.StatusConflict, ErrCodeAlreadyInitialized, err.Error())
-			case ErrUnknown:
-				Error(w, r, uid, http.StatusNotFound, ErrCodeUnknownUUID, fmt.Sprintf("%v: identity can not be registered because there is no key with UUID %s present in the pkcs11 module (HSM)", err, uid))
 			default:
 				Error(w, r, uid, http.StatusInternalServerError, ErrCodeGenericInternalServerError, fmt.Sprintf("identity initialization failed: %v", err))
 			}

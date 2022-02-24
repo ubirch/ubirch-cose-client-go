@@ -135,20 +135,6 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
-			name:        "unknown",
-			auth:        testAuth,
-			contentType: JSONType,
-			body:        []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\"}"),
-			initId: func(uid uuid.UUID) (csr []byte, pw string, err error) {
-				return nil, "", ErrUnknown
-			},
-			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
-				assert.Equal(t, http.StatusNotFound, recorder.Code)
-				assert.Equal(t, ErrCodeUnknownUUID, recorder.Header().Get(ErrHeader))
-				assert.Contains(t, recorder.Body.String(), ErrUnknown.Error())
-			},
-		},
-		{
 			name:        "internal server error",
 			auth:        testAuth,
 			contentType: JSONType,

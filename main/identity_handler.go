@@ -48,13 +48,10 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", h.ErrAlreadyInitialized
 	}
 
-	keyExists, err := i.Crypto.PrivateKeyExists(uid)
+	// generate a new new pair
+	err = i.Crypto.GenerateKey(uid)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to check for existence of private key: %v", err)
-	}
-
-	if !keyExists {
-		return nil, "", h.ErrUnknown
+		return nil, "", fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
 
 	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
@@ -76,6 +73,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 
 	identity := Identity{
 		Uid:          uid,
+		PrivateKey:   privKeyPEM,
 		PublicKeyPEM: pubKeyPEM,
 		Auth:         pw,
 	}
@@ -110,12 +108,8 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
-	keyExists, err := i.Crypto.PrivateKeyExists(uid)
-	if err != nil {
-		return nil, fmt.Errorf("could not check for existence of private key: %v", err)
-	}
-
-	if !keyExists {
+	_, err = i.Protocol.LoadIdentity(uid)
+	if err == ErrNotExist {
 		return nil, h.ErrUnknown
 	}
 

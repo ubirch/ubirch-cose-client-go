@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
-	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
 )
 
 const (

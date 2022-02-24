@@ -4,10 +4,9 @@
 
 ### Identity Registration
 
-To initialize an identity, a registration request can be sent to the `/seal/register` endpoint. The registration request
-must contain a UUID which corresponds to a key, that is present in the HSM. At initialization, an auth token will be
-generated and registered at the certify-api. On success, the response contains an X.509 Certificate Signing Request in
-PEM format.
+Sending a registration request invokes the generation of a ECDSA key pair for signing COSE objects. Further, an auth
+token will be generated and registered at the certify-api. On success, the response contains an X.509 Certificate
+Signing Request in PEM format.
 
     curl ${host}/seal/register -X PUT \
     -H "X-Auth-Token: <registerAuth>" \
@@ -269,7 +268,18 @@ To set the logging level to `debug` and enable extended debug output,
     UBIRCH_DEBUG=true
     ```
 
-###  
+### Log Format
+
+By default, the log of the client is in JSON format. To change it to a (more human-eye-friendly) text format,
+
+- add the following key-value pairs to your `config.json`:
+    ```json
+      "logTextFormat": true
+    ```
+- or set the following environment variables:
+    ```shell
+    UBIRCH_LOGTEXTFORMAT=true
+    ```
 
 ## Copyright
 

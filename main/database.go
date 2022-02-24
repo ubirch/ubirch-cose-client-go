@@ -30,7 +30,7 @@ import (
 
 const (
 	PostgreSql                  = "postgres"
-	PostgreSqlIdentityTableName = "cose_identity_hsm"
+	PostgreSqlIdentityTableName = "cose_identity"
 	maxRetries                  = 2
 )
 
@@ -41,8 +41,9 @@ const (
 var create = map[int]string{
 	PostgresIdentity: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, "+
-		"public_key VARCHAR(255) NOT NULL, "+
-		"auth VARCHAR(255) NOT NULL);", PostgreSqlIdentityTableName),
+		"private_key BYTEA NOT NULL, "+
+		"public_key BYTEA NOT NULL, "+
+		"auth_token VARCHAR(255) NOT NULL);", PostgreSqlIdentityTableName),
 }
 
 func (dm *DatabaseManager) CreateTable(tableType int) error {
@@ -133,7 +134,7 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i Identi
 	}
 
 	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, public_key, auth) VALUES ($1, $2, $3);",
+		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
 		PostgreSqlIdentityTableName)
 
 	_, err := tx.Exec(query, &i.Uid, &i.PublicKeyPEM, &i.Auth)
@@ -145,11 +146,11 @@ func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*Identity, error) {
 	i := Identity{Uid: uid}
 
 	query := fmt.Sprintf(
-		"SELECT public_key, auth FROM %s WHERE uid = $1;",
+		"SELECT private_key, public_key, auth_token FROM %s WHERE uid = $1;",
 		PostgreSqlIdentityTableName)
 
 	err := dm.retry(func() error {
-		err := dm.db.QueryRow(query, uid).Scan(&i.PublicKeyPEM, &i.Auth)
+		err := dm.db.QueryRow(query, uid).Scan(&i.PrivateKey, &i.PublicKeyPEM, &i.Auth)
 		if err == sql.ErrNoRows {
 			return ErrNotExist
 		}
@@ -183,7 +184,7 @@ func (dm *DatabaseManager) StoreAuth(transactionCtx TransactionCtx, uid uuid.UUI
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET auth = $1 WHERE uid = $2;", PostgreSqlIdentityTableName)
+	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", PostgreSqlIdentityTableName)
 
 	_, err := tx.Exec(query, &auth, uid)
 
@@ -196,7 +197,7 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid 
 		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT auth FROM %s WHERE uid = $1 FOR UPDATE;", PostgreSqlIdentityTableName)
+	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1 FOR UPDATE;", PostgreSqlIdentityTableName)
 
 	err = tx.QueryRow(query, uid).Scan(&auth)
 	if err == sql.ErrNoRows {

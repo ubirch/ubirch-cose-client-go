@@ -24,8 +24,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
-	"golang.org/x/sync/semaphore"
-
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
@@ -81,7 +79,6 @@ type GetSKID func(uid uuid.UUID) ([]byte, string, error)
 type CoseSigner struct {
 	encMode         cbor.EncMode
 	protectedHeader []byte
-	signSem         *semaphore.Weighted
 	SignHash
 	GetSKID
 }
@@ -106,7 +103,6 @@ func NewCoseSigner(sign SignHash, skid GetSKID) (*CoseSigner, error) {
 	return &CoseSigner{
 		encMode:         encMode,
 		protectedHeader: protectedHeaderAlgES256CBOR,
-		signSem:         semaphore.NewWeighted(1),
 		SignHash:        sign,
 		GetSKID:         skid,
 	}, nil
@@ -251,15 +247,6 @@ func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash h
 }
 
 func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum) ([]byte, error) {
-	timerWait := prometheus.NewTimer(prom.SignatureCreationWithWaitDuration)
-	defer timerWait.ObserveDuration()
-
-	err := c.signSem.Acquire(ctx, 1)
-	if err != nil {
-		return nil, fmt.Errorf("failed to acquire semaphore for signing: %v", err)
-	}
-	defer c.signSem.Release(1)
-
 	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
 	defer timerSign.ObserveDuration()
 
