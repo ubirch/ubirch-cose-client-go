@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -125,7 +124,7 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 		}
 	}
 
-	cose, err := c.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, skid, msg.Payload)
+	cose, err := c.createSignedCOSE(msg.ID, msg.Hash, skid, msg.Payload)
 	if err != nil {
 		return h.ErrorResponse(msg.ID, msg.Target, http.StatusInternalServerError, ErrCodeCoseCreationFail, err.Error(), false)
 	}
@@ -142,7 +141,7 @@ func (c *CoseSigner) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 // createSignedCOSE creates a ECDSA P-256 signed COSE Single Signer Data Object (COSE_Sign1)
 // and returns the Canonical-CBOR-encoded object with tag 18
-func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum, kid, payload []byte) ([]byte, error) {
+func (c *CoseSigner) createSignedCOSE(uid uuid.UUID, hash h.Sha256Sum, kid, payload []byte) ([]byte, error) {
 	/*
 		* https://cose-wg.github.io/cose-spec/#rfc.section.4.2
 			[COSE Single Signer Data Object]
@@ -225,7 +224,7 @@ func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash h
 			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
 																							payload is unknown
 	*/
-	signature, err := c.getSignature(ctx, uid, hash)
+	signature, err := c.getSignature(uid, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +245,7 @@ func (c *CoseSigner) createSignedCOSE(ctx context.Context, uid uuid.UUID, hash h
 	return c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
 }
 
-func (c *CoseSigner) getSignature(ctx context.Context, uid uuid.UUID, hash h.Sha256Sum) ([]byte, error) {
+func (c *CoseSigner) getSignature(uid uuid.UUID, hash h.Sha256Sum) ([]byte, error) {
 	timerSign := prometheus.NewTimer(prom.SignatureCreationDuration)
 	defer timerSign.ObserveDuration()
 

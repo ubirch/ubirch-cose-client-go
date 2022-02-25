@@ -42,7 +42,7 @@ func TestDatabaseManager(t *testing.T) {
 	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	_, err = dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
+	_, err = dm.GetUuidForPublicKey(testIdentity.PublicKey)
 	assert.Equal(t, ErrNotExist, err)
 
 	tx, err := dm.StartTransaction(ctx)
@@ -79,10 +79,10 @@ func TestDatabaseManager(t *testing.T) {
 	i, err := dm.LoadIdentity(testIdentity.Uid)
 	require.NoError(t, err)
 	assert.Equal(t, testIdentity.Uid, i.Uid)
-	assert.Equal(t, testIdentity.PublicKeyPEM, i.PublicKeyPEM)
+	assert.Equal(t, testIdentity.PublicKey, i.PublicKey)
 	assert.Equal(t, testIdentity.Auth, i.Auth)
 
-	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKeyPEM)
+	uid, err := dm.GetUuidForPublicKey(testIdentity.PublicKey)
 	require.NoError(t, err)
 	assert.Equal(t, testIdentity.Uid, uid)
 }
@@ -448,9 +448,9 @@ func generateRandomIdentity() Identity {
 	rand.Read(auth)
 
 	return Identity{
-		Uid:          uuid.New(),
-		PublicKeyPEM: []byte(base64.StdEncoding.EncodeToString(pub)),
-		Auth:         base64.StdEncoding.EncodeToString(auth),
+		Uid:       uuid.New(),
+		PublicKey: []byte(base64.StdEncoding.EncodeToString(pub)),
+		Auth:      base64.StdEncoding.EncodeToString(auth),
 	}
 }
 
@@ -492,8 +492,8 @@ func checkIdentity(storageMngr StorageManager, id Identity, checkAuth func(strin
 	if !bytes.Equal(idFromCtx.Uid[:], id.Uid[:]) {
 		return fmt.Errorf("LoadIdentity returned unexpected Uid value")
 	}
-	if !bytes.Equal(idFromCtx.PublicKeyPEM, id.PublicKeyPEM) {
-		return fmt.Errorf("LoadIdentity returned unexpected PublicKeyPEM value")
+	if !bytes.Equal(idFromCtx.PublicKey, id.PublicKey) {
+		return fmt.Errorf("LoadIdentity returned unexpected PublicKey value")
 	}
 
 	err = checkAuth(idFromCtx.Auth, id.Auth)
@@ -501,7 +501,7 @@ func checkIdentity(storageMngr StorageManager, id Identity, checkAuth func(strin
 		return fmt.Errorf("checkAuth: %v", err)
 	}
 
-	uid, err := storageMngr.GetUuidForPublicKey(id.PublicKeyPEM)
+	uid, err := storageMngr.GetUuidForPublicKey(id.PublicKey)
 	if err != nil {
 		return err
 	}

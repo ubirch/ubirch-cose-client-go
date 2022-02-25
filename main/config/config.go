@@ -164,10 +164,6 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if len(c.SecretBytes) != secretLength {
-		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.SecretBytes))
-	}
-
 	if len(c.RegisterAuth) == 0 {
 		return fmt.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
 	}
@@ -186,6 +182,14 @@ func (c *Config) checkMandatory() error {
 
 	if len(c.CertifyApiAuth) == 0 {
 		return fmt.Errorf("missing 'certifyApiAuth' / 'UBIRCH_CERTIFY_API_AUTH' in configuration")
+	}
+
+	if len(c.SecretBytes) == 0 {
+		return fmt.Errorf("missing 'secret32' / 'UBIRCH_SECRET32' in configuration")
+	}
+
+	if len(c.SecretBytes) != secretLength {
+		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes, is %d", secretLength, len(c.SecretBytes))
 	}
 
 	if len(c.Env) == 0 {

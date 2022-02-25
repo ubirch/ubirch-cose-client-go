@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"testing"
@@ -12,7 +13,7 @@ import (
 )
 
 const (
-	expectedConfig = `{"registerAuth":"","env":"","pkcs11Module":"","pkcs11ModulePin":"","pkcs11ModuleSlotNr":0,"postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"ignoreUnknownCerts":false,"certifyApiUrl":"","certifyApiAuth":"","kdMaxTotalMemMiB":0,"kdParamMemMiB":0,"kdParamTime":0,"kdParamParallelism":0,"kdParamKeyLen":0,"kdParamSaltLen":0,"kdUpdateParams":false,"requestLimit":0,"requestBacklogLimit":0,"IsDevelopment":false,"ServerTLSCertFingerprints":null,"DbParams":null}`
+	expectedConfig = `{"secret32":"","registerAuth":"","env":"","postgresDSN":"","dbMaxOpenConns":"","dbMaxIdleConns":"","dbConnMaxLifetime":"","dbConnMaxIdleTime":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"certificateServer":"","certificateServerPubKey":"","reloadCertsEveryMinute":false,"ignoreUnknownCerts":false,"certifyApiUrl":"","certifyApiAuth":"","requestLimit":0,"requestBacklogLimit":0,"IsDevelopment":false,"ServerTLSCertFingerprints":null,"SecretBytes":null,"DbParams":null}`
 )
 
 func TestConfig(t *testing.T) {
@@ -102,7 +103,14 @@ func TestConfig_checkMandatory(t *testing.T) {
 	conf.CertifyApiAuth = "password123"
 
 	err = conf.checkMandatory()
-	assert.EqualError(t, err, "missing 'pkcs11ModulePin' / 'UBIRCH_PKCS11_MODULE_PIN' in configuration")
+	assert.EqualError(t, err, "missing 'secret32' / 'UBIRCH_SECRET32' in configuration")
+
+	conf.SecretBytes, _ = base64.StdEncoding.DecodeString("Vfv/ta28Yv5IkxST4cTdygBHKeMfV8D27ptHgUUGgQ==")
+
+	err = conf.checkMandatory()
+	assert.EqualError(t, err, "secret for key encryption ('secret32') length must be 32 bytes, is 31")
+
+	conf.SecretBytes, _ = base64.StdEncoding.DecodeString("4qo9HvXPFX3DWJQAa0ljHbGx+hnsyTF0rFmAdDMGjXE=")
 
 	err = conf.checkMandatory()
 	require.NoError(t, err)

@@ -16,20 +16,14 @@ import (
 )
 
 func TestIdentityHandler_InitIdentity(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &MockKeystorer{},
-	}
-
-	err := cryptoCtx.GenerateKey(testUuid)
+	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
 	require.NoError(t, err)
-
-	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
 
 	client := &mockRegistrationClient{}
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              cryptoCtx,
+		Crypto:              p.Crypto,
 		RegisterAuth:        client.registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
@@ -49,25 +43,25 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 	initializedIdentity, err := p.LoadIdentity(testUuid)
 	require.NoError(t, err)
 
-	pub, err := cryptoCtx.GetPublicKeyPEM(testUuid)
+	pub, err := p.Crypto.GetPublicKeyPEM(testUuid)
 	require.NoError(t, err)
-	assert.Equal(t, initializedIdentity.PublicKeyPEM, pub)
+	assert.Equal(t, initializedIdentity.PublicKey, pub)
 
-	csrPublicKey, err := cryptoCtx.EncodePublicKey(csr.PublicKey)
+	csrPublicKey, err := p.Crypto.EncodePublicKey(csr.PublicKey)
 	require.NoError(t, err)
-	assert.Equalf(t, initializedIdentity.PublicKeyPEM, csrPublicKey, "public key in CSR does not match initializedIdentity.PublicKey")
+	assert.Equalf(t, initializedIdentity.PublicKey, csrPublicKey, "public key in CSR does not match initializedIdentity.PublicKey")
 	assert.Equalf(t, auth, client.Auth, "auth token returned by InitIdentity not equal to registered auth token")
 
-	_, ok, err := p.pwHasher.CheckPassword(context.Background(), initializedIdentity.Auth, client.Auth)
+	_, ok, err := p.CheckAuth(context.Background(), testUuid, client.Auth)
 	require.NoError(t, err)
 	assert.True(t, ok)
 
 	data := []byte("test")
 
-	signature, err := cryptoCtx.Sign(testUuid, data)
+	signature, err := p.Crypto.Sign(testUuid, data)
 	require.NoError(t, err)
 
-	verified, err := cryptoCtx.Verify(testUuid, data, signature)
+	verified, err := p.Crypto.Verify(testUuid, data, signature)
 	require.NoError(t, err)
 	assert.Truef(t, verified, "signature not verifiable")
 }
@@ -80,7 +74,8 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	err := cryptoCtx.GenerateKey(testUuid)
 	require.NoError(t, err)
 
-	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -102,7 +97,8 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 		Keystore: &MockKeystorer{},
 	}
 
-	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -112,7 +108,7 @@ func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err := idHandler.InitIdentity(testUuid)
+	_, _, err = idHandler.InitIdentity(testUuid)
 	assert.Equal(t, h.ErrUnknown, err)
 
 	_, err = p.LoadIdentity(testUuid)
@@ -127,7 +123,8 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 	err := cryptoCtx.GenerateKey(testUuid)
 	require.NoError(t, err)
 
-	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -152,7 +149,8 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 	err := cryptoCtx.GenerateKey(testUuid)
 	require.NoError(t, err)
 
-	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -181,7 +179,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 
 	pub, err := cryptoCtx.EncodePublicKey(csr.PublicKey)
 	require.NoError(t, err)
-	assert.Equalf(t, initializedIdentity.PublicKeyPEM, pub, "public key in CSR does not match initializedIdentity.PublicKey")
+	assert.Equalf(t, initializedIdentity.PublicKey, pub, "public key in CSR does not match initializedIdentity.PublicKey")
 }
 
 func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
@@ -189,7 +187,8 @@ func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 		Keystore: &MockKeystorer{},
 	}
 
-	p := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -198,7 +197,7 @@ func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err := idHandler.CreateCSR(testUuid)
+	_, err = idHandler.CreateCSR(testUuid)
 	assert.Equal(t, h.ErrUnknown, err)
 }
 

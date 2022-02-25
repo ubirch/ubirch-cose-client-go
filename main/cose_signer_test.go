@@ -193,28 +193,6 @@ func TestCoseSigner_Sign(t *testing.T) {
 	}
 }
 
-func TestCoseSignBadContext(t *testing.T) {
-	coseSigner, err := NewCoseSigner(mockSign, mockGetSKID)
-	require.NoError(t, err)
-
-	err = coseSigner.signSem.Acquire(context.Background(), 1)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	msg := h.HTTPRequest{
-		ID:      testUuid,
-		Hash:    sha256.Sum256([]byte("test")),
-		Payload: []byte("test"),
-		Ctx:     ctx,
-	}
-
-	_, err = coseSigner.createSignedCOSE(msg.Ctx, msg.ID, msg.Hash, testSKID, msg.Payload)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to acquire semaphore for signing")
-}
-
 func TestCoseSigner_GetSigStructBytes(t *testing.T) {
 	coseSigner := CoseSigner{}
 	_, err := coseSigner.GetSigStructBytes([]byte(""))
