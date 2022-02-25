@@ -36,13 +36,18 @@ type Protocol struct {
 
 	Crypto       ubirch.Crypto
 	keyEncrypter *encrypters.PKCS8KeyEncrypter
+	keyCache     *KeyCache
 
 	authCache *sync.Map // {<uid>: <auth>}
 	uuidCache *sync.Map // {<pub>: <uuid>}
 }
 
 func NewProtocol(storageManager StorageManager, conf *config.Config) (*Protocol, error) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{}
+	keyCache := NewKeyCache()
+
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: keyCache,
+	}
 
 	enc, err := encrypters.NewPKCS8KeyEncrypter(conf.SecretBytes, cryptoCtx)
 	if err != nil {
@@ -54,6 +59,7 @@ func NewProtocol(storageManager StorageManager, conf *config.Config) (*Protocol,
 
 		Crypto:       cryptoCtx,
 		keyEncrypter: enc,
+		keyCache:     keyCache,
 
 		authCache: &sync.Map{},
 		uuidCache: &sync.Map{},
@@ -87,17 +93,29 @@ func (p *Protocol) LoadIdentity(uid uuid.UUID) (i *Identity, err error) {
 		return nil, err
 	}
 
+	// check validity of identity attributes
+	err = checkIdentityAttributesNotNil(i)
+	if err != nil {
+		return nil, err
+	}
+
+	// load caches
 	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
 	if err != nil {
-		return i, err
+		return nil, err
+	}
+
+	err = p.keyCache.SetPrivateKey(uid, i.PrivateKey)
+	if err != nil {
+		return nil, err
 	}
 
 	i.PublicKey, err = p.Crypto.PublicKeyBytesToPEM(i.PublicKey)
 	if err != nil {
-		return i, err
+		return nil, err
 	}
 
-	err = checkIdentityAttributesNotNil(i)
+	err = p.keyCache.SetPublicKey(uid, i.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +147,34 @@ func (p *Protocol) GetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err 
 	}
 
 	return uid, nil
+}
+
+func (p *Protocol) LoadPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
+	privKeyPEM, err = p.keyCache.GetPrivateKey(uid)
+	if err != nil {
+		i, err := p.LoadIdentity(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		privKeyPEM = i.PrivateKey
+	}
+
+	return privKeyPEM, nil
+}
+
+func (p *Protocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
+	pubKeyPEM, err = p.keyCache.GetPublicKey(uid)
+	if err != nil {
+		i, err := p.LoadIdentity(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		pubKeyPEM = i.PublicKey
+	}
+
+	return pubKeyPEM, nil
 }
 
 func (p *Protocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {

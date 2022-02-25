@@ -20,7 +20,6 @@ import (
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"github.com/ubirch/ubirch-cose-client-go/main/profiling"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
@@ -76,8 +75,6 @@ func main() {
 	}
 
 	// initialize COSE service
-	cryptoCtx := &ubirch.ECDSACryptoContext{}
-
 	storageManager, err := GetStorageManager(conf)
 	if err != nil {
 		log.Fatal(err)
@@ -85,7 +82,7 @@ func main() {
 	defer storageManager.Close()
 	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	protocol, err := NewProtocol(storageManager, conf.secretBytes)
+	protocol, err := NewProtocol(storageManager, conf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,7 +93,7 @@ func main() {
 		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
 	}
 
-	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute, conf.IgnoreUnknownCerts)
+	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.Crypto.EncodePublicKey, conf.ReloadCertsEveryMinute, conf.IgnoreUnknownCerts)
 
 	certifyApiClient := &CertifyApiClient{
 		CertifyApiURL:  conf.CertifyApiUrl,
@@ -105,13 +102,13 @@ func main() {
 
 	idHandler := &IdentityHandler{
 		Protocol:            protocol,
-		Crypto:              cryptoCtx,
+		Crypto:              protocol.Crypto,
 		RegisterAuth:        certifyApiClient.RegisterSeal,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
+	coseSigner, err := NewCoseSigner(protocol.Crypto.SignHash, skidHandler.GetSKID)
 	if err != nil {
 		log.Fatal(err)
 	}

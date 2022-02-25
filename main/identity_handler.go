@@ -48,10 +48,20 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", h.ErrAlreadyInitialized
 	}
 
-	// generate a new new pair
+	// generate a new key pair
 	err = i.Crypto.GenerateKey(uid)
 	if err != nil {
 		return nil, "", fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
+	}
+
+	privKeyPEM, err := i.Protocol.LoadPrivateKey(uid)
+	if err != nil {
+		return nil, "", err
+	}
+
+	pubKeyPEM, err := i.Protocol.LoadPublicKey(uid)
+	if err != nil {
+		return nil, "", err
 	}
 
 	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
@@ -61,21 +71,16 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-	pubKeyPEM, err := i.Crypto.GetPublicKeyPEM(uid)
-	if err != nil {
-		return nil, "", fmt.Errorf("could not get public key: %v", err)
-	}
-
 	pw, err := generatePassword()
 	if err != nil {
 		return nil, "", err
 	}
 
 	identity := Identity{
-		Uid:          uid,
-		PrivateKey:   privKeyPEM,
-		PublicKeyPEM: pubKeyPEM,
-		Auth:         pw,
+		Uid:        uid,
+		PrivateKey: privKeyPEM,
+		PublicKey:  pubKeyPEM,
+		Auth:       pw,
 	}
 
 	ctxForTransaction, cancel := context.WithCancel(context.Background())
