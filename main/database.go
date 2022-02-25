@@ -137,27 +137,27 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i Identi
 		"INSERT INTO %s (uid, private_key, public_key, auth_token) VALUES ($1, $2, $3, $4);",
 		PostgreSqlIdentityTableName)
 
-	_, err := tx.Exec(query, &i.Uid, &i.PublicKeyPEM, &i.Auth)
+	_, err := tx.Exec(query, &i.Uid, &i.PrivateKey, &i.PublicKey, &i.Auth)
 
 	return err
 }
 
 func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*Identity, error) {
-	i := Identity{Uid: uid}
+	i := &Identity{}
 
 	query := fmt.Sprintf(
-		"SELECT private_key, public_key, auth_token FROM %s WHERE uid = $1;",
+		"SELECT uid, private_key, public_key, auth_token FROM %s WHERE uid = $1;",
 		PostgreSqlIdentityTableName)
 
 	err := dm.retry(func() error {
-		err := dm.db.QueryRow(query, uid).Scan(&i.PrivateKey, &i.PublicKeyPEM, &i.Auth)
+		err := dm.db.QueryRow(query, uid).Scan(&i.Uid, &i.PrivateKey, &i.PublicKey, &i.Auth)
 		if err == sql.ErrNoRows {
 			return ErrNotExist
 		}
 		return err
 	})
 
-	return &i, err
+	return i, err
 }
 
 func (dm *DatabaseManager) GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error) {

@@ -52,6 +52,9 @@ const (
 	defaultDbMaxIdleConns    = 10
 	defaultDbConnMaxLifetime = 10
 	defaultDbConnMaxIdleTime = 1
+
+	defaultRequestLimit        = 10
+	defaultRequestBacklogLimit = 5
 )
 
 type Config struct {
@@ -77,6 +80,8 @@ type Config struct {
 	IgnoreUnknownCerts        bool   `json:"ignoreUnknownCerts" envconfig:"IGNORE_UNKNOWN_CERTS"`           // if set to 'false', a warning will be logged in case a certificate for an unknown public key is found in the public key certificate list
 	CertifyApiUrl             string `json:"certifyApiUrl" envconfig:"CERTIFY_API_URL"`                     // URL of the certify API
 	CertifyApiAuth            string `json:"certifyApiAuth" envconfig:"CERTIFY_API_AUTH"`                   // auth token for the seal registration endpoint of the certify API
+	RequestLimit              int    `json:"requestLimit" envconfig:"REQUEST_LIMIT"`                        // limits number of currently processed (incoming) requests at a time
+	RequestBacklogLimit       int    `json:"requestBacklogLimit" envconfig:"REQUEST_BACKLOG_LIMIT"`         // backlog for holding a finite number of pending requests
 	IsDevelopment             bool   // (set automatically depending on env) flag signifying if the environment is development (true) or productive (false)
 	ServerTLSCertFingerprints map[string][32]byte
 	SecretBytes               []byte // the decoded key store secret
@@ -111,7 +116,7 @@ func (c *Config) Load(configDir, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
-	c.secretBytes, err = base64.StdEncoding.DecodeString(c.SecretBase64)
+	c.SecretBytes, err = base64.StdEncoding.DecodeString(c.SecretBase64)
 	if err != nil {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
 	}
@@ -128,6 +133,7 @@ func (c *Config) Load(configDir, filename string) error {
 
 	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
+	c.setDefaultRequestLimits()
 	return c.SetDbParams()
 }
 
@@ -158,8 +164,8 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if len(c.secretBytes) != secretLength {
-		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
+	if len(c.SecretBytes) != secretLength {
+		return fmt.Errorf("secret for key encryption ('secret32') length must be %d bytes (is %d)", secretLength, len(c.SecretBytes))
 	}
 
 	if len(c.RegisterAuth) == 0 {
@@ -227,6 +233,18 @@ func (c *Config) setDefaultTLS(configDir string) {
 		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
 	}
+}
+
+func (c *Config) setDefaultRequestLimits() {
+	if c.RequestLimit == 0 {
+		c.RequestLimit = defaultRequestLimit
+	}
+	log.Debugf("limit to currently processed requests at a time: %d", c.RequestLimit)
+
+	if c.RequestBacklogLimit == 0 {
+		c.RequestBacklogLimit = defaultRequestBacklogLimit
+	}
+	log.Debugf("limit to pending requests at a time: %d", c.RequestBacklogLimit)
 }
 
 func (c *Config) SetDbParams() error {
