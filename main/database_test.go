@@ -441,6 +441,9 @@ func cleanUpDB(t *testing.T, dm *DatabaseManager) {
 }
 
 func generateRandomIdentity() Identity {
+	priv := make([]byte, 32)
+	rand.Read(priv)
+
 	pub := make([]byte, 64)
 	rand.Read(pub)
 
@@ -448,9 +451,10 @@ func generateRandomIdentity() Identity {
 	rand.Read(auth)
 
 	return Identity{
-		Uid:       uuid.New(),
-		PublicKey: []byte(base64.StdEncoding.EncodeToString(pub)),
-		Auth:      base64.StdEncoding.EncodeToString(auth),
+		Uid:        uuid.New(),
+		PrivateKey: []byte(base64.StdEncoding.EncodeToString(priv)),
+		PublicKey:  []byte(base64.StdEncoding.EncodeToString(pub)),
+		Auth:       base64.StdEncoding.EncodeToString(auth),
 	}
 }
 

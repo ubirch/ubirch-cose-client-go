@@ -214,7 +214,7 @@ func setupCryptoCtx(t *testing.T, uid uuid.UUID) (cryptoCtx ubirch.Crypto) {
 		Keystore: &MockKeystorer{},
 	}
 
-	err := cryptoCtx.SetKey(uid, testKey)
+	err := cryptoCtx.GenerateKey(uid)
 	require.NoError(t, err)
 
 	return cryptoCtx

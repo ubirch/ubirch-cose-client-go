@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -17,30 +16,26 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-const (
-	PrivHex = "8f827f925f83b9e676aeb87d14842109bee64b02f1398c6dcdd970d5d6880937"                                                                 //"10a0bef246575ea219e15bffbb6704d2a58b0e4aa99f101f12f0b1ce7a143559"
-	PubHex  = "55f0feac4f2bcf879330eff348422ab3abf5237a24acaf0aef3bb876045c4e532fbd6cd8e265f6cf28b46e7e4512cd06ba84bcd3300efdadf28750f43dafd771" //"92bbd65d59aecbdf7b497fb4dcbdffa22833613868ddf35b44f5bd672496664a2cc1d228550ae36a1d0210a3b42620b634dc5d22ecde9e12f37d66eeedee3e6a"
-)
-
 var (
 	testUuid      = uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
-	testKey, _    = hex.DecodeString(PrivHex)
-	testPubKey, _ = hex.DecodeString(PubHex)
+	testPriv      = []byte("-----BEGIN PRIVATE KEY-----\nMHcCAQEEIKr4BlVvke+r+zQPBe1LqB+az+cHhlucuzS5AyFK8cmQoAoGCCqGSM49\nAwEHoUQDQgAEndya+lAutc1ShF7GBj0KPqBoIOj0D4GPYgErlfanpplIhXTqLzg8\nCHKQCy5bwXXi+9HtTpX/4g5TqpydoHkVhg==\n-----END PRIVATE KEY-----\n")
+	testPub       = []byte("-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEndya+lAutc1ShF7GBj0KPqBoIOj0\nD4GPYgErlfanpplIhXTqLzg8CHKQCy5bwXXi+9HtTpX/4g5TqpydoHkVhg==\n-----END PUBLIC KEY-----\n")
 	testAuth      = "password1234!"
 	testSecret, _ = base64.StdEncoding.DecodeString("4qo9HvXPFX3DWJQAa0ljHbGx+hnsyTF0rFmAdDMGjXE=")
+	testConf      = &config.Config{SecretBytes: testSecret}
 
 	testError = errors.New("test error")
 )
 
 func TestProtocol(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	testIdentity := Identity{
-		Uid: testUuid,
-		//PrivateKey:
-		PublicKey: testPubKey,
-		Auth:      testAuth,
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
 	}
 
 	// check not exists
@@ -88,13 +83,35 @@ func TestProtocol(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := Identity{
-		Uid:       uuid.UUID{},
-		PublicKey: testPubKey,
-		Auth:      testAuth,
+		Uid:        uuid.UUID{},
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	assert.Error(t, err)
+}
+
+func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
+
+	i := Identity{
+		Uid:        testUuid,
+		PrivateKey: nil,
+		PublicKey:  testPub,
+		Auth:       testAuth,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -108,13 +125,14 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := Identity{
-		Uid:       testUuid,
-		PublicKey: nil,
-		Auth:      testAuth,
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  nil,
+		Auth:       testAuth,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -127,34 +145,15 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// FIXME
-//func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
-//	p := NewProtocol(&mockStorageMngr{}, &Config{})
-//
-//	i := Identity{
-//		Uid:          testUuid,
-//		PublicKey: make([]byte, len(testPubKey)),
-//		Auth:         testAuth,
-//	}
-//
-//	ctx, cancel := context.WithCancel(context.Background())
-//	defer cancel()
-//
-//	tx, err := p.StartTransaction(ctx)
-//	require.NoError(t, err)
-//
-//	err = p.StoreIdentity(tx, i)
-//	assert.Error(t, err)
-//}
-
 func Test_StoreNewIdentity_NilAuth(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := Identity{
-		Uid:       testUuid,
-		PublicKey: testPubKey,
-		Auth:      "",
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       "",
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -168,7 +167,7 @@ func Test_StoreNewIdentity_NilAuth(t *testing.T) {
 }
 
 func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	_, err = p.GetUuidForPublicKey(make([]byte, 64))
@@ -176,13 +175,14 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := Identity{
-		Uid:       testUuid,
-		PublicKey: testPubKey,
-		Auth:      testAuth,
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -205,13 +205,14 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := Identity{
-		Uid:       testUuid,
-		PublicKey: testPubKey,
-		Auth:      testAuth,
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -235,13 +236,14 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 
 func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 	storageMngr := &mockStorageMngr{}
-	p, err := NewProtocol(storageMngr, &config.Config{})
+	p, err := NewProtocol(storageMngr, testConf)
 	require.NoError(t, err)
 
 	i := Identity{
-		Uid:       testUuid,
-		PublicKey: testPubKey,
-		Auth:      testAuth,
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -266,7 +268,7 @@ func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
@@ -276,13 +278,14 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := Identity{
-		Uid:       testUuid,
-		PublicKey: testPubKey,
-		Auth:      testAuth,
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -311,13 +314,14 @@ func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: testSecret})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	testIdentity := Identity{
-		Uid:       testUuid,
-		PublicKey: testPubKey,
-		Auth:      testAuth,
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -354,13 +358,22 @@ func TestProtocolLoad(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	p, err := NewProtocol(dm, &config.Config{})
+	p, err := NewProtocol(dm, testConf)
 	require.NoError(t, err)
 
 	// generate identities
 	var testIdentities []Identity
 	for i := 0; i < testLoad/10; i++ {
 		testId := generateRandomIdentity()
+
+		err = p.Crypto.GenerateKey(testId.Uid)
+		require.NoError(t, err)
+
+		testId.PrivateKey, err = p.LoadPrivateKey(testId.Uid)
+		require.NoError(t, err)
+
+		testId.PublicKey, err = p.LoadPublicKey(testId.Uid)
+		require.NoError(t, err)
 
 		testIdentities = append(testIdentities, testId)
 	}

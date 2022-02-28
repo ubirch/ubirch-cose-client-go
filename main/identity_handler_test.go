@@ -9,14 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubirch/ubirch-cose-client-go/main/config"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
 func TestIdentityHandler_InitIdentity(t *testing.T) {
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	client := &mockRegistrationClient{}
@@ -67,19 +65,12 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 }
 
 func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &MockKeystorer{},
-	}
-
-	err := cryptoCtx.GenerateKey(testUuid)
-	require.NoError(t, err)
-
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              cryptoCtx,
+		Crypto:              p.Crypto,
 		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
@@ -92,43 +83,13 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 	assert.Equal(t, h.ErrAlreadyInitialized, err)
 }
 
-func TestIdentityHandler_InitIdentityBad_ErrUnknown(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &MockKeystorer{},
-	}
-
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
-	require.NoError(t, err)
-
-	idHandler := &IdentityHandler{
-		Protocol:            p,
-		Crypto:              cryptoCtx,
-		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
-		subjectCountry:      "AA",
-		subjectOrganization: "test GmbH",
-	}
-
-	_, _, err = idHandler.InitIdentity(testUuid)
-	assert.Equal(t, h.ErrUnknown, err)
-
-	_, err = p.LoadIdentity(testUuid)
-	assert.Equal(t, ErrNotExist, err)
-}
-
 func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &MockKeystorer{},
-	}
-
-	err := cryptoCtx.GenerateKey(testUuid)
-	require.NoError(t, err)
-
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              cryptoCtx,
+		Crypto:              p.Crypto,
 		RegisterAuth:        (&mockRegistrationClient{}).registerAuthBad,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
@@ -142,19 +103,12 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 }
 
 func TestIdentityHandler_CreateCSR(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &MockKeystorer{},
-	}
-
-	err := cryptoCtx.GenerateKey(testUuid)
-	require.NoError(t, err)
-
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              cryptoCtx,
+		Crypto:              p.Crypto,
 		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
@@ -177,22 +131,18 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 	initializedIdentity, err := p.LoadIdentity(testUuid)
 	require.NoError(t, err)
 
-	pub, err := cryptoCtx.EncodePublicKey(csr.PublicKey)
+	pub, err := p.Crypto.EncodePublicKey(csr.PublicKey)
 	require.NoError(t, err)
 	assert.Equalf(t, initializedIdentity.PublicKey, pub, "public key in CSR does not match initializedIdentity.PublicKey")
 }
 
 func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: &MockKeystorer{},
-	}
-
-	p, err := NewProtocol(&mockStorageMngr{}, &config.Config{})
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              cryptoCtx,
+		Crypto:              p.Crypto,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}
