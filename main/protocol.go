@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	pw "github.com/ubirch/ubirch-cose-client-go/main/password-hashing"
@@ -35,12 +36,21 @@ const (
 
 type Protocol struct {
 	StorageManager
+	Crypto    ubirch.Crypto
 	pwHasher  *pw.Argon2idKeyDerivator
 	authCache *sync.Map // {<uid>: <auth>}
 	uuidCache *sync.Map // {<pub>: <uuid>}
 }
 
-func NewProtocol(storageManager StorageManager, conf *config.Config) *Protocol {
+func NewProtocol(storageManager StorageManager, cryptoCtx ubirch.Crypto, conf *config.Config) (*Protocol, error) {
+	if storageManager == nil {
+		return nil, fmt.Errorf("storageManager can not be nil")
+	}
+
+	if cryptoCtx == nil {
+		return nil, fmt.Errorf("cryptoCtx can not be nil")
+	}
+
 	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
 		conf.KdParamKeyLen, conf.KdParamSaltLen)
 	params, _ := json.Marshal(argon2idParams)
@@ -54,14 +64,21 @@ func NewProtocol(storageManager StorageManager, conf *config.Config) *Protocol {
 
 	return &Protocol{
 		StorageManager: storageManager,
+		Crypto:         cryptoCtx,
 		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB, argon2idParams, conf.KdUpdateParams),
 		authCache:      &sync.Map{},
 		uuidCache:      &sync.Map{},
-	}
+	}, nil
 }
 
 func (p *Protocol) StoreIdentity(tx TransactionCtx, i Identity) error {
 	err := checkIdentityAttributesNotNil(&i)
+	if err != nil {
+		return err
+	}
+
+	// ensure public key format has expected format (PEM) and type
+	_, err = p.Crypto.PublicKeyPEMToBytes(i.PublicKeyPEM)
 	if err != nil {
 		return err
 	}

@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
@@ -32,7 +31,6 @@ type RegisterAuth func(uid uuid.UUID, auth string) error
 
 type IdentityHandler struct {
 	Protocol *Protocol
-	Crypto   ubirch.Crypto
 	RegisterAuth
 	subjectCountry      string
 	subjectOrganization string
@@ -48,7 +46,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", h.ErrAlreadyInitialized
 	}
 
-	keyExists, err := i.Crypto.PrivateKeyExists(uid)
+	keyExists, err := i.Protocol.Crypto.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to check for existence of private key: %v", err)
 	}
@@ -57,14 +55,14 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", h.ErrUnknown
 	}
 
-	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Protocol.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not generate CSR: %v", err)
 	}
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-	pubKeyPEM, err := i.Crypto.GetPublicKeyPEM(uid)
+	pubKeyPEM, err := i.Protocol.Crypto.GetPublicKeyPEM(uid)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not get public key: %v", err)
 	}
@@ -110,7 +108,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
-	keyExists, err := i.Crypto.PrivateKeyExists(uid)
+	keyExists, err := i.Protocol.Crypto.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check for existence of private key: %v", err)
 	}
@@ -119,7 +117,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Protocol.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not create CSR: %v", err)
 	}

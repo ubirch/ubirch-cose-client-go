@@ -106,7 +106,10 @@ func main() {
 	defer storageManager.Close()
 	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	protocol := NewProtocol(storageManager, conf)
+	protocol, err := NewProtocol(storageManager, cryptoCtx, conf)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	certClient := &CertificateServerClient{
 		CertificateServerURL:       conf.CertificateServer,
@@ -123,7 +126,6 @@ func main() {
 
 	idHandler := &IdentityHandler{
 		Protocol:            protocol,
-		Crypto:              cryptoCtx,
 		RegisterAuth:        certifyApiClient.RegisterSeal,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
