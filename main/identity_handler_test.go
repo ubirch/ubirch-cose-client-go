@@ -21,7 +21,6 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              p.Crypto,
 		RegisterAuth:        client.registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
@@ -70,7 +69,6 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              p.Crypto,
 		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
@@ -89,7 +87,6 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              p.Crypto,
 		RegisterAuth:        (&mockRegistrationClient{}).registerAuthBad,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
@@ -108,7 +105,6 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              p.Crypto,
 		RegisterAuth:        (&mockRegistrationClient{}).registerAuth,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
@@ -142,7 +138,6 @@ func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
-		Crypto:              p.Crypto,
 		subjectCountry:      "AA",
 		subjectOrganization: "test GmbH",
 	}

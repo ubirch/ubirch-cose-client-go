@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"github.com/ubirch/ubirch-cose-client-go/main/profiling"
@@ -102,7 +103,6 @@ func main() {
 
 	idHandler := &IdentityHandler{
 		Protocol:            protocol,
-		Crypto:              protocol.Crypto,
 		RegisterAuth:        certifyApiClient.RegisterSeal,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,

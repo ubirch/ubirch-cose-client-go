@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
@@ -32,7 +31,6 @@ type RegisterAuth func(uid uuid.UUID, auth string) error
 
 type IdentityHandler struct {
 	Protocol *Protocol
-	Crypto   ubirch.Crypto
 	RegisterAuth
 	subjectCountry      string
 	subjectOrganization string
@@ -49,7 +47,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 	}
 
 	// generate a new key pair
-	err = i.Crypto.GenerateKey(uid)
+	err = i.Protocol.Crypto.GenerateKey(uid)
 	if err != nil {
 		return nil, "", fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
@@ -64,7 +62,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", err
 	}
 
-	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Protocol.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not generate CSR: %v", err)
 	}
@@ -118,7 +116,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 		return nil, h.ErrUnknown
 	}
 
-	csr, err := i.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Protocol.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("could not create CSR: %v", err)
 	}
