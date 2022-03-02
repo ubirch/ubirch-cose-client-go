@@ -111,8 +111,12 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
-	_, err = i.Protocol.LoadIdentity(uid)
-	if err == ErrNotExist {
+	initialized, err := i.Protocol.IsInitialized(uid)
+	if err != nil {
+		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
+	}
+
+	if !initialized {
 		return nil, h.ErrUnknown
 	}
 

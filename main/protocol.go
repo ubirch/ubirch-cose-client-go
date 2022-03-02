@@ -180,7 +180,7 @@ func (p *Protocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
 }
 
 func (p *Protocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
-	_, err = p.LoadIdentity(uid)
+	_, err = p.LoadPrivateKey(uid)
 	if err == ErrNotExist {
 		return false, nil
 	}
