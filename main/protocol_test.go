@@ -124,6 +124,27 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
+
+	i := Identity{
+		Uid:        testUuid,
+		PrivateKey: testPriv[:len(testPub)-1],
+		PublicKey:  testPub,
+		Auth:       testAuth,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	assert.Error(t, err)
+}
+
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
@@ -132,6 +153,27 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 		Uid:        testUuid,
 		PrivateKey: testPriv,
 		PublicKey:  nil,
+		Auth:       testAuth,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	assert.Error(t, err)
+}
+
+func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
+
+	i := Identity{
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub[:len(testPub)-2],
 		Auth:       testAuth,
 	}
 
