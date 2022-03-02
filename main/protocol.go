@@ -43,6 +43,10 @@ type Protocol struct {
 }
 
 func NewProtocol(storageManager StorageManager, conf *config.Config) (*Protocol, error) {
+	if storageManager == nil {
+		return nil, fmt.Errorf("storageManager can not be nil")
+	}
+
 	keyCache := NewKeyCache()
 
 	cryptoCtx := &ubirch.ECDSACryptoContext{
