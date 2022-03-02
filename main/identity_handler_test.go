@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"testing"
@@ -49,7 +48,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 	assert.Equalf(t, initializedIdentity.PublicKey, csrPublicKey, "public key in CSR does not match initializedIdentity.PublicKey")
 	assert.Equalf(t, auth, client.Auth, "auth token returned by InitIdentity not equal to registered auth token")
 
-	_, ok, err := p.CheckAuth(context.Background(), testUuid, client.Auth)
+	_, ok, err := p.CheckAuth(testUuid, client.Auth)
 	require.NoError(t, err)
 	assert.True(t, ok)
 

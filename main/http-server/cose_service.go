@@ -42,7 +42,7 @@ type HTTPRequest struct {
 	Target  string
 }
 
-type CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
+type CheckAuth func(uuid.UUID, string) (bool, bool, error)
 type Sign func(HTTPRequest) HTTPResponse
 type LogDebugSensitiveData func(string, ...interface{})
 
@@ -71,7 +71,7 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		authOk, found, err := s.CheckAuth(ctx, uid, auth)
+		authOk, found, err := s.CheckAuth(uid, auth)
 		if err != nil {
 			Error(w, r, uid, http.StatusInternalServerError, ErrCodeAuthInternalServerError, fmt.Sprintf("authentication check failed: %v", err))
 			return

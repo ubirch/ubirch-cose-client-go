@@ -2,7 +2,6 @@ package http_server
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"errors"
 	"net/http"
@@ -354,15 +353,15 @@ func TestCOSEService_HandleRequest_DataRequest_BadSigStructBytes(t *testing.T) {
 	assert.Equal(t, ErrCodeInvalidRequestContent, w.Header().Get(ErrHeader))
 }
 
-func mockCheckAuth(c context.Context, u uuid.UUID, a string) (bool, bool, error) {
+func mockCheckAuth(u uuid.UUID, a string) (bool, bool, error) {
 	return a == testAuth, true, nil
 }
 
-func mockCheckAuthBad(context.Context, uuid.UUID, string) (bool, bool, error) {
+func mockCheckAuthBad(uuid.UUID, string) (bool, bool, error) {
 	return false, false, errors.New("mock error")
 }
 
-func mockCheckAuthNotFound(context.Context, uuid.UUID, string) (bool, bool, error) {
+func mockCheckAuthNotFound(uuid.UUID, string) (bool, bool, error) {
 	return false, false, nil
 }
 

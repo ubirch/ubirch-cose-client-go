@@ -76,7 +76,7 @@ func TestProtocol(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, testIdentity.Uid, storedUid)
 
-	ok, found, err := p.CheckAuth(ctx, testIdentity.Uid, testIdentity.Auth)
+	ok, found, err := p.CheckAuth(testIdentity.Uid, testIdentity.Auth)
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.True(t, ok)
@@ -240,7 +240,7 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 	err = tx.Commit()
 	require.NoError(t, err)
 
-	ok, found, err := p.CheckAuth(ctx, i.Uid, i.Auth)
+	ok, found, err := p.CheckAuth(i.Uid, i.Auth)
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.True(t, ok)
@@ -270,7 +270,7 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 	err = tx.Commit()
 	require.NoError(t, err)
 
-	ok, found, err := p.CheckAuth(ctx, i.Uid, "invalid auth")
+	ok, found, err := p.CheckAuth(i.Uid, "invalid auth")
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.False(t, ok)
@@ -303,7 +303,7 @@ func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 
 	p.authCache.Store(i.Uid, storageMngr.id.Auth)
 
-	ok, found, err := p.CheckAuth(ctx, i.Uid, "invalid auth")
+	ok, found, err := p.CheckAuth(i.Uid, "invalid auth")
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.False(t, ok)
@@ -313,7 +313,7 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
-	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
+	ok, found, err := p.CheckAuth(uuid.New(), "auth")
 	require.NoError(t, err)
 	assert.False(t, found)
 	assert.False(t, ok)
@@ -343,7 +343,7 @@ func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
 	err = tx.Commit()
 	require.NoError(t, err)
 
-	ok, found, err := p.CheckAuth(ctx, i.Uid, i.Auth)
+	ok, found, err := p.CheckAuth(i.Uid, i.Auth)
 	require.NoError(t, err)
 	require.True(t, found)
 	require.True(t, ok)

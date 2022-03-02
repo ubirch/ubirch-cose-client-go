@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -97,7 +96,6 @@ func (p *Protocol) LoadIdentity(uid uuid.UUID) (i *Identity, err error) {
 		return nil, err
 	}
 
-	// check validity of identity attributes
 	err = checkIdentityAttributesNotNil(i)
 	if err != nil {
 		return nil, err
@@ -193,7 +191,7 @@ func (p *Protocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
 	return true, nil
 }
 
-func (p *Protocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
+func (p *Protocol) CheckAuth(uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
 	_auth, found := p.authCache.Load(uid)
 
 	if found {
