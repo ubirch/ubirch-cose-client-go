@@ -496,6 +496,9 @@ func checkIdentity(storageMngr StorageManager, id Identity, checkAuth func(strin
 	if !bytes.Equal(idFromCtx.Uid[:], id.Uid[:]) {
 		return fmt.Errorf("LoadIdentity returned unexpected Uid value")
 	}
+	if !bytes.Equal(idFromCtx.PrivateKey, id.PrivateKey) {
+		return fmt.Errorf("LoadIdentity returned unexpected PrivateKey value")
+	}
 	if !bytes.Equal(idFromCtx.PublicKey, id.PublicKey) {
 		return fmt.Errorf("LoadIdentity returned unexpected PublicKey value")
 	}
