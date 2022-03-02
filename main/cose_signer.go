@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
+
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
