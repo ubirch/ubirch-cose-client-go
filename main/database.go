@@ -114,7 +114,7 @@ func (dm *DatabaseManager) Close() {
 
 func (dm *DatabaseManager) IsReady() error {
 	if err := dm.db.Ping(); err != nil {
-		return fmt.Errorf("database not ready: %v", err)
+		return fmt.Errorf("connection to database could not be established: %v", err)
 	}
 	return nil
 }
