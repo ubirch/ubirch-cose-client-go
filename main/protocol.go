@@ -98,13 +98,13 @@ func (p *Protocol) LoadIdentity(uid uuid.UUID) (i *Identity, err error) {
 
 	err = checkIdentityAttributesNotNil(i)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loaded identity from storage is invalid: %v", err)
 	}
 
 	// load caches
 	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not decrypt private key from storage: %v", err)
 	}
 
 	err = p.keyCache.SetPrivateKey(uid, i.PrivateKey)
@@ -114,7 +114,7 @@ func (p *Protocol) LoadIdentity(uid uuid.UUID) (i *Identity, err error) {
 
 	i.PublicKey, err = p.Crypto.PublicKeyBytesToPEM(i.PublicKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not decode public key from storage: %v", err)
 	}
 
 	err = p.keyCache.SetPublicKey(uid, i.PublicKey)

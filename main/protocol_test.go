@@ -70,6 +70,7 @@ func TestProtocol(t *testing.T) {
 	storedIdentity, err := p.LoadIdentity(testIdentity.Uid)
 	require.NoError(t, err)
 	assert.Equal(t, testIdentity.Uid, storedIdentity.Uid)
+	assert.Equal(t, testIdentity.PrivateKey, storedIdentity.PrivateKey)
 	assert.Equal(t, testIdentity.PublicKey, storedIdentity.PublicKey)
 
 	storedUid, err := p.GetUuidForPublicKey(testIdentity.PublicKey)
