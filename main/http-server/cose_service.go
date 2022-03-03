@@ -15,7 +15,6 @@
 package http_server
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -38,7 +37,6 @@ type HTTPRequest struct {
 	ID      uuid.UUID
 	Hash    Sha256Sum
 	Payload []byte
-	Ctx     context.Context
 	Target  string
 }
 
@@ -63,7 +61,6 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		ctx := r.Context()
 		auth := r.Header.Get(AuthHeader)
 
 		if auth == "" {
@@ -87,7 +84,7 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 			return
 		}
 
-		msg := HTTPRequest{ID: uid, Ctx: ctx, Target: r.URL.Path}
+		msg := HTTPRequest{ID: uid, Target: r.URL.Path}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {
@@ -98,6 +95,7 @@ func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloa
 
 		resp := s.Sign(msg)
 
+		ctx := r.Context()
 		select {
 		case <-ctx.Done():
 			log.Warnf("signing response can not be sent: http request %s", ctx.Err())

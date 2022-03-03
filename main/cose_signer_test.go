@@ -16,7 +16,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
@@ -66,7 +65,6 @@ func TestCoseSigner(t *testing.T) {
 		ID:      testUuid,
 		Hash:    hash,
 		Payload: payloadCBOR,
-		Ctx:     context.Background(),
 	}
 
 	resp := coseSigner.Sign(msg)
