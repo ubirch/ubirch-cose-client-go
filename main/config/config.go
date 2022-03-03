@@ -243,12 +243,12 @@ func (c *Config) setDefaultRequestLimits() {
 	if c.RequestLimit == 0 {
 		c.RequestLimit = defaultRequestLimit
 	}
-	log.Debugf("limit to currently processed requests at a time: %d", c.RequestLimit)
+	log.Debugf("limit to number of currently processed requests at a time: %d", c.RequestLimit)
 
 	if c.RequestBacklogLimit == 0 {
 		c.RequestBacklogLimit = defaultRequestBacklogLimit
 	}
-	log.Debugf("limit to pending requests at a time: %d", c.RequestBacklogLimit)
+	log.Debugf("size of backlog for holding a finite number of pending requests: %d", c.RequestBacklogLimit)
 }
 
 func (c *Config) SetDbParams() error {
