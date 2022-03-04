@@ -83,6 +83,80 @@ func TestProtocol(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestNewProtocol_BadStorageMngr(t *testing.T) {
+	_, err := NewProtocol(nil, testConf)
+	require.Error(t, err)
+}
+
+func TestNewProtocol_BadSecret(t *testing.T) {
+	badSecret := make([]byte, 31)
+
+	_, err := NewProtocol(&mockStorageMngr{}, &config.Config{SecretBytes: badSecret})
+	require.Error(t, err)
+}
+
+func TestProtocol_LoadPrivateKey(t *testing.T) {
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
+
+	i := Identity{
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
+	}
+
+	_, err = p.LoadPrivateKey(i.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	priv, err := p.LoadPrivateKey(i.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, i.PrivateKey, priv)
+}
+
+func TestProtocol_LoadPublicKey(t *testing.T) {
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
+
+	i := Identity{
+		Uid:        testUuid,
+		PrivateKey: testPriv,
+		PublicKey:  testPub,
+		Auth:       testAuth,
+	}
+
+	_, err = p.LoadPublicKey(i.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	pub, err := p.LoadPublicKey(i.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, i.PublicKey, pub)
+}
+
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
@@ -217,7 +291,7 @@ func TestProtocol_GetUuidForPublicKey_BadPublicKey(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestExtendedProtocol_CheckAuth(t *testing.T) {
+func TestProtocol_CheckAuth(t *testing.T) {
 	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
@@ -247,7 +321,7 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
+func TestProtocol_CheckAuth_Invalid(t *testing.T) {
 	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
@@ -277,7 +351,7 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
+func TestProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 	storageMngr := &mockStorageMngr{}
 	p, err := NewProtocol(storageMngr, testConf)
 	require.NoError(t, err)
@@ -310,7 +384,7 @@ func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
+func TestProtocol_CheckAuth_NotFound(t *testing.T) {
 	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
@@ -320,7 +394,7 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
+func TestProtocol_CheckAuth_AuthCache(t *testing.T) {
 	p, err := NewProtocol(&mockStorageMngr{}, testConf)
 	require.NoError(t, err)
 
