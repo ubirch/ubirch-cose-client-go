@@ -143,6 +143,8 @@ func InitHTTPServer(conf *config.Config,
 
 	// set up endpoints for liveness and readiness checks
 	httpServer.Router.Get(LivenessCheckEndpoint, Health(serverID))
+	httpServer.Router.Get("/healtz", Health(serverID)) // this is here for backwards compatibility and will be removed after a grace period
+
 	httpServer.Router.Get(ReadinessCheckEndpoint, Ready(serverID, readinessChecks))
 
 	return httpServer
