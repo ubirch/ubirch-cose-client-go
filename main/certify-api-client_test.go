@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/jarcoal/httpmock"
-
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -28,10 +27,8 @@ func TestCertifyApiClient_RegisterSeal(t *testing.T) {
 		CertifyApiAuth: mockCertifyApiAuth,
 	}
 
-	err := client.RegisterSeal(test.Uuid, test.Auth)
-	if err != nil {
-		t.Error(err)
-	}
+	err := client.RegisterSeal(testUuid, testAuth)
+	assert.NoError(t, err)
 }
 
 func TestCertifyApiClient_RegisterSeal_AlreadyRegistered(t *testing.T) {
@@ -48,10 +45,8 @@ func TestCertifyApiClient_RegisterSeal_AlreadyRegistered(t *testing.T) {
 		CertifyApiAuth: mockCertifyApiAuth,
 	}
 
-	err := client.RegisterSeal(test.Uuid, test.Auth)
-	if err == nil {
-		t.Error("no error returned")
-	}
+	err := client.RegisterSeal(testUuid, testAuth)
+	assert.Error(t, err)
 }
 
 func TestCertifyApiClient_RegisterSeal_Fail(t *testing.T) {
@@ -68,8 +63,6 @@ func TestCertifyApiClient_RegisterSeal_Fail(t *testing.T) {
 		CertifyApiAuth: mockCertifyApiAuth,
 	}
 
-	err := client.RegisterSeal(test.Uuid, test.Auth)
-	if err == nil {
-		t.Error("no error returned")
-	}
+	err := client.RegisterSeal(testUuid, testAuth)
+	assert.Error(t, err)
 }

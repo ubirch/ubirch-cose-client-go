@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	numberOfTestIDs        = 100
-	numberOfRequestsPerID  = 10
-	requestsPerSecondPerID = 1
+	numberOfTestIDs        = 10
+	requestsPerSecondPerID = 300 / numberOfTestIDs
+	numberOfRequestsPerID  = requestsPerSecondPerID * 60 * 10
+
+	httpConnectionPoolSize = 50
+	httpClientTimeoutSec   = 2
 )
 
 var (
@@ -21,41 +24,25 @@ var (
 )
 
 func main() {
-	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
-
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		*configFile = defaultConfigFile
-	}
-
 	c := Config{}
-	err := c.Load(*configFile)
+	err := c.load()
 	if err != nil {
-		log.Fatalf("ERROR: unable to load configuration: %s", err)
+		log.Fatalf("could not load configuration: %v", err)
 	}
 
-	identities := c.getTestIdentities()
 	sender := NewSender()
 
-	for id := range identities {
-		auth, err := sender.register(c.Url, id, c.RegisterAuth)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if auth != "" {
-			identities[id] = auth
-			err = c.PersistAuth(*configFile, id, auth)
-			if err != nil {
-				log.Fatalf("auth token for identity %s could not be persisted: %v (auth token: %s) ", id, err, auth)
-			}
-		}
+	identities, err := c.initTestIdentities(sender)
+	if err != nil {
+		log.Fatalf("could not initialize identities: %v", err)
 	}
 
-	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(identities), numberOfRequestsPerID, len(identities)*numberOfRequestsPerID)
+	totalNumberOfRequests := len(identities) * numberOfRequestsPerID
+	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(identities), numberOfRequestsPerID, totalNumberOfRequests)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
 	log.Infof("%3d requests per second overall", len(identities)*requestsPerSecondPerID)
+	log.Infof("http connection pool size: %3d", httpConnectionPoolSize)
+	log.Infof("  http client timeout [s]: %3d", httpClientTimeoutSec)
 
 	wg := &sync.WaitGroup{}
 	start := time.Now()
@@ -67,22 +54,23 @@ func main() {
 		i += 1
 
 		wg.Add(1)
-		go sender.sendRequests(c.Url, uid, auth, offset, wg)
+		go sender.sendRequests(*c.url, uid, auth, offset, wg)
 	}
 
 	wg.Wait()
-	end := time.Now()
-	duration := end.Sub(start)
-	log.Infof("[ %6d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
+	duration := time.Since(start)
+	log.Infof("[ %6d ] requests done after [ %7.3f ] seconds ", totalNumberOfRequests, duration.Seconds())
 
 	for status, count := range sender.statusCounter {
 		log.Infof("[ %6d ] x %s", count, status)
 	}
 
-	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
-	avgReqsPerSec := float64(len(identities)*numberOfRequestsPerID) / duration.Seconds()
-	log.Infof("avg total throughput: %7.3f requests/second", avgReqsPerSec)
-	avgReqsPerSecSuccess := float64(sender.statusCounter["200 OK"]) / duration.Seconds()
-	log.Infof("avg successful throughput: %7.3f requests/second", avgReqsPerSecSuccess)
+	successCount := sender.statusCounter["200 OK"]
+	successRate := (float32(successCount) / float32(totalNumberOfRequests)) * 100.
+
+	log.Infof("               error rate: %3.2f", 100.-successRate)
+	log.Infof("        avg response time: %s", sender.getAvgRequestDuration().String())
+	log.Infof("     avg total throughput: %7.3f requests/second", float64(totalNumberOfRequests)/duration.Seconds())
+	log.Infof("avg successful throughput: %7.3f requests/second", float64(successCount)/duration.Seconds())
 	fmt.Print("\n\n========================================================================================================================\n\n")
 }

@@ -1,7 +1,6 @@
 package http_server
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,9 +28,7 @@ func TestServeError(t *testing.T) {
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			err := c.httpServer.Serve(ctx)
+			err := c.httpServer.Serve()
 			c.tcChecks(t, err)
 		})
 	}

@@ -1,247 +1,486 @@
 package main
 
 import (
-	"encoding/base64"
-	"encoding/json"
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
-	"os"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
-const numberOfValidCerts = 4
+var (
+	testSKID  = []byte{0xa3, 0x78, 0xce, 0x33, 0x3d, 0xd4, 0xf7, 0x76} // "o3jOMz3U93Y="
+	testSKID2 = []byte{0x33, 0x3d, 0xd4, 0xf7, 0xa3, 0x78, 0xce, 0x76}
+)
 
-func TestNewSkidHandler(t *testing.T) {
-	c := &ubirch.ECDSACryptoContext{}
+func TestSkidHandler(t *testing.T) {
+	crypto := &ubirch.ECDSACryptoContext{Keystore: &MockKeystorer{}}
 
-	p := &Protocol{
-		StorageManager: &mockStorageMngr{},
+	uid := uuid.New()
 
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+	err := crypto.GenerateKey(uid)
+	require.NoError(t, err)
+
+	priv, err := crypto.Keystore.GetPrivateKey(uid)
+	require.NoError(t, err)
+
+	pub, err := crypto.Keystore.GetPublicKey(uid)
+	require.NoError(t, err)
+
+	testUUIDs := mockUuidCache{
+		getPubKeyID(pub): uid,
 	}
 
-	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
-
-	if len(s.skidStore) != numberOfValidCerts {
-		t.Errorf("loading SKIDs failed: len=%d, expected: %d", len(s.skidStore), numberOfValidCerts)
+	validSinceNow := validity{
+		PrivPEM:   priv,
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(time.Hour),
+		SKID:      testSKID,
 	}
 
-	if s.maxCertLoadFailCount != 3 {
-		t.Errorf("wrong interval set: %d, expected: 3", s.maxCertLoadFailCount)
+	validSinceAnHourAgo := validity{
+		PrivPEM:   priv,
+		NotBefore: time.Now().Add(-time.Hour),
+		NotAfter:  time.Now().Add(time.Hour),
+		SKID:      testSKID2,
 	}
 
-	if s.certLoadFailCounter != 0 {
-		t.Errorf("s.certLoadFailCounter != 0: is %d", s.certLoadFailCounter)
+	expired := validity{
+		PrivPEM:   priv,
+		NotBefore: time.Now().Add(-time.Hour),
+		NotAfter:  time.Now().Add(-time.Minute),
+		SKID:      testSKID2,
 	}
 
-	if s.certLoadInterval != time.Hour {
-		t.Errorf("wrong interval set: %s, expected: %s", s.certLoadInterval, time.Hour)
+	notYetValid := validity{
+		PrivPEM:   priv,
+		NotBefore: time.Now().Add(time.Minute),
+		NotAfter:  time.Now().Add(time.Hour),
+		SKID:      testSKID2,
 	}
 
-	// check for unknown uuid
-	_, err := s.GetSKID(uuid.New())
-	if err == nil {
-		t.Error("GetSKID did not return error for unknown UUID")
+	testCases := []struct {
+		name              string
+		certs             LoadCertificateList
+		uid               LookupUuid
+		enc               EncodePublicKey
+		reloadEveryMinute bool
+		tcChecks          func(t *testing.T, s *SkidHandler)
+	}{
+		{
+			name:              "NewSkidHandler",
+			certs:             mockGetCertificateList([]validity{validSinceNow}),
+			uid:               testUUIDs.mockGetUuidForPublicKey,
+			enc:               crypto.EncodePublicKey,
+			reloadEveryMinute: false,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				assert.Equal(t, 1, len(s.skidStore))
+
+				assert.Equal(t, time.Hour, s.certLoadInterval)
+				assert.Equal(t, 3, s.maxCertLoadFailCount)
+				assert.Empty(t, s.certLoadFailCounter)
+
+				assert.True(t, s.isCertServerAvailable.Load().(bool))
+
+				skid, errMsg, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Empty(t, errMsg)
+				assert.Equal(t, testSKID, skid)
+
+				someUUID := uuid.New()
+				_, errMsg, err = s.GetSKID(someUUID)
+				assert.Equal(t, ErrCertNotFound, err)
+				assert.Equal(t, fmt.Sprintf("seal with ID %s can not be used for signing: SKID unknown: %v", someUUID, ErrCertNotFound), errMsg)
+			},
+		},
+		{
+			name:              "NewSkidHandler reloadEveryMinute",
+			certs:             mockGetCertificateList([]validity{validSinceNow}),
+			uid:               testUUIDs.mockGetUuidForPublicKey,
+			enc:               crypto.EncodePublicKey,
+			reloadEveryMinute: true,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				assert.Equal(t, 1, len(s.skidStore))
+
+				assert.Equal(t, time.Minute, s.certLoadInterval)
+				assert.Equal(t, 60, s.maxCertLoadFailCount)
+				assert.Empty(t, s.certLoadFailCounter)
+
+				assert.True(t, s.isCertServerAvailable.Load().(bool))
+
+				//// the following lines test the scheduler to trigger the loadSKIDs method after one minute
+				//// since the execution of this test takes over a minute it is commented out
+				//s.loadCertList = mockGetCertificateList([]validity{})
+				//
+				//t.Logf("waiting %s for scheduler to reload certificate list...", s.certLoadInterval.String())
+				//time.Sleep(s.certLoadInterval + time.Second)
+				//
+				//assert.Equal(t, 0, len(s.skidStore))
+			},
+		},
+		{
+			name:  "loadSKIDs",
+			certs: mockGetCertificateList([]validity{validSinceNow}),
+			uid:   testUUIDs.mockGetUuidForPublicKey,
+			enc:   crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Empty(t, errMsg)
+				require.Equal(t, testSKID, skid)
+
+				s.loadCertList = mockGetCertificateList([]validity{
+					{
+						PrivPEM:   priv,
+						NotBefore: time.Now(),
+						NotAfter:  time.Now().Add(time.Hour),
+						SKID:      testSKID2,
+					},
+				})
+
+				s.loadSKIDs()
+
+				skid, errMsg, err = s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Empty(t, errMsg)
+				assert.Equal(t, testSKID2, skid)
+			},
+		},
+		{
+			name:              "BadGetCertificateList",
+			certs:             mockGetCertificateListBad,
+			uid:               testUUIDs.mockGetUuidForPublicKey,
+			enc:               crypto.EncodePublicKey,
+			reloadEveryMinute: false,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				assert.Empty(t, s.skidStore)
+				assert.Equal(t, 1, s.certLoadFailCounter)
+				assert.False(t, s.isCertServerAvailable.Load().(bool))
+
+				_, errMsg, err := s.GetSKID(uid)
+				assert.Equal(t, ErrCertServerNotAvailable, err)
+				assert.Equal(t, fmt.Sprintf("%v: trustList could not be loaded for 1h0m0s", ErrCertServerNotAvailable), errMsg)
+			},
+		},
+		{
+			name:              "BadGetCertificateList_MaxCertLoadFailCount",
+			certs:             mockGetCertificateList([]validity{validSinceNow}),
+			uid:               testUUIDs.mockGetUuidForPublicKey,
+			enc:               crypto.EncodePublicKey,
+			reloadEveryMinute: true,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				s.loadCertList = mockGetCertificateListBad
+
+				for i := 0; i < s.maxCertLoadFailCount; i++ {
+					assert.NotEmpty(t, len(s.skidStore))
+					assert.Equal(t, i, s.certLoadFailCounter)
+
+					s.loadSKIDs()
+				}
+
+				assert.Equal(t, s.maxCertLoadFailCount, s.certLoadFailCounter)
+				assert.Empty(t, s.skidStore)
+
+				s.loadSKIDs()
+				assert.Equal(t, s.maxCertLoadFailCount+1, s.certLoadFailCounter)
+				assert.Empty(t, s.skidStore)
+			},
+		},
+		{
+			name: "invalid KID length",
+			certs: func() ([]Certificate, error) {
+				return []Certificate{{Kid: []byte{0x78, 0xce, 0x33, 0x3d, 0xd4, 0xf7, 0x76}}}, nil
+			},
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				assert.Empty(t, s.skidStore)
+				assert.Empty(t, s.certLoadFailCounter)
+				assert.True(t, s.isCertServerAvailable.Load().(bool))
+			},
+		},
+		{
+			name: "invalid certificate bytes",
+			certs: func() ([]Certificate, error) {
+				return []Certificate{{Kid: make([]byte, SkidLen), RawData: make([]byte, 64)}}, nil
+			},
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				assert.Empty(t, s.skidStore)
+				assert.Empty(t, s.certLoadFailCounter)
+				assert.True(t, s.isCertServerAvailable.Load().(bool))
+			},
+		},
+		{
+			name:  "bad encPubKey",
+			certs: mockGetCertificateList([]validity{validSinceNow}),
+			uid:   testUUIDs.mockGetUuidForPublicKey,
+			enc: func(interface{}) ([]byte, error) {
+				return nil, testError
+			},
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				assert.Empty(t, s.skidStore)
+				assert.Empty(t, s.certLoadFailCounter)
+				assert.True(t, s.isCertServerAvailable.Load().(bool))
+			},
+		},
+		{
+			name:  "GetUuidFindsNothing",
+			certs: mockGetCertificateList([]validity{validSinceNow}),
+			uid:   mockGetUuidFindsNothing,
+			enc:   crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				assert.Empty(t, s.skidStore)
+			},
+		},
+		{
+			name:  "GetUuidReturnsError",
+			certs: mockGetCertificateList([]validity{validSinceNow}),
+			uid:   mockGetUuidReturnsError,
+			enc:   crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				assert.Empty(t, s.skidStore)
+			},
+		},
+		{
+			name:  "certificate validity expired",
+			certs: mockGetCertificateList([]validity{expired}),
+			uid:   testUUIDs.mockGetUuidForPublicKey,
+			enc:   crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				assert.Equal(t, ErrCertNotValid, err)
+				assert.Equal(t, fmt.Sprintf("seal with ID %s can not be used for signing: %v: certificate expired, was valid until %s", uid, ErrCertNotValid, expired.NotAfter.UTC().Format(timeLayout)), errMsg)
+				assert.Empty(t, skid)
+			},
+		},
+		{
+			name:  "certificate not yet valid",
+			certs: mockGetCertificateList([]validity{notYetValid}),
+			uid:   testUUIDs.mockGetUuidForPublicKey,
+			enc:   crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				assert.Equal(t, ErrCertNotValid, err)
+				assert.Equal(t, fmt.Sprintf("seal with ID %s can not be used for signing: %v: certificate not yet valid, will be valid from %s", uid, ErrCertNotValid, notYetValid.NotBefore.UTC().Format(timeLayout)), errMsg)
+				assert.Empty(t, skid)
+			},
+		},
+		{
+			name: "do not overwrite previouslyMatchedSkid with notYetValid",
+			certs: mockGetCertificateList([]validity{
+				validSinceNow,
+				notYetValid,
+			}),
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Empty(t, errMsg)
+				assert.Equal(t, testSKID, skid)
+			},
+		},
+		{
+			name: "do not overwrite previouslyMatchedSkid with expired",
+			certs: mockGetCertificateList([]validity{
+				validSinceNow,
+				expired,
+			}),
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Empty(t, errMsg)
+				assert.Equal(t, testSKID, skid)
+			},
+		},
+		{
+			name: "use newer of two valid certificates",
+			certs: mockGetCertificateList([]validity{
+				validSinceNow,
+				validSinceAnHourAgo,
+			}),
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				require.NoError(t, err)
+				assert.Empty(t, errMsg)
+				assert.Equal(t, testSKID, skid)
+			},
+		},
+		{
+			name: "use newer of two invalid certificates",
+			certs: mockGetCertificateList([]validity{
+				notYetValid,
+				expired,
+			}),
+			uid: testUUIDs.mockGetUuidForPublicKey,
+			enc: crypto.EncodePublicKey,
+			tcChecks: func(t *testing.T, s *SkidHandler) {
+				skid, errMsg, err := s.GetSKID(uid)
+				assert.Equal(t, ErrCertNotValid, err)
+				assert.Equal(t, fmt.Sprintf("seal with ID %s can not be used for signing: %v: certificate not yet valid, will be valid from %s", uid, ErrCertNotValid, notYetValid.NotBefore.UTC().Format(timeLayout)), errMsg)
+				assert.Empty(t, skid)
+			},
+		},
+	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			s := NewSkidHandler(c.certs, c.uid, c.enc, c.reloadEveryMinute, true)
+			c.tcChecks(t, s)
+		})
 	}
 }
 
-func TestNewSkidHandler_ReloadEveryMinute(t *testing.T) {
-	c := &ubirch.ECDSACryptoContext{}
-
-	s := NewSkidHandler(mockGetCertificateList, mockGetUuidFindsNothing, c.EncodePublicKey, true)
-
-	if len(s.skidStore) != 0 {
-		t.Errorf("SKIDs were loaded with mockGetUuidFindsNothing")
-	}
-
-	if s.maxCertLoadFailCount != 60 {
-		t.Errorf("wrong interval set: %d, expected: 60", s.maxCertLoadFailCount)
-	}
-
-	if s.certLoadFailCounter != 0 {
-		t.Errorf("s.certLoadFailCounter != 0: is %d", s.certLoadFailCounter)
-	}
-
-	if s.certLoadInterval != time.Minute {
-		t.Errorf("wrong interval set: %s, expected: %s", s.certLoadInterval, time.Minute)
-	}
-}
-
-func TestSkidHandler_LoadSKIDs(t *testing.T) {
-	c := &ubirch.ECDSACryptoContext{}
-
-	p := &Protocol{
-		StorageManager: &mockStorageMngr{},
-
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
-	}
-
-	s := &SkidHandler{
-		skidStore:      map[uuid.UUID][]byte{},
+func TestSkidHandler_GetSKID(t *testing.T) {
+	s := SkidHandler{
+		skidStore:      map[uuid.UUID]skidCtx{},
 		skidStoreMutex: &sync.RWMutex{},
-
-		certLoadFailCounter:  0,
-		maxCertLoadFailCount: 3,
-
-		getCerts:  mockGetCertificateListReturnsFewerCertsAfterFirstCall,
-		getUuid:   p.mockGetUuidForPublicKey,
-		encPubKey: c.EncodePublicKey,
 	}
 
-	s.loadSKIDs()
+	for i := 0; i < 100; i++ {
+		randSKID := make([]byte, 8)
+		_, err := rand.Read(randSKID)
+		require.NoError(t, err)
 
-	len1 := len(s.skidStore)
-
-	s.loadSKIDs()
-
-	if len(s.skidStore) == len1 {
-		t.Errorf("SKIDs were not overwritten")
-	}
-}
-
-func TestSkidHandler_LoadSKIDs_BadGetCertificateList(t *testing.T) {
-	s := &SkidHandler{
-		skidStore:      map[uuid.UUID][]byte{},
-		skidStoreMutex: &sync.RWMutex{},
-
-		certLoadFailCounter:  0,
-		maxCertLoadFailCount: 3,
-
-		getCerts: mockBadGetCertificateList,
-	}
-
-	s.loadSKIDs()
-
-	if len(s.skidStore) != 0 {
-		t.Errorf("SKIDs were loaded with mockBadGetCertificateList")
-	}
-
-	if s.certLoadFailCounter != 1 {
-		t.Errorf("unexpected s.certLoadFailCounter value after 1 fail : %d", s.certLoadFailCounter)
-	}
-}
-
-func TestSkidHandler_LoadSKIDs_BadGetCertificateList_MaxCertLoadFailCount(t *testing.T) {
-	s := &SkidHandler{
-		skidStore:      map[uuid.UUID][]byte{},
-		skidStoreMutex: &sync.RWMutex{},
-
-		certLoadFailCounter:  0,
-		maxCertLoadFailCount: 3,
-
-		getCerts: mockBadGetCertificateList,
-	}
-
-	testSkidStoreLen := 2
-	for i := 1; i <= testSkidStoreLen; i++ {
-		s.skidStore[uuid.New()] = make([]byte, 8)
-	}
-
-	for i := 1; i <= s.maxCertLoadFailCount; i++ {
-		if len(s.skidStore) != testSkidStoreLen {
-			t.Errorf("SKIDs were cleared before maxCertLoadFailCount")
-		}
-
-		s.loadSKIDs()
-
-		if s.certLoadFailCounter != i {
-			t.Errorf("unexpected s.certLoadFailCounter value after %d fail : %d", i, s.certLoadFailCounter)
+		s.skidStore[uuid.New()] = skidCtx{
+			SKID:  randSKID,
+			Valid: true,
 		}
 	}
 
-	if len(s.skidStore) != 0 {
-		t.Errorf("SKIDs were not cleared after maxCertLoadFailCount")
-	}
-}
+	wg := &sync.WaitGroup{}
 
-func TestSkidHandler_LoadSKIDs_CertificateValidity(t *testing.T) {
-	c := &ubirch.ECDSACryptoContext{}
-
-	p := &Protocol{
-		StorageManager: &mockStorageMngr{},
-
-		identityCache: &sync.Map{},
-		uidCache:      &sync.Map{},
+	for uid, skid := range s.skidStore {
+		wg.Add(1)
+		go func(uid uuid.UUID, skid []byte, wg *sync.WaitGroup) {
+			defer wg.Done()
+			storedSKID, _, err := s.GetSKID(uid)
+			require.NoError(t, err)
+			assert.Equal(t, skid, storedSKID)
+		}(uid, skid.SKID, wg)
 	}
 
-	s := NewSkidHandler(mockGetCertificateList, p.mockGetUuidForPublicKey, c.EncodePublicKey, false)
-
-	require.False(t, containsSKID(s.skidStore, "DPMxfW4lzOE="))
-	require.False(t, containsSKID(s.skidStore, "xOdxdmCwzas="))
-	require.False(t, containsSKID(s.skidStore, "icUT/qzCb4M="))
+	wg.Wait()
 }
 
-func containsSKID(m map[uuid.UUID][]byte, v string) bool {
-	for _, skid := range m {
-		if base64.StdEncoding.EncodeToString(skid) == v {
-			return true
-		}
+func TestSkidHandler_LoadFromActualServer(t *testing.T) {
+	conf := &config.Config{}
+	err := conf.Load("", "config.json")
+	if err != nil {
+		t.Skipf("skipping %s: %v", t.Name(), err)
 	}
-	return false
+
+	certClient := &CertificateServerClient{
+		CertificateServerURL:       conf.CertificateServer,
+		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
+		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
+	}
+
+	protocol := &Protocol{uuidCache: &sync.Map{}}
+
+	cryptoCtx := &ubirch.ECDSACryptoContext{Keystore: &MockKeystorer{}}
+
+	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.mockGetUuidForPublicKey,
+		cryptoCtx.EncodePublicKey, false, false)
+
+	assert.Empty(t, skidHandler.certLoadFailCounter)
+	assert.NotEmpty(t, skidHandler.skidStore)
 }
 
-var certs []Certificate
+type validity struct {
+	PrivPEM   []byte
+	NotBefore time.Time
+	NotAfter  time.Time
+	SKID      []byte
+}
 
-func mockGetCertificateList() ([]Certificate, error) {
-	if len(certs) == 0 {
-		filename := "test-cert-list.json"
-		fileHandle, err := os.Open(filename)
-		if err != nil {
-			return nil, err
-		}
+func mockGetCertificateList(v []validity) LoadCertificateList {
+	return func() ([]Certificate, error) {
+		var certList []Certificate
 
-		err = json.NewDecoder(fileHandle).Decode(&certs)
-		if err != nil {
-			if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
-				fmt.Print(fileCloseErr)
+		for _, valid := range v {
+
+			priv, err := decodePrivateKey(valid.PrivPEM)
+			if err != nil {
+				panic(err)
 			}
-			return nil, err
+
+			template := &x509.Certificate{
+				SerialNumber: big.NewInt(1342),
+				NotBefore:    valid.NotBefore,
+				NotAfter:     valid.NotAfter,
+			}
+
+			certificate, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
+			if err != nil {
+				panic(err)
+			}
+
+			certList = append(certList, Certificate{
+				Kid:     valid.SKID,
+				RawData: certificate,
+			})
+
 		}
-
-		err = fileHandle.Close()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return certs, nil
-}
-
-var alreadyCalled bool
-
-func mockGetCertificateListReturnsFewerCertsAfterFirstCall() ([]Certificate, error) {
-	if !alreadyCalled {
-		alreadyCalled = true
-		return mockGetCertificateList()
-	} else {
-		if len(certs) > 0 {
-			return certs[:1], nil
-		}
-		return certs, nil
+		return certList, nil
 	}
 }
 
-func mockBadGetCertificateList() ([]Certificate, error) {
-	return nil, test.Error
+// decodePrivateKey decodes a Private Key from the x509 PEM format and returns the Private Key
+func decodePrivateKey(pemEncoded []byte) (*ecdsa.PrivateKey, error) {
+	block, _ := pem.Decode(pemEncoded)
+	if block == nil {
+		return nil, fmt.Errorf("unable to parse PEM block")
+	}
+	x509Encoded := block.Bytes
+	return x509.ParseECPrivateKey(x509Encoded)
+}
+
+func mockGetCertificateListBad() ([]Certificate, error) {
+	return nil, testError
 }
 
 func mockGetUuidFindsNothing([]byte) (uuid.UUID, error) {
 	return uuid.Nil, ErrNotExist
 }
 
+func mockGetUuidReturnsError([]byte) (uuid.UUID, error) {
+	return uuid.Nil, testError
+}
+
+type mockUuidCache map[string]uuid.UUID
+
+func (m *mockUuidCache) mockGetUuidForPublicKey(publicKeyPEM []byte) (uuid.UUID, error) {
+	pubKeyID := getPubKeyID(publicKeyPEM)
+
+	uid, found := (*m)[pubKeyID]
+
+	if !found {
+		return uuid.Nil, ErrNotExist
+	}
+
+	return uid, nil
+}
+
 func (p *Protocol) mockGetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, err error) {
 	pubKeyID := getPubKeyID(publicKeyPEM)
 
-	_uid, found := p.uidCache.Load(pubKeyID)
+	_uid, found := p.uuidCache.Load(pubKeyID)
 
 	if found {
 		uid, found = _uid.(uuid.UUID)
@@ -249,7 +488,7 @@ func (p *Protocol) mockGetUuidForPublicKey(publicKeyPEM []byte) (uid uuid.UUID, 
 
 	if !found {
 		uid = uuid.New()
-		p.uidCache.Store(pubKeyID, uid)
+		p.uuidCache.Store(pubKeyID, uid)
 	}
 
 	return uid, nil

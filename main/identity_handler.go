@@ -51,18 +51,23 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", h.ErrAlreadyInitialized
 	}
 
-	// generate a new new pair
-	privKeyPEM, err := i.Protocol.Crypto.GenerateKey()
+	// generate a new key pair
+	err = i.Protocol.Crypto.GenerateKey(uid)
 	if err != nil {
 		return nil, "", fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
 
-	pubKeyPEM, err := i.Protocol.Crypto.GetPublicKeyFromPrivateKey(privKeyPEM)
+	privKeyPEM, err := i.Protocol.LoadPrivateKey(uid)
 	if err != nil {
 		return nil, "", err
 	}
 
-	csr, err := i.Protocol.Crypto.GetCSR(privKeyPEM, uid, i.subjectCountry, i.subjectOrganization)
+	pubKeyPEM, err := i.Protocol.LoadPublicKey(uid)
+	if err != nil {
+		return nil, "", err
+	}
+
+	csr, err := i.Protocol.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not generate CSR: %v", err)
 	}
@@ -78,7 +83,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		Uid:        uid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
-		AuthToken:  pw,
+		Auth:       pw,
 	}
 
 	ctxForTransaction, cancel := context.WithCancel(context.Background())
@@ -89,7 +94,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", err
 	}
 
-	err = i.Protocol.StoreNewIdentity(tx, identity)
+	err = i.Protocol.StoreIdentity(tx, identity)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not store new identity: %v", err)
 	}
@@ -99,7 +104,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 		return nil, "", err
 	}
 
-	err = i.Protocol.CommitTransaction(tx)
+	err = tx.Commit()
 	if err != nil {
 		return nil, "", fmt.Errorf("commiting transaction to store new identity failed after successful registration at certify-api: %v", err)
 	}
@@ -111,17 +116,18 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
-	id, err := i.Protocol.GetIdentity(uid)
-	if err == ErrNotExist {
-		return nil, h.ErrUnknown
-	}
+	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check for existence of private key: %v", err)
+		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
 	}
 
-	csr, err := i.Protocol.Crypto.GetCSR(id.PrivateKey, uid, i.subjectCountry, i.subjectOrganization)
+	if !initialized {
+		return nil, h.ErrUnknown
+	}
+
+	csr, err := i.Protocol.Crypto.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
 	if err != nil {
-		return nil, fmt.Errorf("could not generate CSR: %v", err)
+		return nil, fmt.Errorf("could not create CSR: %v", err)
 	}
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})

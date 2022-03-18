@@ -15,42 +15,22 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"net/http"
-	"os"
-	"os/signal"
-	"path"
-	"syscall"
 
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
+	"github.com/ubirch/ubirch-cose-client-go/main/profiling"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
-
-// handle graceful shutdown
-func shutdown(cancel context.CancelFunc) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-
-	// block until we receive a SIGINT or SIGTERM
-	sig := <-signals
-	log.Infof("shutting down after receiving: %v", sig)
-
-	// cancel the go routines contexts
-	cancel()
-}
 
 var (
 	// Version will be replaced with the tagged version during build time
 	Version = "local build"
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
-	// declare flags
-	configDir = flag.String("configdirectory", "", "configuration `directory` to use")
 )
 
 func main() {
@@ -62,9 +42,14 @@ func main() {
 	var (
 		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
 		readinessChecks []func() error
+
+		// declare command-line flags
+		cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to `file`")
+		blockprofile = flag.String("blockprofile", "", "write blocking profile (at point of shutdown) to `file`")
+		configDir    = flag.String("configdirectory", "", "configuration `directory` to use")
 	)
 
-	// parse commandline flags
+	// parse command-line flags
 	flag.Parse()
 
 	log.SetFormatter(&log.JSONFormatter{})
@@ -72,12 +57,25 @@ func main() {
 	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
-	conf := &Config{}
+	conf := &config.Config{}
 	err := conf.Load(*configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	// set up CPU profiling if enabled by flag
+	if *cpuprofile != "" {
+		file := profiling.RecordCPUProfile(*cpuprofile)
+		defer profiling.StopCPUProfileRecording(file)
+	}
+
+	// set up memory profiling if enabled by flag
+	if *blockprofile != "" {
+		file := profiling.RecordBlockProfile(*blockprofile)
+		defer profiling.StopBlockProfileRecording(file)
+	}
+
+	// initialize COSE service
 	storageManager, err := GetStorageManager(conf)
 	if err != nil {
 		log.Fatal(err)
@@ -85,7 +83,7 @@ func main() {
 	defer storageManager.Close()
 	readinessChecks = append(readinessChecks, storageManager.IsReady)
 
-	protocol, err := NewProtocol(storageManager, conf.secretBytes)
+	protocol, err := NewProtocol(storageManager, conf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,10 +91,10 @@ func main() {
 	certClient := &CertificateServerClient{
 		CertificateServerURL:       conf.CertificateServer,
 		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
-		ServerTLSCertFingerprints:  conf.serverTLSCertFingerprints,
+		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
 	}
 
-	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.Crypto.EncodePublicKey, conf.ReloadCertsEveryMinute)
+	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, protocol.Crypto.EncodePublicKey, conf.ReloadCertsEveryMinute, conf.IgnoreUnknownCerts)
 
 	certifyApiClient := &CertifyApiClient{
 		CertifyApiURL:  conf.CertifyApiUrl,
@@ -115,50 +113,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	service := &COSEService{
-		GetIdentity: protocol.GetIdentity,
-		Sign:        coseSigner.Sign,
-	}
-
 	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
+	httpServer := h.InitHTTPServer(conf,
+		protocol.CheckAuth, coseSigner.Sign,
+		idHandler.InitIdentity, idHandler.CreateCSR,
+		coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes,
+		serverID, readinessChecks)
 
-	// set up metrics
-	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
-
-	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
-
-	// set up endpoint for CSRs
-	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
-
-	// set up endpoints for COSE signing (UUID as URL parameter)
-	directUuidEndpoint := path.Join(h.UUIDPath, h.CBORPath) // /<uuid>/cbor
-	httpServer.Router.Post(directUuidEndpoint, service.handleRequest(getUUIDFromURL, GetPayloadAndHashFromDataRequest(coseSigner.GetCBORFromJSON, coseSigner.GetSigStructBytes)))
-
-	directUuidHashEndpoint := path.Join(directUuidEndpoint, h.HashEndpoint) // /<uuid>/cbor/hash
-	httpServer.Router.Post(directUuidHashEndpoint, service.handleRequest(getUUIDFromURL, GetHashFromHashRequest()))
-
-	// set up endpoints for liveness and readiness checks
-	httpServer.Router.Get("/healthz", h.Healthz(serverID))
-	httpServer.Router.Get("/healtz", h.Healthz(serverID)) // this is here for backwards compatibility and will be removed after a grace period
-	httpServer.Router.Get("/readyz", h.Readyz(serverID, readinessChecks))
-
-	// set up graceful shutdown handling
-	ctx, cancel := context.WithCancel(context.Background())
-	go shutdown(cancel)
-
-	// start HTTP server (blocks)
-	if err = httpServer.Serve(ctx); err != nil {
+	// start HTTP server (blocks until SIGINT or SIGTERM is received)
+	if err = httpServer.Serve(); err != nil {
 		log.Error(err)
 	}
-
-	log.Debug("shut down")
 }

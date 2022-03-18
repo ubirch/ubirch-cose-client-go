@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package http_server
 
 import (
 	"crypto/sha256"
@@ -21,20 +21,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	prom "github.com/ubirch/ubirch-cose-client-go/main/prometheus"
 )
 
 const (
 	HexEncoding = "hex"
-
-	HashLen = 32
+	HashLen     = 32
 )
 
 type Sha256Sum [HashLen]byte
@@ -43,101 +37,87 @@ type HTTPRequest struct {
 	ID      uuid.UUID
 	Hash    Sha256Sum
 	Payload []byte
+	Target  string
 }
 
+type CheckAuth func(uuid.UUID, string) (bool, bool, error)
+type Sign func(HTTPRequest) HTTPResponse
+type LogDebugSensitiveData func(string, ...interface{})
+
 type COSEService struct {
-	GetIdentity func(uuid.UUID) (Identity, error)
-	Sign        func(HTTPRequest, []byte) h.HTTPResponse
+	CheckAuth
+	Sign
+	LogDebugSensitiveData
 }
 
 type GetUUID func(*http.Request) (uuid.UUID, error)
 type GetPayloadAndHash func(*http.Request) ([]byte, Sha256Sum, error)
 
-func (s *COSEService) handleRequest(getUUID GetUUID, getPayloadAndHash GetPayloadAndHash) http.HandlerFunc {
+func (s *COSEService) HandleRequest(getUUID GetUUID, getPayloadAndHash GetPayloadAndHash) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, err := getUUID(r)
 		if err != nil {
-			log.Warn(err)
-			http.Error(w, err.Error(), http.StatusNotFound)
+			Error(w, r, uid, http.StatusNotFound, ErrCodeInvalidUUID, err.Error())
 			return
 		}
 
-		identity, err := s.GetIdentity(uid)
-		if err == ErrNotExist {
-			h.Error(uid, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			log.Errorf("%s: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		err = checkAuth(r, identity.AuthToken)
-		if err != nil {
-			h.Error(uid, w, err, http.StatusUnauthorized)
+		auth := r.Header.Get(AuthHeader)
+
+		if auth == "" {
+			Error(w, r, uid, http.StatusUnauthorized, ErrCodeMissingAuth, fmt.Sprintf("missing authentication header %s", AuthHeader))
 			return
 		}
 
-		msg := HTTPRequest{ID: uid}
+		authOk, found, err := s.CheckAuth(uid, auth)
+		if err != nil {
+			Error(w, r, uid, http.StatusInternalServerError, ErrCodeAuthInternalServerError, fmt.Sprintf("authentication check failed: %v", err))
+			return
+		}
+
+		if !found {
+			Error(w, r, uid, http.StatusNotFound, ErrCodeUnknownUUID, ErrUnknown.Error())
+			return
+		}
+
+		if !authOk {
+			Error(w, r, uid, http.StatusUnauthorized, ErrCodeInvalidAuth, "invalid auth token")
+			return
+		}
+
+		msg := HTTPRequest{ID: uid, Target: r.URL.Path}
 
 		msg.Payload, msg.Hash, err = getPayloadAndHash(r)
 		if err != nil {
-			h.Error(msg.ID, w, err, http.StatusBadRequest)
+			Error(w, r, uid, http.StatusBadRequest, ErrCodeInvalidRequestContent, err.Error())
 			return
 		}
+		s.LogDebugSensitiveData("%s: hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-		timer := prometheus.NewTimer(prom.SignatureCreationDuration)
-		resp := s.Sign(msg, identity.PrivateKey)
-		timer.ObserveDuration()
+		resp := s.Sign(msg)
 
 		ctx := r.Context()
 		select {
 		case <-ctx.Done():
 			log.Warnf("signing response can not be sent: http request %s", ctx.Err())
 		default:
-			h.SendResponse(w, resp)
-
-			if h.HttpSuccess(resp.StatusCode) {
-				infos := fmt.Sprintf("\"hwDeviceId\":\"%s\", \"hash\":\"%s\"", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-				auditlogger.AuditLog("create", "COSE", infos)
-
-				prom.SignatureCreationCounter.Inc()
-			}
+			SendResponse(w, resp)
 		}
 	}
 }
 
-// getUUIDFromURL returns the UUID parameter from the request URL
-func getUUIDFromURL(r *http.Request) (uuid.UUID, error) {
-	uuidParam := chi.URLParam(r, h.UUIDKey)
-	uid, err := uuid.Parse(uuidParam)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
-	}
-	return uid, nil
-}
-
-// checkAuth checks the auth token from the request header
-// Returns error if auth token is not correct
-func checkAuth(r *http.Request, correctAuthToken string) error {
-	if r.Header.Get(h.AuthHeader) != correctAuthToken {
-		return fmt.Errorf("invalid auth token")
-	}
-	return nil
-}
-
 func GetHashFromHashRequest() GetPayloadAndHash {
 	return func(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
-		rBody, err := h.ReadBody(r)
+		rBody, err := ReadBody(r)
 		if err != nil {
 			return nil, Sha256Sum{}, err
 		}
 
 		var data []byte
 
-		switch h.ContentType(r.Header) {
-		case h.TextType:
-			if h.ContentEncoding(r.Header) == HexEncoding {
+		contentType := ContentType(r.Header)
+		switch contentType {
+		case TextType:
+			if ContentEncoding(r.Header) == HexEncoding {
 				data, err = hex.DecodeString(string(rBody))
 				if err != nil {
 					return nil, Sha256Sum{}, fmt.Errorf("decoding hex encoded hash failed: %v (%s)", err, string(rBody))
@@ -148,16 +128,16 @@ func GetHashFromHashRequest() GetPayloadAndHash {
 					return nil, Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(rBody))
 				}
 			}
-		case h.BinType:
+		case BinType:
 			data = rBody
 		default:
 			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
-				"expected (\"%s\" | \"%s\")", h.BinType, h.TextType)
+				"expected: (%s | %s), got: %s", BinType, TextType, contentType)
 		}
 
 		if len(data) != HashLen {
 			return nil, Sha256Sum{}, fmt.Errorf("invalid SHA256 hash size: "+
-				"expected %d bytes, got %d bytes", HashLen, len(data))
+				"expected: %d bytes, got: %d bytes", HashLen, len(data))
 		}
 
 		copy(hash[:], data)
@@ -168,34 +148,35 @@ func GetHashFromHashRequest() GetPayloadAndHash {
 type GetCBORFromJSON func([]byte) ([]byte, error)
 type GetSigStructBytes func([]byte) ([]byte, error)
 
-func GetPayloadAndHashFromDataRequest(getCBORFromJSON GetCBORFromJSON, getSigStructBytes GetSigStructBytes) GetPayloadAndHash {
+func (s *COSEService) GetPayloadAndHashFromDataRequest(getCBORFromJSON GetCBORFromJSON, getSigStructBytes GetSigStructBytes) GetPayloadAndHash {
 	return func(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
-		rBody, err := h.ReadBody(r)
+		rBody, err := ReadBody(r)
 		if err != nil {
 			return nil, Sha256Sum{}, err
 		}
 
 		var data []byte
 
-		switch h.ContentType(r.Header) {
-		case h.JSONType:
+		contentType := ContentType(r.Header)
+		switch contentType {
+		case JSONType:
 			data, err = getCBORFromJSON(rBody)
 			if err != nil {
 				return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
 			}
-			log.Debugf("CBOR encoded JSON: %x", data)
-		case h.CBORType:
+		case CBORType:
 			data = rBody
 		default:
 			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
-				"expected (\"%s\" | \"%s\")", h.CBORType, h.JSONType)
+				"expected: (%s | %s), got: %s", CBORType, JSONType, contentType)
 		}
+		s.LogDebugSensitiveData("CBOR: %x", data)
 
 		toBeSigned, err := getSigStructBytes(data)
 		if err != nil {
 			return nil, Sha256Sum{}, err
 		}
-		log.Debugf("toBeSigned: %x", toBeSigned)
+		s.LogDebugSensitiveData("toBeSigned: %x", toBeSigned)
 
 		hash = sha256.Sum256(toBeSigned)
 		return data, hash, err

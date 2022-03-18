@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-cose-client-go/main/config"
 )
 
 var (
@@ -13,23 +14,30 @@ var (
 )
 
 type StorageManager interface {
-	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	CommitTransaction(transactionCtx interface{}) error
+	StartTransaction(context.Context) (TransactionCtx, error)
 
-	StoreNewIdentity(transactionCtx interface{}, id Identity) error
-	GetIdentity(uid uuid.UUID) (Identity, error)
+	StoreIdentity(TransactionCtx, Identity) error
+	LoadIdentity(uuid.UUID) (*Identity, error)
 
-	GetUuidForPublicKey(pubKey []byte) (uuid.UUID, error)
+	GetUuidForPublicKey([]byte) (uuid.UUID, error)
 
-	IsRecoverable(error) bool
+	StoreAuth(TransactionCtx, uuid.UUID, string) error
+	LoadAuthForUpdate(TransactionCtx, uuid.UUID) (string, error)
+
 	IsReady() error
 	Close()
 }
 
-func GetStorageManager(c *Config) (StorageManager, error) {
+type TransactionCtx interface {
+	Commit() error
+	Rollback() error
+}
+
+func GetStorageManager(c *config.Config) (StorageManager, error) {
 	if len(c.PostgresDSN) != 0 {
-		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName, c.dbParams)
+		return NewSqlDatabaseInfo(c.PostgresDSN, c.DbParams)
 	} else {
-		return nil, fmt.Errorf("file-based context management is not supported in the current version")
+		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
+			"Please set a postgres DSN in the configuration")
 	}
 }

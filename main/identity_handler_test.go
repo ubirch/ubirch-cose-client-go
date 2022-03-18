@@ -1,26 +1,20 @@
 package main
 
 import (
-	"bytes"
 	"crypto/x509"
 	"encoding/pem"
-	"math/rand"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
-	test "github.com/ubirch/ubirch-cose-client-go/main/tests"
 )
 
 func TestIdentityHandler_InitIdentity(t *testing.T) {
-	secret := make([]byte, 32)
-	rand.Read(secret)
-
-	p, err := NewProtocol(&mockStorageMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
 
 	client := &mockRegistrationClient{}
 
@@ -31,67 +25,46 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	csrPEM, _, err := idHandler.InitIdentity(test.Uuid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	csrPEM, auth, err := idHandler.InitIdentity(testUuid)
+	require.NoError(t, err)
 
 	block, rest := pem.Decode(csrPEM)
-	if block == nil || block.Type != "CERTIFICATE REQUEST" {
-		t.Error("failed to decode PEM block containing CSR")
-	}
-	if len(rest) != 0 {
-		t.Errorf("rest: %q", rest)
-	}
+	require.NotNilf(t, block, "failed to decode PEM block containing CSR")
+	assert.Empty(t, rest)
+	assert.Equal(t, "CERTIFICATE REQUEST", block.Type)
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	initializedIdentity, err := p.GetIdentity(test.Uuid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	initializedIdentity, err := p.LoadIdentity(testUuid)
+	require.NoError(t, err)
 
-	pub, err := p.Crypto.EncodePublicKey(csr.PublicKey)
-	if err != nil {
-		t.Error(err)
-	} else {
-		if !bytes.Equal(pub, initializedIdentity.PublicKey) {
-			t.Errorf("public key in CSR does not match initializedIdentity.PublicKey")
-		}
-	}
+	pub, err := p.Crypto.GetPublicKeyPEM(testUuid)
+	require.NoError(t, err)
+	assert.Equal(t, initializedIdentity.PublicKey, pub)
 
-	if client.Auth != initializedIdentity.AuthToken {
-		t.Error("initializedIdentity unexpected AuthToken")
-	}
+	csrPublicKey, err := p.Crypto.EncodePublicKey(csr.PublicKey)
+	require.NoError(t, err)
+	assert.Equalf(t, initializedIdentity.PublicKey, csrPublicKey, "public key in CSR does not match initializedIdentity.PublicKey")
+	assert.Equalf(t, auth, client.Auth, "auth token returned by InitIdentity not equal to registered auth token")
+
+	_, ok, err := p.CheckAuth(testUuid, client.Auth)
+	require.NoError(t, err)
+	assert.True(t, ok)
 
 	data := []byte("test")
 
-	signature, err := p.Crypto.Sign(initializedIdentity.PrivateKey, data)
-	if err != nil {
-		t.Fatalf("signing failed: %v", err)
-	}
+	signature, err := p.Crypto.Sign(testUuid, data)
+	require.NoError(t, err)
 
-	verified, err := p.Crypto.Verify(initializedIdentity.PublicKey, data, signature)
-	if err != nil {
-		t.Fatalf("verification failed: %v", err)
-	}
-
-	if !verified {
-		t.Error("signature not verifiable")
-	}
+	verified, err := p.Crypto.Verify(testUuid, data, signature)
+	require.NoError(t, err)
+	assert.Truef(t, verified, "signature not verifiable")
 }
 
 func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
-	secret := make([]byte, 32)
-	rand.Read(secret)
-
-	p, err := NewProtocol(&mockStorageMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -100,25 +73,16 @@ func TestIdentityHandler_InitIdentityBad_ErrAlreadyInitialized(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(test.Uuid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, _, err = idHandler.InitIdentity(testUuid)
+	require.NoError(t, err)
 
-	_, _, err = idHandler.InitIdentity(test.Uuid)
-	if err != h.ErrAlreadyInitialized {
-		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrAlreadyInitialized)
-	}
+	_, _, err = idHandler.InitIdentity(testUuid)
+	assert.Equal(t, h.ErrAlreadyInitialized, err)
 }
 
 func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
-	secret := make([]byte, 32)
-	rand.Read(secret)
-
-	p, err := NewProtocol(&mockStorageMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -127,25 +91,16 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(test.Uuid)
-	if err != test.Error {
-		t.Errorf("unexpected error: %v, expected: %v", err, test.Error)
-	}
+	_, _, err = idHandler.InitIdentity(testUuid)
+	assert.Equal(t, testError, err)
 
-	_, err = p.GetIdentity(test.Uuid)
-	if err != ErrNotExist {
-		t.Errorf("unexpected error: %v, expected: %v", err, ErrNotExist)
-	}
+	_, err = p.LoadIdentity(testUuid)
+	assert.Equal(t, ErrNotExist, err)
 }
 
 func TestIdentityHandler_CreateCSR(t *testing.T) {
-	secret := make([]byte, 32)
-	rand.Read(secret)
-
-	p, err := NewProtocol(&mockStorageMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -154,52 +109,31 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, _, err = idHandler.InitIdentity(test.Uuid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, _, err = idHandler.InitIdentity(testUuid)
+	require.NoError(t, err)
 
-	csrPEM, err := idHandler.CreateCSR(test.Uuid)
-	if err != nil {
-		t.Error(err)
-	}
+	csrPEM, err := idHandler.CreateCSR(testUuid)
+	require.NoError(t, err)
 
 	block, rest := pem.Decode(csrPEM)
-	if block == nil || block.Type != "CERTIFICATE REQUEST" {
-		t.Error("failed to decode PEM block containing CSR")
-	}
-	if len(rest) != 0 {
-		t.Errorf("rest: %q", rest)
-	}
+	require.NotNilf(t, block, "failed to decode PEM block containing CSR")
+	assert.Empty(t, rest)
+	assert.Equal(t, "CERTIFICATE REQUEST", block.Type)
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	initializedIdentity, err := p.GetIdentity(test.Uuid)
-	if err != nil {
-		t.Fatal(err)
-	}
+	initializedIdentity, err := p.LoadIdentity(testUuid)
+	require.NoError(t, err)
 
 	pub, err := p.Crypto.EncodePublicKey(csr.PublicKey)
-	if err != nil {
-		t.Error(err)
-	} else {
-		if !bytes.Equal(pub, initializedIdentity.PublicKey) {
-			t.Errorf("public key in CSR does not match initializedIdentity.PublicKey")
-		}
-	}
+	require.NoError(t, err)
+	assert.Equalf(t, initializedIdentity.PublicKey, pub, "public key in CSR does not match initializedIdentity.PublicKey")
 }
 
 func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
-	secret := make([]byte, 32)
-	rand.Read(secret)
-
-	p, err := NewProtocol(&mockStorageMngr{}, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p, err := NewProtocol(&mockStorageMngr{}, testConf)
+	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:            p,
@@ -207,10 +141,8 @@ func TestIdentityHandler_CreateCSR_Unknown(t *testing.T) {
 		subjectOrganization: "test GmbH",
 	}
 
-	_, err = idHandler.CreateCSR(test.Uuid)
-	if err != h.ErrUnknown {
-		t.Errorf("unexpected error: %v, expected: %v", err, h.ErrUnknown)
-	}
+	_, err = idHandler.CreateCSR(testUuid)
+	assert.Equal(t, h.ErrUnknown, err)
 }
 
 type mockRegistrationClient struct {
@@ -223,5 +155,5 @@ func (m *mockRegistrationClient) registerAuth(uid uuid.UUID, auth string) error 
 }
 
 func (m *mockRegistrationClient) registerAuthBad(uuid.UUID, string) error {
-	return test.Error
+	return testError
 }

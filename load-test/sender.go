@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
+	"path"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	urlpkg "net/url"
 )
 
 type Sender struct {
@@ -23,16 +24,24 @@ type Sender struct {
 }
 
 func NewSender() *Sender {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = httpConnectionPoolSize
+	transport.MaxConnsPerHost = httpConnectionPoolSize
+	transport.MaxIdleConnsPerHost = httpConnectionPoolSize
+
 	return &Sender{
-		httpClient:       &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{
+			Timeout:   httpClientTimeoutSec * time.Second,
+			Transport: transport,
+		},
 		statusCounter:    map[string]int{},
 		statusCounterMtx: &sync.Mutex{},
 		requestTimerMtx:  &sync.Mutex{},
 	}
 }
 
-func (s *Sender) register(clientBaseURL, id, registerAuth string) (auth string, err error) {
-	url := clientBaseURL + "register"
+func (s *Sender) register(url urlpkg.URL, id, registerAuth string) (auth string, csr []byte, err error) {
+	url.Path = path.Join(url.Path, "seal", "register")
 
 	header := http.Header{}
 	header.Set("Content-Type", "application/json")
@@ -44,40 +53,48 @@ func (s *Sender) register(clientBaseURL, id, registerAuth string) (auth string, 
 
 	body, err := json.Marshal(registrationData)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPut, url.String(), bytes.NewBuffer(body))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	req.Header = header
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		log.Infof("registered new identity: %s", id)
-	case http.StatusConflict:
-		log.Debugf("%s: identity already registered", id)
-	default:
-		return "", fmt.Errorf("%s: registration returned: %s", id, resp.Status)
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, fmt.Errorf("%s: unable to read registration response content: %v", id, err)
 	}
 
-	return resp.Header.Get("X-Auth-Token"), nil
+	if resp.StatusCode != http.StatusOK {
+		return "", nil, fmt.Errorf("%s: registration returned: %s: %s", id, resp.Status, respBody)
+	}
+
+	log.Infof("registered new identity: %s", id)
+
+	auth = resp.Header.Get("X-Auth-Token")
+	if auth == "" {
+		return "", nil, fmt.Errorf("%s: registration returned empty X-Auth-Token header: %s", id, resp.Status)
+	}
+
+	return auth, respBody, nil
 }
 
-func (s *Sender) sendRequests(clientBaseURL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
+func (s *Sender) sendRequests(url urlpkg.URL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	clientURL := clientBaseURL + uid + "/cbor/hash"
+	url.Path = path.Join(url.Path, "seal", uid, "cbor/hash")
+
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
@@ -86,17 +103,16 @@ func (s *Sender) sendRequests(clientBaseURL, uid, auth string, offset time.Durat
 
 	for i := 0; i < numberOfRequestsPerID; i++ {
 		wg.Add(1)
-		go s.sendAndCheckResponse(clientURL, header, wg)
+		go s.sendAndCheckResponse(url.String(), header, wg)
 
 		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
 }
 
+var hash = make([]byte, 32)
+
 func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	hash := make([]byte, 32)
-	rand.Read(hash)
 
 	req, err := http.NewRequest(http.MethodPost, clientURL, bytes.NewBuffer(hash))
 	if err != nil {
@@ -113,15 +129,16 @@ func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *
 		log.Error(err)
 		return
 	}
-	duration := time.Now().Sub(start)
+
+	duration := time.Since(start)
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
+	respBodyBytes, _ := ioutil.ReadAll(resp.Body)
 
 	if resp.StatusCode == http.StatusOK {
 		s.addTime(duration)
 	} else {
-		respBodyBytes, _ := ioutil.ReadAll(resp.Body)
 		log.Warnf("%d: %s", resp.StatusCode, respBodyBytes)
 	}
 

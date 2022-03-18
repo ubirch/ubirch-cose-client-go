@@ -30,3 +30,6 @@ build/
 config.json
 
 /venv/
+/main/config.json
+/main/config_test.json
+/main/cpu.prof

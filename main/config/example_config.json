@@ -18,6 +18,9 @@
   "certificateServer": "https://www.test.cert.server.com",
   "certificateServerPubKey": "https://www.test.cert.server.com/pubkey.pem",
   "reloadCertsEveryMinute": true,
+  "ignoreUnknownCerts": true,
   "certifyApiUrl": "http://localhost:8090",
-  "certifyApiAuth": "12345"
+  "certifyApiAuth": "12345",
+  "requestLimit": 200,
+  "requestBacklogLimit": 50
 }
