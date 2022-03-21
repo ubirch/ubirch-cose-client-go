@@ -26,6 +26,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -108,13 +110,14 @@ func main() {
 
 	protocol := NewProtocol(storageManager, conf)
 
-	certClient := &CertificateServerClient{
-		CertificateServerURL:       conf.CertificateServer,
-		CertificateServerPubKeyURL: conf.CertificateServerPubKey,
-		ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
-	}
-
-	skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute, conf.IgnoreUnknownCerts)
+	// fixme
+	//certClient := &CertificateServerClient{
+	//	CertificateServerURL:       conf.CertificateServer,
+	//	CertificateServerPubKeyURL: conf.CertificateServerPubKey,
+	//	ServerTLSCertFingerprints:  conf.ServerTLSCertFingerprints,
+	//}
+	//
+	//skidHandler := NewSkidHandler(certClient.RequestCertificateList, protocol.GetUuidForPublicKey, cryptoCtx.EncodePublicKey, conf.ReloadCertsEveryMinute, conf.IgnoreUnknownCerts)
 
 	certifyApiClient := &CertifyApiClient{
 		CertifyApiURL:  conf.CertifyApiUrl,
@@ -129,7 +132,9 @@ func main() {
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
+	// fixme
+	coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, pseudoGetSKID)
+	//coseSigner, err := NewCoseSigner(cryptoCtx.SignHash, skidHandler.GetSKID)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -145,4 +150,9 @@ func main() {
 	if err = httpServer.Serve(); err != nil {
 		log.Error(err)
 	}
+}
+
+func pseudoGetSKID(uuid.UUID) ([]byte, string, error) {
+	log.Errorf("!!! USING MOCK SKID !!! THIS SHOULD NEVER BE DEPLOYED !!! MUST ROLLBACK IMMEDIATELY !!!")
+	return make([]byte, 8), "", nil
 }
