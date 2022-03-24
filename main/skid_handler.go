@@ -125,7 +125,7 @@ func (s *SkidHandler) handleCertListLoadFail() {
 	s.isCertServerAvailable.Store(false)
 
 	if !s.lastSuccessfulCertLoad.IsZero() {
-		errMsg := fmt.Sprintf("trustList could not be loaded since %s", s.lastSuccessfulCertLoad.Format(timeLayout))
+		errMsg := fmt.Sprintf("trustList could not be loaded since %s (%s ago)", s.lastSuccessfulCertLoad.Format(timeLayout), time.Duration(s.certLoadFailCounter)*s.certLoadInterval)
 
 		if s.certLoadFailCounter < s.maxCertLoadFailCount {
 			// we have not yet reached the maximum amount of failed attempts to load the certificate list,
