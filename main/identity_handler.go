@@ -40,6 +40,8 @@ type IdentityHandler struct {
 }
 
 func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth string, err error) {
+	log.Infof("initialize identity %s", uid)
+
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not check if identity is already initialized: %v", err)
@@ -111,6 +113,8 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
+	log.Infof("create CSR for identity %s", uid)
+
 	keyExists, err := i.Crypto.PrivateKeyExists(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check for existence of private key: %v", err)
@@ -124,8 +128,6 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create CSR: %v", err)
 	}
-
-	log.Info("create CSR for identity %s", uid)
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
