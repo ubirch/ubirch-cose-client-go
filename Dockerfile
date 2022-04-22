@@ -10,7 +10,7 @@ RUN \
     go build -trimpath -ldflags "-buildid= -s -w -X main.Version=$VERSION -X main.Revision=$REVISION" -o main .
 
 
-FROM debian:bullseye
+FROM debian:11.3
 VOLUME /data
 EXPOSE 8080/tcp
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
