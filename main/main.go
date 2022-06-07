@@ -52,7 +52,11 @@ func main() {
 	// parse command-line flags
 	flag.Parse()
 
-	log.SetFormatter(&log.JSONFormatter{})
+	log.SetFormatter(&log.JSONFormatter{
+		FieldMap: log.FieldMap{
+			log.FieldKeyMsg: "message",
+		},
+	})
 	log.Printf("UBIRCH COSE client (version=%s, revision=%s)", Version, Revision)
 	auditlogger.SetServiceName(serviceName)
 
