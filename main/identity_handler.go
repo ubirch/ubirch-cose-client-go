@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-cose-client-go/main/auditlogger"
 
+	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-cose-client-go/main/http-server"
 )
 
@@ -37,6 +38,8 @@ type IdentityHandler struct {
 }
 
 func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth string, err error) {
+	log.Infof("initialize identity %s", uid)
+
 	err = i.Protocol.IsReady()
 	if err != nil {
 		return nil, "", err
@@ -116,6 +119,8 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID) (csrPEM []byte, auth strin
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
+	log.Infof("create CSR for identity %s", uid)
+
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
