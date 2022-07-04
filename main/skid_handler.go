@@ -242,23 +242,25 @@ func (s *SkidHandler) updateSkidStore(newSkidStore map[uuid.UUID]skidCtx) {
 			return
 		}
 
-		invalidCount := countInvalidSKIDs(newSkidStore)
+		invalidSKIDs := getInvalidSKIDs(newSkidStore)
+		invalidSKIDsString, _ := json.Marshal(invalidSKIDs)
 
-		log.Infof("loaded %d matching X.509 public key certificates from trustList (%d invalid): %s", len(newSkidStore), invalidCount, newSKIDs)
+		log.Infof("loaded %d matching X.509 public key certificates from trustList (%d invalid): %s", len(newSkidStore), len(invalidSKIDs), newSKIDs)
 
-		if invalidCount != 0 {
-			log.Warnf("there are %d invalid X.509 public key certificates in the trustList (dscg server)", invalidCount)
+		if len(invalidSKIDs) != 0 {
+			log.Warnf("there are %d invalid X.509 public key certificates in the trustList (dscg server): %s", len(invalidSKIDs), invalidSKIDsString)
 		}
 	}
 }
 
-func countInvalidSKIDs(skidStore map[uuid.UUID]skidCtx) (invalidCount int) {
-	for _, skid := range skidStore {
+func getInvalidSKIDs(skidStore map[uuid.UUID]skidCtx) (invalidSKIDs map[uuid.UUID][]byte) {
+	invalidSKIDs = make(map[uuid.UUID][]byte)
+	for uid, skid := range skidStore {
 		if !skid.Valid {
-			invalidCount++
+			invalidSKIDs[uid] = skid.SKID
 		}
 	}
-	return invalidCount
+	return invalidSKIDs
 }
 
 func (s *SkidHandler) GetSKID(uid uuid.UUID) ([]byte, string, error) {
